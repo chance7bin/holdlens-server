@@ -1,0 +1,5 @@
+spring:
+  config:
+    name: holdlens-server-app
+  profiles:
+    active: dev

@@ -1,0 +1,35 @@
+# Maven / Java
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Runtime / temporary files
+*.pid
+*.tmp
+*.swp
+
+# Local data
+data/
+
+# hidden
+.*/

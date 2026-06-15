@@ -1,0 +1,72 @@
+schema: spec-driven
+context: |
+  本项目是 holdlens-server，Maven 多模块 Java 后端项目。
+
+  基础信息：
+  - groupId: com.echoamoy
+  - artifactId: holdlens-server
+  - version: 1.0.0-SNAPSHOT
+  - Java: 17
+  - Spring Boot: 3.4.3
+  - 主要技术栈：Spring Boot、MyBatis、MySQL、Redis、Docker Compose。
+  - 根包名：com.echoamoy.holdlens.server
+
+  模块边界：
+  - holdlens-server-types：通用类型、枚举、异常和常量。
+  - holdlens-server-api：对外契约、DTO、通用响应结构。
+  - holdlens-server-domain：领域模型、领域服务、领域层 Repository/Port 接口。
+  - holdlens-server-case：用例编排和应用服务。
+  - holdlens-server-infrastructure：Repository/Port 适配器实现、DAO、PO、Redis、Gateway。
+  - holdlens-server-trigger：HTTP Controller、监听器、定时任务等入口适配器。
+  - holdlens-server-app：应用启动类、Spring 配置、资源配置、MyBatis XML。
+
+  架构约定：
+  - 默认遵循 DDD 与六边形架构，依赖方向为 Trigger -> API -> Case -> Domain <- Infrastructure。
+  - Domain 层不得依赖 Spring、MyBatis、JDBC、Redis、MQ、HTTP 客户端等基础设施框架。
+  - Domain 层定义 Repository/Port 接口，Infrastructure 层在 adapter/repository 或 adapter/port 中实现。
+  - Infrastructure 层不得承载业务判断逻辑，只处理技术实现、数据读写和外部系统适配。
+  - MyBatis SQL 默认使用 holdlens-server-app/src/main/resources/mybatis/mapper 下的 Mapper XML。
+  - DAO 接口只声明方法并使用必要绑定注解；除非明确批准，不使用 @Select、@Insert、@Update、@Delete 实现 SQL。
+  - 不创建 persistent 包；Repository 实现放 infrastructure/adapter/repository，DAO 放 infrastructure/dao，PO 放 infrastructure/dao/po。
+
+  OpenSpec 工作流：
+  - OpenSpec 是产品意图、需求、验收标准、设计决策、任务范围、变更历史和完成状态的唯一事实来源。
+  - OpenSpec 产物、实现计划、验证摘要、评审记录和项目文档默认使用简体中文。
+  - 非琐碎变更在编码前必须先创建或更新 OpenSpec change。
+  - 只要求创建或完善 proposal、design、spec、tasks 时，不同时修改生产代码。
+  - 进入代码实现前必须获得用户明确授权，例如“开始实现”“写代码”“按这个方案实现”。
+  - 实现 OpenSpec change 时，需要保持 tasks.md 与实际完成状态一致，并运行 openspec validate --strict <change>。
+  - 如果变更直接覆盖 docs/requirements/**/prd-*.md，需要同步对应 README 的 OpenSpec change 关联和状态。
+
+  运行环境约定：
+  - 默认后端服务由用户启动，端口为 8091；不要自行启动后端应用或改用其他端口。
+  - 如果后端改动需要重新运行 application，告知用户重新运行方式并等待用户处理后再继续验证。
+  - 执行环境、依赖、构建、测试、权限、端口或命令相关工作前，如存在失败或重复排查风险，优先查阅 docs/agent-runbook.md。
+
+  安全与变更约束：
+  - 未经用户明确授权，不读取、打印、上传或修改 SSH、GPG、云厂商、GitHub CLI 等凭据目录。
+  - 未经用户明确授权，不读取、打印或修改 .env、credentials*、secrets* 等敏感文件。
+  - 不执行 curl ... | bash、wget ... | sh 形式安装命令。
+  - 不执行 ssh、scp、nc 等外联命令。
+  - 不安装全局程序，不修改系统目录或 shell 启动文件。
+  - 默认不使用 sed、perl -pi 等命令行全局替换；确需使用时先询问用户并说明必要性。
+  - 除非用户明确要求，不运行 git add、git commit、git push。
+
+rules:
+  proposal:
+    - "默认使用简体中文。"
+    - "说明需求来源、问题背景、范围边界、非目标、用户可见影响和成功标准。"
+    - "非琐碎变更必须先明确是否需要读取 docs/requirements/**/prd-*.md 作为输入。"
+    - "不要把 proposal 写成实现授权；创建 proposal 后等待用户确认。"
+  design:
+    - "涉及领域建模、限界上下文、分层边界、仓储/适配器或跨层设计时，遵循 xfg-ddd-skills 的 DDD/六边形约定。"
+    - "记录当前行为、接口契约、依赖版本、代码风格、隐藏业务规则和兼容性要求。"
+    - "明确数据一致性、事务边界、权限、安全、回滚和发布风险。"
+  specs:
+    - "使用可验证的 SHALL 需求和场景，避免实现细节替代验收标准。"
+    - "新增或变更的行为必须能映射到 tasks.md 的验证项。"
+    - "同一能力只在一个 spec 中维护主事实，避免重复定义。"
+  tasks:
+    - "任务应按最小可验证步骤组织，每项包含明确验证方式。"
+    - "实现阶段同步勾选完成状态，不提前标记未验证任务。"
+    - "完成前必须列出并执行相关质量门；OpenSpec 变更需运行 openspec validate --strict <change>。"
