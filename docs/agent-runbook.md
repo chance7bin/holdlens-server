@@ -94,3 +94,22 @@ mvn -pl mall-trigger -am -Dtest=ApiAccessLogFilterTest -Dsurefire.failIfNoSpecif
 - 验证方式：`ApiAccessLogFilterTest` 相关单元测试执行并通过。
 - 适用范围 / 注意事项：适用于指定测试类且依赖模块可能没有该测试类的 Maven Reactor 命令；不要用它掩盖目标模块测试未执行的问题，需要确认日志中目标测试类实际运行。
 - 记录时间：2026-05-23
+
+### 项目级 `.agents/skills` 可能通过 symlink 指向外部 skill 仓库
+
+- 触发场景：在 `holdlens-server` 中需要加载项目级 skill，例如 `xfg-ddd-skills`，并检查 `.agents/skills` 目录。
+- 症状：只用普通 `find .agents ... -type f -name SKILL.md` 可能找不到 skill 文件，误判为项目未安装该 skill。
+- 根因：`holdlens-server/.agents/skills/xfg-ddd-skills` 是符号链接，指向仓库外的 skill repo；普通 `find` 默认不跟随 symlink 进入目标目录。
+- 已验证解法：
+
+```bash
+cd /Users/binqc/my-folders/codes/holdlens/holdlens-server
+ls -la .agents/skills
+find -L .agents/skills -maxdepth 3 -type f -name SKILL.md -print
+cat .agents/skills/xfg-ddd-skills/SKILL.md
+```
+
+- 下次优先动作：查找项目级 skill 时，先进入对应子项目目录，再检查 `.agents/skills` 是否存在 symlink；需要列出 skill 文件时使用 `find -L`。
+- 验证方式：`ls -la .agents/skills` 能看到 `xfg-ddd-skills -> /Users/binqc/my-folders/codes/github/skills-repo/xfg-ddd-skills`，并且 `cat .agents/skills/xfg-ddd-skills/SKILL.md` 可读取 skill 内容。
+- 适用范围 / 注意事项：适用于 `holdlens-server` 项目级 `.agents/skills`；不要因为根目录或普通 `find` 未发现 `SKILL.md` 就判定 skill 不存在。
+- 记录时间：2026-06-16
