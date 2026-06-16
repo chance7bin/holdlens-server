@@ -149,10 +149,11 @@ Superpowers 相关技能默认不自动加载，也不替代本文件中的 Open
 ### Multi-Agent Collaboration
 
 - 多 Agent 协作默认遵循以下 workflow：
-  1. 先用 OpenSpec 产出或完善 `proposal.md`、`design.md`、`specs/*/spec.md` 和 `tasks.md`。
-  2. 总结假设、开放问题和待用户确认点。
-  3. 等用户明确授权实现后，才进入代码实现。
-  4. 如果变更属于中大型、跨模块、跨端、权限、交易、数据一致性等高风险场景，或用户明确要求规划/执行多 Agent 协作，则加载 `openspec-multi-agent-collaboration` 并按该 skill 组织角色分工、质量门和最终集成。
+  1. 如需求仍模糊、存在多个可行方向，或用户明确要求发散思考，先按 `Superpowers` 中的 `Brainstorming` 规则澄清并收敛范围。
+  2. 先用 OpenSpec 产出或完善 `proposal.md`、`design.md`、`specs/*/spec.md` 和 `tasks.md`。
+  3. 总结假设、开放问题和待用户确认点。
+  4. 等用户明确授权实现后，才进入代码实现。
+  5. 如果变更属于中大型、跨模块、跨端、权限、交易、数据一致性等高风险场景，或用户明确要求规划/执行多 Agent 协作，则加载 `openspec-multi-agent-collaboration` 并按该 skill 组织角色分工、质量门和最终集成。
 - 小修复、小任务默认由单 Agent 完成。
 - `openspec-apply-change` 是 OpenSpec change 的默认实现入口，负责读取 change、推进 `tasks.md`、同步任务状态和处理暂停条件。
 - `openspec-multi-agent-collaboration` 不替代 `openspec-apply-change`；它只在复杂或高风险变更中补充角色分工、契约先行、评审和集成收口。
@@ -162,18 +163,9 @@ Superpowers 相关技能默认不自动加载，也不替代本文件中的 Open
 ### OpenSpec Workflow
 
 - 代码实现默认应从 OpenSpec 派生，优先使用 `openspec-apply-change`。
-- 创建新的 OpenSpec change 前，优先从 `docs/requirements/prd-*.md` 中的 PRD 开始。
-- 将 PRD/需求文档视为 `openspec propose` 的输入材料，而不是 OpenSpec proposal、design、spec 或 tasks 产物的替代品。
 - 如果没有 PRD 且想法仍模糊，先探索和澄清；如果范围和成功标准已清楚，询问是否可以基于当前上下文创建 OpenSpec change。
-- 创建或更新 OpenSpec 产物后，总结已记录的决策、假设、开放问题和仍需用户确认的点，并说明是否已经可以等待实现授权。
+- 创建或更新 OpenSpec 产物后，必须直接列出需要用户确认的点，包括关键假设、开放问题、范围边界和会影响实现/验收的决策；如果没有需要确认的点，也应明确说明“当前无待确认事项”，并说明是否已经可以等待实现授权。
 - 非琐碎变更编码前必须先创建或更新 OpenSpec change；实现时遵循 `openspec-apply-change`。
-
-### PRD Linkage
-
-- 如果 OpenSpec change 直接覆盖 `docs/requirements/**/prd-*.md` 下的 PRD，应更新对应版本 README 的 `关联 OpenSpec Change`。
-- 只关联 proposal、design、spec 或 tasks 直接覆盖的 PRD；共享数据模型、命名边界或下游影响本身，不代表所有受影响 PRD 都应关联。
-- 关联 PRD 的实现开始时，将状态更新为 `实现中`；关联范围完成并通过实现、测试、评审和 OpenSpec 验证后，将状态更新为 `已实现`。
-- 如果实现过程中发现覆盖范围变化，应同步更新 README 中的关联关系和状态。
 
 ### Command and Runbook Rules
 
@@ -204,7 +196,6 @@ Superpowers 相关技能默认不自动加载，也不替代本文件中的 Open
 
 - 在声明工作已经修复、完成、可提交、可推送或可归档前，根据风险运行相关单元测试、集成测试、回归测试、build、lint、typecheck 或 package 命令。
 - OpenSpec 相关变更必须确认 `tasks.md` 与实际完成状态一致，并运行 `openspec validate --strict <change>`。
-- 直接关联 PRD 的变更，必须确认 PRD README 状态和 OpenSpec change 关联准确。
 - 对鉴权、支付、权限、数据暴露、外部输入或集成边界变更，必须明确检查安全影响。
 - 对较大、风险较高、跨模块或面向用户的变更，用产品、工程、QA、发布、安全五个视角做轻量评审。
 - 如果检查失败，先复现并定位原因，再做最小修复并重新测试。
