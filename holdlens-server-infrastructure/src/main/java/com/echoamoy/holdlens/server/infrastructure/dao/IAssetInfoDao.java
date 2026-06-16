@@ -1,0 +1,22 @@
+package com.echoamoy.holdlens.server.infrastructure.dao;
+
+import com.echoamoy.holdlens.server.infrastructure.dao.po.AssetInfoPO;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+
+@Mapper
+public interface IAssetInfoDao {
+
+    AssetInfoPO selectById(@Param("id") Long id);
+
+    List<AssetInfoPO> selectByUserId(@Param("userId") Long userId);
+
+    AssetInfoPO selectByUserIdAndAssetCodeAndAssetKind(@Param("userId") Long userId,
+                                                       @Param("assetCode") String assetCode,
+                                                       @Param("assetKind") String assetKind);
+
+    List<AssetInfoPO> selectByUserIdAndAssetName(@Param("userId") Long userId, @Param("assetName") String assetName);
+
+}

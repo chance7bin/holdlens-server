@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.echoamoy.holdlens.server.infrastructure.dao.IFundTopHoldingDao">
+
+    <resultMap id="BaseResultMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.FundTopHoldingPO">
+        <id column="id" property="id"/>
+        <result column="fund_detail_item_id" property="fundDetailItemId"/>
+        <result column="snapshot_id" property="snapshotId"/>
+        <result column="rank_no" property="rankNo"/>
+        <result column="stock_name" property="stockName"/>
+        <result column="stock_code" property="stockCode"/>
+        <result column="market" property="market"/>
+        <result column="daily_return" property="dailyReturn"/>
+        <result column="holding_ratio" property="holdingRatio"/>
+        <result column="quarter_change_type" property="quarterChangeType"/>
+        <result column="quarter_change_value" property="quarterChangeValue"/>
+        <result column="missing_reasons_json" property="missingReasonsJson"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, fund_detail_item_id, snapshot_id, rank_no, stock_name, stock_code, market,
+        daily_return, holding_ratio, quarter_change_type, quarter_change_value,
+        missing_reasons_json, create_time, update_time
+    </sql>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM fund_top_holding
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByFundDetailItemId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM fund_top_holding
+        WHERE fund_detail_item_id = #{fundDetailItemId}
+        ORDER BY rank_no ASC
+    </select>
+
+    <select id="selectBySnapshotId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM fund_top_holding
+        WHERE snapshot_id = #{snapshotId}
+        ORDER BY fund_detail_item_id ASC, rank_no ASC
+    </select>
+
+    <select id="selectByStockCode" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM fund_top_holding
+        WHERE stock_code = #{stockCode}
+        ORDER BY id DESC
+    </select>
+
+</mapper>

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.echoamoy.holdlens.server.infrastructure.dao.IFundDetailItemDao">
+
+    <resultMap id="BaseResultMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailItemPO">
+        <id column="id" property="id"/>
+        <result column="snapshot_id" property="snapshotId"/>
+        <result column="user_id" property="userId"/>
+        <result column="fund_asset_id" property="fundAssetId"/>
+        <result column="fund_code" property="fundCode"/>
+        <result column="fund_name" property="fundName"/>
+        <result column="buy_status" property="buyStatus"/>
+        <result column="daily_purchase_limit" property="dailyPurchaseLimit"/>
+        <result column="returns_as_of" property="returnsAsOf"/>
+        <result column="top_holdings_as_of" property="topHoldingsAsOf"/>
+        <result column="public_holdings_status" property="publicHoldingsStatus"/>
+        <result column="one_month_return" property="oneMonthReturn"/>
+        <result column="three_months_return" property="threeMonthsReturn"/>
+        <result column="six_months_return" property="sixMonthsReturn"/>
+        <result column="one_year_return" property="oneYearReturn"/>
+        <result column="three_years_return" property="threeYearsReturn"/>
+        <result column="field_sources_json" property="fieldSourcesJson"/>
+        <result column="missing_reasons_json" property="missingReasonsJson"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, snapshot_id, user_id, fund_asset_id, fund_code, fund_name, buy_status,
+        daily_purchase_limit, returns_as_of, top_holdings_as_of, public_holdings_status,
+        one_month_return, three_months_return, six_months_return, one_year_return,
+        three_years_return, field_sources_json, missing_reasons_json, create_time, update_time
+    </sql>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM fund_detail_item
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectBySnapshotId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM fund_detail_item
+        WHERE snapshot_id = #{snapshotId}
+        ORDER BY id ASC
+    </select>
+
+    <select id="selectByUserIdAndFundCode" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM fund_detail_item
+        WHERE user_id = #{userId}
+          AND fund_code = #{fundCode}
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+</mapper>
