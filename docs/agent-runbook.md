@@ -113,3 +113,20 @@ cat .agents/skills/xfg-ddd-skills/SKILL.md
 - 验证方式：`ls -la .agents/skills` 能看到 `xfg-ddd-skills -> /Users/binqc/my-folders/codes/github/skills-repo/xfg-ddd-skills`，并且 `cat .agents/skills/xfg-ddd-skills/SKILL.md` 可读取 skill 内容。
 - 适用范围 / 注意事项：适用于 `holdlens-server` 项目级 `.agents/skills`；不要因为根目录或普通 `find` 未发现 `SKILL.md` 就判定 skill 不存在。
 - 记录时间：2026-06-16
+
+### 新增测试模块时固定 Surefire 版本
+
+- 触发场景：给原本没有测试配置的 Maven 子模块新增 JUnit 4 测试并执行 `mvn -pl <module> -am test`。
+- 症状：Maven 可能尝试解析默认 `maven-surefire-plugin` 3.5.2，并因本地仓库 `.part.lock` 路径不存在或网络受限失败。
+- 根因：子模块未显式固定 Surefire 版本，继承的默认插件版本需要下载新的 provider 依赖；当前项目 app 模块已使用 `maven-surefire-plugin:2.6`。
+- 已验证解法：
+
+```bash
+# 在新增测试的子模块 pom.xml 中显式配置 maven-surefire-plugin 2.6
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home PATH=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home/bin:$PATH mvn -q -pl holdlens-server-case -am test
+```
+
+- 下次优先动作：为新增 JUnit 4 测试的子模块同步配置 Surefire 2.6，保持与 app 模块一致。
+- 验证方式：`holdlens-server-case` 模块 4 个测试通过。
+- 适用范围 / 注意事项：适用于当前 Maven 父工程中的 JUnit 4 测试；如果后续统一升级测试栈，应通过单独变更处理。
+- 记录时间：2026-06-16
