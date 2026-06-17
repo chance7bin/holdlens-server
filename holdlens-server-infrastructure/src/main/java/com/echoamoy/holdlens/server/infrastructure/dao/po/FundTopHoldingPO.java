@@ -17,19 +17,46 @@ public class FundTopHoldingPO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /** 基金重仓ID */
     private Long id;
+
+    /** 基金详情ID */
     private Long fundDetailItemId;
+
+    /** 快照ID */
     private Long snapshotId;
+
+    /** 重仓排名 */
     private Integer rankNo;
+
+    /** 股票简称 */
     private String stockName;
+
+    /** 股票代码 */
     private String stockCode;
+
+    /** 市场标识 */
     private String market;
+
+    /** 当日涨跌幅 */
     private BigDecimal dailyReturn;
+
+    /** 持仓占比 */
     private BigDecimal holdingRatio;
+
+    /** 较上季度变化类型：new/increased/decreased/unchanged/removed/not_applicable/unknown */
     private String quarterChangeType;
+
+    /** 较上季度变化值 */
     private BigDecimal quarterChangeValue;
+
+    /** 字段缺失原因JSON */
     private String missingReasonsJson;
+
+    /** 创建时间 */
     private Date createTime;
+
+    /** 更新时间 */
     private Date updateTime;
 
 }

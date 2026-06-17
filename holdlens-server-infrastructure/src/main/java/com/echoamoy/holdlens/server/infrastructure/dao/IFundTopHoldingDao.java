@@ -9,6 +9,8 @@ import java.util.List;
 @Mapper
 public interface IFundTopHoldingDao {
 
+    void insert(FundTopHoldingPO fundTopHoldingPO);
+
     FundTopHoldingPO selectById(@Param("id") Long id);
 
     List<FundTopHoldingPO> selectByFundDetailItemId(@Param("fundDetailItemId") Long fundDetailItemId);

@@ -9,10 +9,12 @@ import java.util.List;
 @Mapper
 public interface IFundDetailItemDao {
 
+    void insert(FundDetailItemPO fundDetailItemPO);
+
     FundDetailItemPO selectById(@Param("id") Long id);
 
     List<FundDetailItemPO> selectBySnapshotId(@Param("snapshotId") Long snapshotId);
 
-    FundDetailItemPO selectByUserIdAndFundCode(@Param("userId") Long userId, @Param("fundCode") String fundCode);
+    List<FundDetailItemPO> selectLatestByFundCodes(@Param("fundCodes") java.util.Collection<String> fundCodes);
 
 }

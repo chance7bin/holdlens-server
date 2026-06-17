@@ -38,10 +38,6 @@
         </dependency>
         <dependency>
             <groupId>com.echoamoy</groupId>
-            <artifactId>holdlens-server-domain</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.echoamoy</groupId>
             <artifactId>holdlens-server-case</artifactId>
         </dependency>
     </dependencies>

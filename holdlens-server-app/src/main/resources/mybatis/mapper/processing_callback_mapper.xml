@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.echoamoy.holdlens.server.infrastructure.dao.IProcessingCallbackDao">
+
+    <insert id="insert" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.ProcessingCallbackPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO processing_callback (
+            server_task_id, idempotency_key, callback_status, process_status, error_summary
+        ) VALUES (
+            #{serverTaskId}, #{idempotencyKey}, #{callbackStatus}, #{processStatus}, #{errorSummary}
+        )
+    </insert>
+
+    <update id="updateProcessStatus">
+        UPDATE processing_callback
+        SET process_status = #{processStatus},
+            error_summary = #{errorSummary},
+            update_time = NOW()
+        WHERE server_task_id = #{serverTaskId}
+          AND idempotency_key = #{idempotencyKey}
+    </update>
+
+</mapper>

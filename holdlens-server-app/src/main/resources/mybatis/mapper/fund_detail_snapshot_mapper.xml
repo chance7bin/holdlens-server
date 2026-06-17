@@ -4,7 +4,6 @@
 
     <resultMap id="BaseResultMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailSnapshotPO">
         <id column="id" property="id"/>
-        <result column="user_id" property="userId"/>
         <result column="schema_version" property="schemaVersion"/>
         <result column="generated_at" property="generatedAt"/>
         <result column="snapshot_status" property="snapshotStatus"/>
@@ -16,21 +15,24 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, user_id, schema_version, generated_at, snapshot_status, source_type,
+        id, schema_version, generated_at, snapshot_status, source_type,
         source_ref_id, data_sources_json, create_time, update_time
     </sql>
+
+    <insert id="insert" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailSnapshotPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO fund_detail_snapshot (
+            schema_version, generated_at, snapshot_status, source_type,
+            source_ref_id, data_sources_json
+        ) VALUES (
+            #{schemaVersion}, #{generatedAt}, #{snapshotStatus}, #{sourceType},
+            #{sourceRefId}, #{dataSourcesJson}
+        )
+    </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM fund_detail_snapshot
         WHERE id = #{id}
-    </select>
-
-    <select id="selectByUserId" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/>
-        FROM fund_detail_snapshot
-        WHERE user_id = #{userId}
-        ORDER BY generated_at DESC, id DESC
     </select>
 
     <select id="selectBySourceRefId" resultMap="BaseResultMap">

@@ -9,9 +9,9 @@ import java.util.List;
 @Mapper
 public interface IAgentWarningDao {
 
-    AgentWarningPO selectById(@Param("id") Long id);
+    void insert(AgentWarningPO agentWarningPO);
 
-    List<AgentWarningPO> selectByUserId(@Param("userId") Long userId);
+    AgentWarningPO selectById(@Param("id") Long id);
 
     List<AgentWarningPO> selectBySnapshotId(@Param("snapshotId") Long snapshotId);
 

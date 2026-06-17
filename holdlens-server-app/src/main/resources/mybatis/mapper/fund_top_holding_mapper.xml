@@ -25,6 +25,18 @@
         missing_reasons_json, create_time, update_time
     </sql>
 
+    <insert id="insert" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundTopHoldingPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO fund_top_holding (
+            fund_detail_item_id, snapshot_id, rank_no, stock_name, stock_code, market,
+            daily_return, holding_ratio, quarter_change_type, quarter_change_value,
+            missing_reasons_json
+        ) VALUES (
+            #{fundDetailItemId}, #{snapshotId}, #{rankNo}, #{stockName}, #{stockCode}, #{market},
+            #{dailyReturn}, #{holdingRatio}, #{quarterChangeType}, #{quarterChangeValue},
+            #{missingReasonsJson}
+        )
+    </insert>
+
     <select id="selectById" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM fund_top_holding

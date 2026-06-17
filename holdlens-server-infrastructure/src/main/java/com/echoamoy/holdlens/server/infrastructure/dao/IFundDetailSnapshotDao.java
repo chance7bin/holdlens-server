@@ -9,9 +9,9 @@ import java.util.List;
 @Mapper
 public interface IFundDetailSnapshotDao {
 
-    FundDetailSnapshotPO selectById(@Param("id") Long id);
+    void insert(FundDetailSnapshotPO fundDetailSnapshotPO);
 
-    List<FundDetailSnapshotPO> selectByUserId(@Param("userId") Long userId);
+    FundDetailSnapshotPO selectById(@Param("id") Long id);
 
     List<FundDetailSnapshotPO> selectBySourceRefId(@Param("sourceRefId") String sourceRefId);
 
