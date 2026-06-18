@@ -6,38 +6,29 @@
         <id column="id" property="id"/>
         <result column="server_task_id" property="serverTaskId"/>
         <result column="task_type" property="taskType"/>
-        <result column="fund_code_count" property="fundCodeCount"/>
-        <result column="source_type" property="sourceType"/>
-        <result column="source_ref_id" property="sourceRefId"/>
+        <result column="task_params_json" property="taskParamsJson"/>
         <result column="status" property="status"/>
-        <result column="agent_task_ref" property="agentTaskRef"/>
         <result column="error_summary" property="errorSummary"/>
-        <result column="callback_diagnostic_status" property="callbackDiagnosticStatus"/>
         <result column="create_time" property="createTime"/>
         <result column="update_time" property="updateTime"/>
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, server_task_id, task_type, fund_code_count, source_type, source_ref_id,
-        status, agent_task_ref, error_summary, callback_diagnostic_status, create_time, update_time
+        id, server_task_id, task_type, task_params_json, status, error_summary, create_time, update_time
     </sql>
 
     <insert id="insert" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.ProcessingTaskPO" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO processing_task (
-            server_task_id, task_type, fund_code_count, source_type, source_ref_id,
-            status, agent_task_ref, error_summary, callback_diagnostic_status
+            server_task_id, task_type, task_params_json, status, error_summary
         ) VALUES (
-            #{serverTaskId}, #{taskType}, #{fundCodeCount}, #{sourceType}, #{sourceRefId},
-            #{status}, #{agentTaskRef}, #{errorSummary}, #{callbackDiagnosticStatus}
+            #{serverTaskId}, #{taskType}, #{taskParamsJson}, #{status}, #{errorSummary}
         )
     </insert>
 
     <update id="update" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.ProcessingTaskPO">
         UPDATE processing_task
         SET status = #{status},
-            agent_task_ref = #{agentTaskRef},
             error_summary = #{errorSummary},
-            callback_diagnostic_status = #{callbackDiagnosticStatus},
             update_time = NOW()
         WHERE server_task_id = #{serverTaskId}
     </update>

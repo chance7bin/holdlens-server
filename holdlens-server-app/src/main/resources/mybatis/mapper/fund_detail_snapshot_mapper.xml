@@ -7,7 +7,6 @@
         <result column="schema_version" property="schemaVersion"/>
         <result column="generated_at" property="generatedAt"/>
         <result column="snapshot_status" property="snapshotStatus"/>
-        <result column="source_type" property="sourceType"/>
         <result column="source_ref_id" property="sourceRefId"/>
         <result column="data_sources_json" property="dataSourcesJson"/>
         <result column="create_time" property="createTime"/>
@@ -15,17 +14,15 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, schema_version, generated_at, snapshot_status, source_type,
-        source_ref_id, data_sources_json, create_time, update_time
+        id, schema_version, generated_at, snapshot_status, source_ref_id,
+        data_sources_json, create_time, update_time
     </sql>
 
     <insert id="insert" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailSnapshotPO" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO fund_detail_snapshot (
-            schema_version, generated_at, snapshot_status, source_type,
-            source_ref_id, data_sources_json
+            schema_version, generated_at, snapshot_status, source_ref_id, data_sources_json
         ) VALUES (
-            #{schemaVersion}, #{generatedAt}, #{snapshotStatus}, #{sourceType},
-            #{sourceRefId}, #{dataSourcesJson}
+            #{schemaVersion}, #{generatedAt}, #{snapshotStatus}, #{sourceRefId}, #{dataSourcesJson}
         )
     </insert>
 

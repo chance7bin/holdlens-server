@@ -110,19 +110,14 @@ CREATE TABLE `processing_task` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '处理任务ID',
     `server_task_id` VARCHAR(100) NOT NULL COMMENT 'server任务标识',
     `task_type` VARCHAR(50) NOT NULL COMMENT '任务类型：fund_detail_refresh',
-    `fund_code_count` INT NOT NULL DEFAULT 0 COMMENT '基金代码数量',
-    `source_type` VARCHAR(30) NOT NULL DEFAULT 'system' COMMENT '来源类型',
-    `source_ref_id` VARCHAR(100) DEFAULT NULL COMMENT '来源引用ID',
+    `task_params_json` TEXT DEFAULT NULL COMMENT '安全任务参数摘要JSON',
     `status` VARCHAR(30) NOT NULL DEFAULT 'created' COMMENT '状态：created/dispatched/running/succeeded/partial_failed/failed/dispatch_failed/callback_failed',
-    `agent_task_ref` VARCHAR(100) DEFAULT NULL COMMENT 'agent任务引用',
     `error_summary` VARCHAR(1000) DEFAULT NULL COMMENT '安全错误摘要',
-    `callback_diagnostic_status` VARCHAR(30) DEFAULT NULL COMMENT '回调诊断状态',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_processing_task_server_task_id` (`server_task_id`),
-    KEY `idx_processing_task_type_status` (`task_type`, `status`),
-    KEY `idx_processing_task_source_ref_id` (`source_ref_id`)
+    KEY `idx_processing_task_type_status` (`task_type`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='处理任务表';
 
 -- ----------------------------
@@ -152,7 +147,6 @@ CREATE TABLE `fund_detail_snapshot` (
     `schema_version` VARCHAR(100) NOT NULL COMMENT 'agent契约版本',
     `generated_at` DATETIME NOT NULL COMMENT '快照生成时间',
     `snapshot_status` VARCHAR(20) NOT NULL DEFAULT 'success' COMMENT '快照状态：success/partial/failed',
-    `source_type` VARCHAR(30) NOT NULL DEFAULT 'agent' COMMENT '来源类型：agent/api_sync',
     `source_ref_id` VARCHAR(100) DEFAULT NULL COMMENT '来源引用ID',
     `data_sources_json` TEXT DEFAULT NULL COMMENT '数据来源元信息JSON',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -217,27 +211,21 @@ CREATE TABLE `fund_top_holding` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='基金前十大重仓表';
 
 -- ----------------------------
--- 处理警告表
+-- 处理日志表
 -- ----------------------------
-DROP TABLE IF EXISTS `agent_warning`;
-CREATE TABLE `agent_warning` (
-    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '警告ID',
-    `warning_type` VARCHAR(30) NOT NULL COMMENT '警告类型：parse/refresh/ocr/import/agent',
-    `source_type` VARCHAR(30) DEFAULT NULL COMMENT '来源类型：manual/file_import/ocr/agent/api_sync',
+DROP TABLE IF EXISTS `processing_log`;
+CREATE TABLE `processing_log` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '处理日志ID',
     `source_ref_id` VARCHAR(100) DEFAULT NULL COMMENT '来源引用ID',
-    `snapshot_id` BIGINT DEFAULT NULL COMMENT '基金快照ID',
-    `fund_code` VARCHAR(50) DEFAULT NULL COMMENT '基金代码',
-    `code` VARCHAR(100) NOT NULL COMMENT '警告代码',
-    `message` VARCHAR(1000) NOT NULL COMMENT '警告消息',
-    `source_section` VARCHAR(200) DEFAULT NULL COMMENT '来源章节',
-    `source_row_number` INT DEFAULT NULL COMMENT '来源行号',
+    `module` VARCHAR(50) NOT NULL COMMENT '处理模块',
+    `event` VARCHAR(100) NOT NULL COMMENT '处理事件',
+    `message` VARCHAR(1000) NOT NULL COMMENT '安全诊断消息',
     `severity` VARCHAR(20) NOT NULL DEFAULT 'warning' COMMENT '级别：info/warning/error',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
-    KEY `idx_agent_warning_snapshot_id` (`snapshot_id`),
-    KEY `idx_agent_warning_fund_code` (`fund_code`),
-    KEY `idx_agent_warning_source_ref_id` (`source_ref_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='处理警告表';
+    KEY `idx_processing_log_source_ref_id` (`source_ref_id`),
+    KEY `idx_processing_log_module_event` (`module`, `event`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='处理日志表';
 
 SET FOREIGN_KEY_CHECKS = 1;

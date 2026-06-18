@@ -22,17 +22,7 @@ public class FundRefreshTaskDTO implements Serializable {
 
     private String status;
 
-    private Integer fundCodeCount;
-
-    private String sourceType;
-
-    private String sourceRefId;
-
-    private String agentTaskRef;
-
     private String errorSummary;
-
-    private String callbackDiagnosticStatus;
 
     private Date createTime;
 

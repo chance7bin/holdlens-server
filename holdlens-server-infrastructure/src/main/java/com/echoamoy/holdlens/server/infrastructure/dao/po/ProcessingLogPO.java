@@ -12,39 +12,24 @@ import java.util.Date;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AgentWarningPO implements Serializable {
+public class ProcessingLogPO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /** 警告ID */
+    /** 处理日志ID */
     private Long id;
 
-    /** 警告类型：parse/refresh/ocr/import/agent */
-    private String warningType;
-
-    /** 来源类型：manual/file_import/ocr/agent/api_sync */
-    private String sourceType;
-
-    /** 来源引用ID */
+    /** 来源引用ID，当前对应 processing_task.server_task_id */
     private String sourceRefId;
 
-    /** 基金快照ID */
-    private Long snapshotId;
+    /** 处理模块 */
+    private String module;
 
-    /** 基金代码 */
-    private String fundCode;
+    /** 处理事件 */
+    private String event;
 
-    /** 警告代码 */
-    private String code;
-
-    /** 警告消息 */
+    /** 安全诊断消息 */
     private String message;
-
-    /** 来源章节 */
-    private String sourceSection;
-
-    /** 来源行号 */
-    private Integer sourceRowNumber;
 
     /** 级别：info/warning/error */
     private String severity;

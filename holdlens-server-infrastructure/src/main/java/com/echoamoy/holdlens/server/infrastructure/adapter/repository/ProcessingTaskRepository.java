@@ -60,13 +60,9 @@ public class ProcessingTaskRepository implements IProcessingTaskRepository {
                 .id(entity.getId())
                 .serverTaskId(entity.getServerTaskId())
                 .taskType(entity.getTaskType())
-                .fundCodeCount(entity.getFundCodeCount())
-                .sourceType(entity.getSourceType())
-                .sourceRefId(entity.getSourceRefId())
+                .taskParamsJson(entity.getTaskParamsJson())
                 .status(entity.getStatus() == null ? null : entity.getStatus().getCode())
-                .agentTaskRef(entity.getAgentTaskRef())
                 .errorSummary(entity.getErrorSummary())
-                .callbackDiagnosticStatus(entity.getCallbackDiagnosticStatus())
                 .build();
     }
 
@@ -78,13 +74,9 @@ public class ProcessingTaskRepository implements IProcessingTaskRepository {
                 .id(po.getId())
                 .serverTaskId(po.getServerTaskId())
                 .taskType(po.getTaskType())
-                .fundCodeCount(po.getFundCodeCount())
-                .sourceType(po.getSourceType())
-                .sourceRefId(po.getSourceRefId())
+                .taskParamsJson(po.getTaskParamsJson())
                 .status(ProcessingTaskStatusEnumVO.fromCode(po.getStatus()))
-                .agentTaskRef(po.getAgentTaskRef())
                 .errorSummary(po.getErrorSummary())
-                .callbackDiagnosticStatus(po.getCallbackDiagnosticStatus())
                 .createTime(po.getCreateTime())
                 .updateTime(po.getUpdateTime())
                 .build();

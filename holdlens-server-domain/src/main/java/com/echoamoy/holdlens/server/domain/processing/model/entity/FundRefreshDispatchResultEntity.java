@@ -12,7 +12,6 @@ import lombok.NoArgsConstructor;
 public class FundRefreshDispatchResultEntity {
 
     private boolean accepted;
-    private String agentTaskRef;
     private String agentStatus;
     private String errorSummary;
 

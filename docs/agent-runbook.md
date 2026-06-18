@@ -130,3 +130,20 @@ JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home PATH=/Libra
 - 验证方式：`holdlens-server-case` 模块 4 个测试通过。
 - 适用范围 / 注意事项：适用于当前 Maven 父工程中的 JUnit 4 测试；如果后续统一升级测试栈，应通过单独变更处理。
 - 记录时间：2026-06-16
+
+### 避免并行执行多个 Maven Reactor 命令
+
+- 触发场景：同时执行多个 `mvn -pl ... -am ...` 命令，例如一边跑 app 聚合编译，一边跑 case 指定测试。
+- 症状：其中一个 Maven 进程可能假性失败，报 `domain` 包不存在、Lombok builder/getter 缺失或依赖类文件找不到；串行重跑同一命令可通过。
+- 根因：多个 Maven reactor 进程同时读写同一工作区 `target` 产物，导致依赖模块编译输出被另一个进程清理或覆盖。
+- 已验证解法：
+
+```bash
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home PATH=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home/bin:$PATH mvn -q -pl holdlens-server-app -am test
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home PATH=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home/bin:$PATH mvn -q -pl holdlens-server-case -am -Dtest=AgentFundRefreshCaseImplTest -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+- 下次优先动作：后端 Maven reactor 命令串行执行；不要用工具并行同时跑多个 `mvn -pl ... -am ...`。
+- 验证方式：同一命令串行重跑后 case 指定测试和 app 聚合测试均通过。
+- 适用范围 / 注意事项：适用于当前多模块 Maven 工作区；普通 `rg`、`cat` 等只读命令仍可并行。
+- 记录时间：2026-06-18

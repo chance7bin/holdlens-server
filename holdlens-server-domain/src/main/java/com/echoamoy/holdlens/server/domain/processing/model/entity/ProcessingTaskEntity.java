@@ -21,26 +21,19 @@ public class ProcessingTaskEntity {
     private Long id;
     private String serverTaskId;
     private String taskType;
-    private Integer fundCodeCount;
-    private String sourceType;
-    private String sourceRefId;
+    private String taskParamsJson;
     private ProcessingTaskStatusEnumVO status;
-    private String agentTaskRef;
     private String errorSummary;
-    private String callbackDiagnosticStatus;
     private Date createTime;
     private Date updateTime;
 
-    public void transitTo(ProcessingTaskStatusEnumVO targetStatus, String nextAgentTaskRef, String nextErrorSummary) {
+    public void transitTo(ProcessingTaskStatusEnumVO targetStatus, String nextErrorSummary) {
         ProcessingTaskStatusEnumVO current = status == null ? ProcessingTaskStatusEnumVO.CREATED : status;
         if (!current.canTransitTo(targetStatus)) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(),
                     "任务状态不允许从 " + current.getCode() + " 流转到 " + targetStatus.getCode());
         }
         this.status = targetStatus;
-        if (nextAgentTaskRef != null) {
-            this.agentTaskRef = nextAgentTaskRef;
-        }
         if (nextErrorSummary != null) {
             this.errorSummary = nextErrorSummary;
         }

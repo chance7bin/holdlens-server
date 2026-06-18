@@ -121,17 +121,13 @@ public class AgentFundRefreshCallbackCommand {
     @AllArgsConstructor
     public static class RefreshWarning {
 
-        private String fundCode;
+        private String module;
 
-        private String code;
+        private String event;
 
         private String message;
 
         private String severity;
-
-        private String sourceSection;
-
-        private Integer sourceRowNumber;
 
     }
 

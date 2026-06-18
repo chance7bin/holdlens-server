@@ -35,7 +35,9 @@ public class AgentFundRefreshCaseImplTest {
                 .fundCodes(List.of("000001", "000001", " 161725 "))
                 .build());
         Assert.assertEquals("running", result.getStatus());
-        Assert.assertEquals(2, result.getFundCodeCount().intValue());
+        ProcessingTaskEntity savedTask = processingRepository.queryTask(result.getServerTaskId());
+        Assert.assertTrue(savedTask.getTaskParamsJson().contains("\"fundCodeCount\":2"));
+        Assert.assertTrue(savedTask.getTaskParamsJson().contains("\"trigger\":\"system\""));
         Assert.assertEquals(List.of("000001", "161725"), agentPort.lastCommand.getFundCodes());
         Assert.assertEquals(Boolean.TRUE, agentPort.lastCommand.getAllowNetwork());
     }
@@ -61,8 +63,7 @@ public class AgentFundRefreshCaseImplTest {
         ProcessingTaskEntity task = ProcessingTaskEntity.builder()
                 .serverTaskId("task_1")
                 .taskType(ProcessingTaskEntity.FUND_DETAIL_REFRESH)
-                .fundCodeCount(1)
-                .sourceType("system")
+                .taskParamsJson("{\"fundCodeCount\":1,\"trigger\":\"system\"}")
                 .status(ProcessingTaskStatusEnumVO.RUNNING)
                 .build();
         processingRepository.saveTask(task);
@@ -77,6 +78,12 @@ public class AgentFundRefreshCaseImplTest {
                         .fundCode("000001")
                         .fundName("测试基金")
                         .build()))
+                .refreshWarnings(List.of(AgentFundRefreshCallbackCommand.RefreshWarning.builder()
+                        .module("fund_refresh")
+                        .event("provider_fund_failed")
+                        .message("provider failed for one fund")
+                        .severity("error")
+                        .build()))
                 .build();
 
         FundRefreshTaskResult first = refreshCase.handleCallback(callback);
@@ -88,7 +95,7 @@ public class AgentFundRefreshCaseImplTest {
     }
 
     @Test
-    public void handleCallbackFailedKeepsDiagnosticStatusWithoutSavingFundData() throws Exception {
+    public void handleCallbackFailedUsesMainStatusWithoutSavingFundData() throws Exception {
         FakeProcessingRepository processingRepository = new FakeProcessingRepository();
         FakeFundDataRepository fundDataRepository = new FakeFundDataRepository();
         AgentFundRefreshCaseImpl refreshCase = newCase(processingRepository, new FakeAgentPort(true, "running"), fundDataRepository);
@@ -96,7 +103,7 @@ public class AgentFundRefreshCaseImplTest {
                 .serverTaskId("task_callback_failed")
                 .taskType(ProcessingTaskEntity.FUND_DETAIL_REFRESH)
                 .status(ProcessingTaskStatusEnumVO.RUNNING)
-                .fundCodeCount(1)
+                .taskParamsJson("{\"fundCodeCount\":1,\"trigger\":\"system\"}")
                 .build());
 
         FundRefreshTaskResult result = refreshCase.handleCallback(AgentFundRefreshCallbackCommand.builder()
@@ -108,7 +115,7 @@ public class AgentFundRefreshCaseImplTest {
                 .build());
 
         Assert.assertEquals("callback_failed", result.getStatus());
-        Assert.assertEquals("callback_failed", result.getCallbackDiagnosticStatus());
+        Assert.assertEquals("server callback failed after retries", result.getErrorSummary());
         Assert.assertEquals(0, fundDataRepository.saveCount);
     }
 
@@ -120,7 +127,7 @@ public class AgentFundRefreshCaseImplTest {
                 .serverTaskId("task_bad_schema")
                 .taskType(ProcessingTaskEntity.FUND_DETAIL_REFRESH)
                 .status(ProcessingTaskStatusEnumVO.RUNNING)
-                .fundCodeCount(1)
+                .taskParamsJson("{\"fundCodeCount\":1,\"trigger\":\"system\"}")
                 .build());
 
         try {
@@ -169,7 +176,6 @@ public class AgentFundRefreshCaseImplTest {
             return FundRefreshDispatchResultEntity.builder()
                     .accepted(accepted)
                     .agentStatus(status)
-                    .agentTaskRef("agent_task_1")
                     .errorSummary(accepted ? null : "rejected")
                     .build();
         }
@@ -211,13 +217,9 @@ public class AgentFundRefreshCaseImplTest {
                     .id(task.getId())
                     .serverTaskId(task.getServerTaskId())
                     .taskType(task.getTaskType())
-                    .fundCodeCount(task.getFundCodeCount())
-                    .sourceType(task.getSourceType())
-                    .sourceRefId(task.getSourceRefId())
+                    .taskParamsJson(task.getTaskParamsJson())
                     .status(task.getStatus())
-                    .agentTaskRef(task.getAgentTaskRef())
                     .errorSummary(task.getErrorSummary())
-                    .callbackDiagnosticStatus(task.getCallbackDiagnosticStatus())
                     .createTime(task.getCreateTime())
                     .updateTime(task.getUpdateTime())
                     .build();
@@ -231,6 +233,13 @@ public class AgentFundRefreshCaseImplTest {
         public Long saveSnapshot(FundDetailSnapshotAggregate aggregate) {
             saveCount++;
             Assert.assertEquals("000001", aggregate.getFunds().get(0).getFundCode());
+            Assert.assertEquals("task_1", aggregate.getSourceRefId());
+            if (aggregate.getWarnings() != null && !aggregate.getWarnings().isEmpty()) {
+                FundDetailSnapshotAggregate.RefreshWarning warning = aggregate.getWarnings().get(0);
+                Assert.assertEquals("fund_refresh", warning.getModule());
+                Assert.assertEquals("provider_fund_failed", warning.getEvent());
+                Assert.assertEquals("error", warning.getSeverity());
+            }
             return 1L;
         }
 

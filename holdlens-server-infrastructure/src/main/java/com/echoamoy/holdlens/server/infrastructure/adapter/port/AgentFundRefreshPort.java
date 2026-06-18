@@ -44,17 +44,12 @@ public class AgentFundRefreshPort implements IAgentFundRefreshPort {
         return FundRefreshDispatchResultEntity.builder()
                 .accepted(accepted)
                 .agentStatus(status)
-                .agentTaskRef(firstNonBlank(stringValue(body.get("agent_task_id")), stringValue(body.get("task_id"))))
                 .errorSummary(stringValue(body.get("error_summary")))
                 .build();
     }
 
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
-    }
-
-    private String firstNonBlank(String first, String second) {
-        return first != null && !first.isBlank() ? first : second;
     }
 
 }

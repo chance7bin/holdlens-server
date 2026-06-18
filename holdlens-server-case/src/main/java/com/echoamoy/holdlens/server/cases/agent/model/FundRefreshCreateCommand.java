@@ -15,8 +15,4 @@ public class FundRefreshCreateCommand {
 
     private List<String> fundCodes;
 
-    private String sourceType;
-
-    private String sourceRefId;
-
 }

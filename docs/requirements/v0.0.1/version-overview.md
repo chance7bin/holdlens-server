@@ -27,3 +27,4 @@
 
 - [ADR-001 Server 领域边界划分](../../decisions/adr-001-server-domain-boundaries.md)
 - [ADR-002 Agent 异步基金刷新集成](../../decisions/adr-002-agent-async-fund-refresh.md)
+- [ADR-003 Processing Task 表结构收敛](../../decisions/adr-003-schema-modify.md)

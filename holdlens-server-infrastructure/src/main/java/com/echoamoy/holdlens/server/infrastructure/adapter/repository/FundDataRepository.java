@@ -2,14 +2,14 @@ package com.echoamoy.holdlens.server.infrastructure.adapter.repository;
 
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundDetailSnapshotAggregate;
-import com.echoamoy.holdlens.server.infrastructure.dao.IAgentWarningDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IFundDetailItemDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IFundDetailSnapshotDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IFundTopHoldingDao;
-import com.echoamoy.holdlens.server.infrastructure.dao.po.AgentWarningPO;
+import com.echoamoy.holdlens.server.infrastructure.dao.IProcessingLogDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailItemPO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailSnapshotPO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.FundTopHoldingPO;
+import com.echoamoy.holdlens.server.infrastructure.dao.po.ProcessingLogPO;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,7 +32,7 @@ public class FundDataRepository implements IFundDataRepository {
     private IFundTopHoldingDao fundTopHoldingDao;
 
     @Resource
-    private IAgentWarningDao agentWarningDao;
+    private IProcessingLogDao processingLogDao;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -41,7 +41,6 @@ public class FundDataRepository implements IFundDataRepository {
                 .schemaVersion(aggregate.getSchemaVersion())
                 .generatedAt(aggregate.getGeneratedAt())
                 .snapshotStatus(aggregate.getSnapshotStatus())
-                .sourceType(aggregate.getSourceType())
                 .sourceRefId(aggregate.getSourceRefId())
                 .dataSourcesJson(aggregate.getDataSourcesJson())
                 .build();
@@ -61,7 +60,7 @@ public class FundDataRepository implements IFundDataRepository {
         }
         if (aggregate.getWarnings() != null) {
             for (FundDetailSnapshotAggregate.RefreshWarning warning : aggregate.getWarnings()) {
-                agentWarningDao.insert(toWarningPO(snapshotId, aggregate.getSourceRefId(), warning));
+                processingLogDao.insert(toProcessingLogPO(aggregate.getSourceRefId(), warning));
             }
         }
         return snapshotId;
@@ -119,17 +118,12 @@ public class FundDataRepository implements IFundDataRepository {
                 .build();
     }
 
-    private AgentWarningPO toWarningPO(Long snapshotId, String sourceRefId, FundDetailSnapshotAggregate.RefreshWarning warning) {
-        return AgentWarningPO.builder()
-                .warningType("refresh")
-                .sourceType("agent")
+    private ProcessingLogPO toProcessingLogPO(String sourceRefId, FundDetailSnapshotAggregate.RefreshWarning warning) {
+        return ProcessingLogPO.builder()
                 .sourceRefId(sourceRefId)
-                .snapshotId(snapshotId)
-                .fundCode(warning.getFundCode())
-                .code(warning.getCode())
+                .module(warning.getModule())
+                .event(warning.getEvent())
                 .message(warning.getMessage())
-                .sourceSection(warning.getSourceSection())
-                .sourceRowNumber(warning.getSourceRowNumber())
                 .severity(warning.getSeverity())
                 .build();
     }

@@ -61,8 +61,6 @@ public class AgentFundRefreshController implements IAgentFundRefreshService {
         }
         return FundRefreshCreateCommand.builder()
                 .fundCodes(request.getFundCodes())
-                .sourceType(request.getSourceType())
-                .sourceRefId(request.getSourceRefId())
                 .build();
     }
 
@@ -148,12 +146,10 @@ public class AgentFundRefreshController implements IAgentFundRefreshService {
         }
         return warnings.stream()
                 .map(warning -> warning == null ? null : AgentFundRefreshCallbackCommand.RefreshWarning.builder()
-                        .fundCode(warning.getFundCode())
-                        .code(warning.getCode())
+                        .module(warning.getModule())
+                        .event(warning.getEvent())
                         .message(warning.getMessage())
                         .severity(warning.getSeverity())
-                        .sourceSection(warning.getSourceSection())
-                        .sourceRowNumber(warning.getSourceRowNumber())
                         .build())
                 .toList();
     }
@@ -166,12 +162,7 @@ public class AgentFundRefreshController implements IAgentFundRefreshService {
                 .serverTaskId(result.getServerTaskId())
                 .taskType(result.getTaskType())
                 .status(result.getStatus())
-                .fundCodeCount(result.getFundCodeCount())
-                .sourceType(result.getSourceType())
-                .sourceRefId(result.getSourceRefId())
-                .agentTaskRef(result.getAgentTaskRef())
                 .errorSummary(result.getErrorSummary())
-                .callbackDiagnosticStatus(result.getCallbackDiagnosticStatus())
                 .createTime(result.getCreateTime())
                 .updateTime(result.getUpdateTime())
                 .build();

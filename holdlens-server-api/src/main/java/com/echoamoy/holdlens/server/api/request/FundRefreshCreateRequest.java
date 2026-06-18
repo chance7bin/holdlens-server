@@ -20,8 +20,4 @@ public class FundRefreshCreateRequest implements Serializable {
     @NotEmpty
     private List<String> fundCodes;
 
-    private String sourceType;
-
-    private String sourceRefId;
-
 }

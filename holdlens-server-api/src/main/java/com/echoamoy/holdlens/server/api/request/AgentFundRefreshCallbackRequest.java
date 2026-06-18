@@ -1,6 +1,5 @@
 package com.echoamoy.holdlens.server.api.request;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -165,21 +164,13 @@ public class AgentFundRefreshCallbackRequest implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
-        @JsonProperty("fund_code")
-        private String fundCode;
+        private String module;
 
-        private String code;
+        private String event;
 
         private String message;
 
         private String severity;
-
-        @JsonProperty("source_section")
-        private String sourceSection;
-
-        @JsonAlias("row_number")
-        @JsonProperty("source_row_number")
-        private Integer sourceRowNumber;
 
     }
 

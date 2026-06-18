@@ -27,8 +27,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -39,7 +41,6 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
 
     private static final String TASK_SCHEMA_VERSION = "fund-detail-refresh-task/v1";
     private static final String RESULT_SCHEMA_VERSION = "fund-detail-refresh-result/v1";
-    private static final String SOURCE_AGENT = "agent";
 
     @Resource
     private IProcessingTaskRepository processingTaskRepository;
@@ -64,9 +65,7 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         ProcessingTaskEntity taskEntity = ProcessingTaskEntity.builder()
                 .serverTaskId(newServerTaskId())
                 .taskType(ProcessingTaskEntity.FUND_DETAIL_REFRESH)
-                .fundCodeCount(fundCodes.size())
-                .sourceType(defaultString(command.getSourceType(), "system"))
-                .sourceRefId(command.getSourceRefId())
+                .taskParamsJson(buildTaskParamsJson(fundCodes.size()))
                 .status(ProcessingTaskStatusEnumVO.CREATED)
                 .build();
         processingTaskRepository.saveTask(taskEntity);
@@ -83,14 +82,14 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
                 ProcessingTaskStatusEnumVO nextStatus = "running".equals(dispatchResult.getAgentStatus())
                         ? ProcessingTaskStatusEnumVO.RUNNING
                         : ProcessingTaskStatusEnumVO.DISPATCHED;
-                taskEntity.transitTo(nextStatus, dispatchResult.getAgentTaskRef(), null);
+                taskEntity.transitTo(nextStatus, null);
             } else {
-                taskEntity.transitTo(ProcessingTaskStatusEnumVO.DISPATCH_FAILED, null,
+                taskEntity.transitTo(ProcessingTaskStatusEnumVO.DISPATCH_FAILED,
                         safeSummary(dispatchResult == null ? "agent dispatch rejected" : dispatchResult.getErrorSummary()));
             }
         } catch (Exception e) {
             log.warn("基金刷新任务下发失败 taskId={} fundCodeCount={}", taskEntity.getServerTaskId(), fundCodes.size());
-            taskEntity.transitTo(ProcessingTaskStatusEnumVO.DISPATCH_FAILED, null, safeSummary(e.getMessage()));
+            taskEntity.transitTo(ProcessingTaskStatusEnumVO.DISPATCH_FAILED, safeSummary(e.getMessage()));
         }
         processingTaskRepository.updateTask(taskEntity);
         return toTaskDTO(taskEntity);
@@ -109,7 +108,7 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         }
 
         if (!RESULT_SCHEMA_VERSION.equals(command.getSchemaVersion())) {
-            taskEntity.transitTo(ProcessingTaskStatusEnumVO.FAILED, null, "unsupported schema version");
+            taskEntity.transitTo(ProcessingTaskStatusEnumVO.FAILED, "unsupported schema version");
             processingTaskRepository.updateTask(taskEntity);
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "不支持的回调契约版本");
         }
@@ -135,10 +134,7 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
                     || targetStatus == ProcessingTaskStatusEnumVO.PARTIAL_FAILED) {
                 fundDataRepository.saveSnapshot(toAggregate(command));
             }
-            taskEntity.transitTo(targetStatus, null, safeSummary(command.getErrorSummary()));
-            if (targetStatus == ProcessingTaskStatusEnumVO.CALLBACK_FAILED) {
-                taskEntity.setCallbackDiagnosticStatus("callback_failed");
-            }
+            taskEntity.transitTo(targetStatus, safeSummary(command.getErrorSummary()));
             processingTaskRepository.updateTask(taskEntity);
             processingTaskRepository.markCallbackProcessed(command.getServerTaskId(), command.getIdempotencyKey(), "processed", null);
             return toTaskDTO(taskEntity);
@@ -162,7 +158,6 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
                 .schemaVersion(request.getSchemaVersion())
                 .generatedAt(parseInstantDate(request.getGeneratedAt()))
                 .snapshotStatus(request.getStatus())
-                .sourceType(SOURCE_AGENT)
                 .sourceRefId(request.getServerTaskId())
                 .dataSourcesJson(JSON.toJSONString(request.getDataSources()))
                 .funds(toFundDetails(request.getFunds()))
@@ -230,14 +225,12 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         }
         return warnings.stream()
                 .filter(Objects::nonNull)
-                .filter(warning -> !isBlank(warning.getCode()))
+                .filter(warning -> !isBlank(warning.getModule()) && !isBlank(warning.getEvent()))
                 .map(warning -> FundDetailSnapshotAggregate.RefreshWarning.builder()
-                        .fundCode(warning.getFundCode())
-                        .code(warning.getCode())
-                        .message(defaultString(warning.getMessage(), warning.getCode()))
+                        .module(warning.getModule().trim())
+                        .event(warning.getEvent().trim())
+                        .message(safeSummary(defaultString(warning.getMessage(), warning.getEvent())))
                         .severity(defaultString(warning.getSeverity(), "warning"))
-                        .sourceSection(warning.getSourceSection())
-                        .sourceRowNumber(warning.getSourceRowNumber())
                         .build())
                 .toList();
     }
@@ -297,17 +290,19 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         return "fund_refresh_" + UUID.randomUUID().toString().replace("-", "");
     }
 
+    private String buildTaskParamsJson(int fundCodeCount) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("fundCodeCount", fundCodeCount);
+        params.put("trigger", "system");
+        return JSON.toJSONString(params);
+    }
+
     private FundRefreshTaskResult toTaskDTO(ProcessingTaskEntity taskEntity) {
         return FundRefreshTaskResult.builder()
                 .serverTaskId(taskEntity.getServerTaskId())
                 .taskType(taskEntity.getTaskType())
                 .status(taskEntity.getStatus() == null ? null : taskEntity.getStatus().getCode())
-                .fundCodeCount(taskEntity.getFundCodeCount())
-                .sourceType(taskEntity.getSourceType())
-                .sourceRefId(taskEntity.getSourceRefId())
-                .agentTaskRef(taskEntity.getAgentTaskRef())
                 .errorSummary(taskEntity.getErrorSummary())
-                .callbackDiagnosticStatus(taskEntity.getCallbackDiagnosticStatus())
                 .createTime(taskEntity.getCreateTime())
                 .updateTime(taskEntity.getUpdateTime())
                 .build();

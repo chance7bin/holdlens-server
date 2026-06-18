@@ -28,9 +28,6 @@ public class FundDetailSnapshotPO implements Serializable {
     /** 快照状态：success/partial/failed */
     private String snapshotStatus;
 
-    /** 来源类型：agent/api_sync */
-    private String sourceType;
-
     /** 来源引用ID */
     private String sourceRefId;
 

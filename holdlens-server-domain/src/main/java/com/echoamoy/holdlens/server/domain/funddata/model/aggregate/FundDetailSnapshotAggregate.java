@@ -19,7 +19,6 @@ public class FundDetailSnapshotAggregate {
     private String schemaVersion;
     private Date generatedAt;
     private String snapshotStatus;
-    private String sourceType;
     private String sourceRefId;
     private String dataSourcesJson;
     private List<FundDetail> funds;
@@ -71,12 +70,10 @@ public class FundDetailSnapshotAggregate {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class RefreshWarning {
-        private String fundCode;
-        private String code;
+        private String module;
+        private String event;
         private String message;
         private String severity;
-        private String sourceSection;
-        private Integer sourceRowNumber;
     }
 
 }
