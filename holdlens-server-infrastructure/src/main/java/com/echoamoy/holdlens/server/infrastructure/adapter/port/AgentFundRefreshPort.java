@@ -5,6 +5,7 @@ import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentStockQu
 import com.echoamoy.holdlens.server.domain.processing.model.entity.FundRefreshDispatchCommandEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.FundRefreshDispatchResultEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.StockQuoteRefreshDispatchCommandEntity;
+import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteTargetEntity;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -20,10 +22,10 @@ public class AgentFundRefreshPort implements IAgentFundRefreshPort, IAgentStockQ
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    @Value("${holdlens.agent.fund-refresh-url:http://127.0.0.1:5677/tasks/fund-detail-refresh}")
+    @Value("${holdlens.agent.fund-refresh-url}")
     private String fundRefreshUrl;
 
-    @Value("${holdlens.agent.stock-refresh-url:http://127.0.0.1:5677/tasks/stock-quote-refresh}")
+    @Value("${holdlens.agent.stock-refresh-url}")
     private String stockRefreshUrl;
 
     @Override
@@ -44,12 +46,26 @@ public class AgentFundRefreshPort implements IAgentFundRefreshPort, IAgentStockQ
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("schema_version", commandEntity.getSchemaVersion());
         request.put("server_task_id", commandEntity.getServerTaskId());
-        request.put("stocks", commandEntity.getStocks());
+        request.put("stocks", toStockQuoteRequestItems(commandEntity.getStocks()));
         request.put("allow_network", commandEntity.getAllowNetwork());
         request.put("callback_url", commandEntity.getCallbackUrl());
 
         ResponseEntity<Map> response = restTemplate.postForEntity(stockRefreshUrl, request, Map.class);
         return toDispatchResult(response);
+    }
+
+    private List<Map<String, Object>> toStockQuoteRequestItems(List<StockQuoteTargetEntity> stocks) {
+        if (stocks == null) {
+            return List.of();
+        }
+        return stocks.stream()
+                .map(stock -> {
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("stock_code", stock.getStockCode());
+                    item.put("market", stock.getMarket());
+                    return item;
+                })
+                .toList();
     }
 
     private FundRefreshDispatchResultEntity toDispatchResult(ResponseEntity<Map> response) {

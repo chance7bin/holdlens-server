@@ -44,5 +44,6 @@ logging:
 holdlens:
   agent:
     fund-refresh-url: http://127.0.0.1:8765/tasks/fund-detail-refresh
+    stock-refresh-url: http://127.0.0.1:8765/tasks/stock-quote-refresh
     callback-url: http://127.0.0.1:8091/internal/agent/fund-detail-refresh/callback
     callback-header-value: internal

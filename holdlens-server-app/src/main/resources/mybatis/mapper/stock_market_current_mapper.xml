@@ -33,6 +33,20 @@
             update_time = CURRENT_TIMESTAMP
     </insert>
 
+    <insert id="upsertTarget" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.StockMarketCurrentPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO stock_market_current (
+            stock_code, market, stock_name
+        ) VALUES (
+            #{stockCode}, #{market}, #{stockName}
+        )
+        ON DUPLICATE KEY UPDATE
+            id = LAST_INSERT_ID(id),
+            stock_name = CASE
+                WHEN VALUES(stock_name) IS NULL OR VALUES(stock_name) = '' THEN stock_name
+                ELSE VALUES(stock_name)
+            END
+    </insert>
+
     <select id="selectAllTargets" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM stock_market_current

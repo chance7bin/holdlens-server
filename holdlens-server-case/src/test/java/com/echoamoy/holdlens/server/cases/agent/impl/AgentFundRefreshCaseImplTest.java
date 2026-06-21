@@ -65,7 +65,9 @@ public class AgentFundRefreshCaseImplTest {
     public void handleCallbackPersistsOnlyOnceForDuplicateIdempotencyKey() throws Exception {
         FakeProcessingRepository processingRepository = new FakeProcessingRepository();
         FakeFundDataRepository fundDataRepository = new FakeFundDataRepository();
-        AgentFundRefreshCaseImpl refreshCase = newCase(processingRepository, new FakeAgentPort(true, "running"), fundDataRepository);
+        FakeStockMarketRepository stockMarketRepository = new FakeStockMarketRepository();
+        AgentFundRefreshCaseImpl refreshCase = newCase(processingRepository, new FakeAgentPort(true, "running"),
+                fundDataRepository, stockMarketRepository);
 
         ProcessingTaskEntity task = ProcessingTaskEntity.builder()
                 .serverTaskId("task_1")
@@ -84,6 +86,29 @@ public class AgentFundRefreshCaseImplTest {
                 .funds(List.of(AgentFundRefreshCallbackCommand.FundDetail.builder()
                         .fundCode("000001")
                         .fundName("测试基金")
+                        .topHoldings(List.of(
+                                AgentFundRefreshCallbackCommand.TopHolding.builder()
+                                        .rankNo(1)
+                                        .stockName(" 测试股份 ")
+                                        .stockCode(" 600000 ")
+                                        .market(" 1 ")
+                                        .build(),
+                                AgentFundRefreshCallbackCommand.TopHolding.builder()
+                                        .rankNo(2)
+                                        .stockName("重复股份")
+                                        .stockCode("600000")
+                                        .market("1")
+                                        .build(),
+                                AgentFundRefreshCallbackCommand.TopHolding.builder()
+                                        .rankNo(3)
+                                        .stockName("缺少代码")
+                                        .market("1")
+                                        .build(),
+                                AgentFundRefreshCallbackCommand.TopHolding.builder()
+                                        .rankNo(4)
+                                        .stockName("缺少市场")
+                                        .stockCode("000001")
+                                        .build()))
                         .build()))
                 .refreshWarnings(List.of(AgentFundRefreshCallbackCommand.RefreshWarning.builder()
                         .module("fund_refresh")
@@ -99,6 +124,11 @@ public class AgentFundRefreshCaseImplTest {
         Assert.assertEquals("succeeded", first.getStatus());
         Assert.assertEquals("succeeded", duplicate.getStatus());
         Assert.assertEquals(1, fundDataRepository.saveCount);
+        Assert.assertEquals(1, stockMarketRepository.registerCount);
+        Assert.assertEquals(1, stockMarketRepository.registeredTargets.size());
+        Assert.assertEquals("600000", stockMarketRepository.registeredTargets.get(0).getStockCode());
+        Assert.assertEquals("1", stockMarketRepository.registeredTargets.get(0).getMarket());
+        Assert.assertEquals("测试股份", stockMarketRepository.registeredTargets.get(0).getStockName());
     }
 
     @Test
@@ -357,6 +387,8 @@ public class AgentFundRefreshCaseImplTest {
     private static class FakeStockMarketRepository implements IStockMarketRepository {
         private final List<StockQuoteTargetEntity> targets;
         private int upsertCount;
+        private int registerCount;
+        private final List<StockQuoteEntity> registeredTargets = new java.util.ArrayList<>();
 
         private FakeStockMarketRepository() {
             this(List.of(
@@ -371,6 +403,12 @@ public class AgentFundRefreshCaseImplTest {
         @Override
         public List<StockQuoteTargetEntity> queryAllQuoteTargets() {
             return targets;
+        }
+
+        @Override
+        public void registerQuoteTargets(List<StockQuoteEntity> quoteTargets) {
+            registerCount++;
+            registeredTargets.addAll(quoteTargets);
         }
 
         @Override

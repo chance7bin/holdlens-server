@@ -11,6 +11,8 @@ public interface IStockMarketRepository {
 
     List<StockQuoteTargetEntity> queryAllQuoteTargets();
 
+    void registerQuoteTargets(List<StockQuoteEntity> quoteTargets);
+
     void upsertQuotes(List<StockQuoteEntity> quotes);
 
     Map<String, StockQuoteEntity> queryByStockKeys(Collection<String> stockKeys);

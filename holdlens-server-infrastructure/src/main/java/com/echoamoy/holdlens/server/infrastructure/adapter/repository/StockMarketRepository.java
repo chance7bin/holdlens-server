@@ -30,6 +30,16 @@ public class StockMarketRepository implements IStockMarketRepository {
     }
 
     @Override
+    public void registerQuoteTargets(List<StockQuoteEntity> quoteTargets) {
+        if (quoteTargets == null || quoteTargets.isEmpty()) {
+            return;
+        }
+        for (StockQuoteEntity quoteTarget : quoteTargets) {
+            stockMarketCurrentDao.upsertTarget(toTargetPO(quoteTarget));
+        }
+    }
+
+    @Override
     public void upsertQuotes(List<StockQuoteEntity> quotes) {
         if (quotes == null || quotes.isEmpty()) {
             return;
@@ -60,6 +70,14 @@ public class StockMarketRepository implements IStockMarketRepository {
                 .tradeDate(quote.getTradeDate())
                 .dailyReturn(quote.getDailyReturn())
                 .quoteTime(quote.getQuoteTime())
+                .build();
+    }
+
+    private StockMarketCurrentPO toTargetPO(StockQuoteEntity quoteTarget) {
+        return StockMarketCurrentPO.builder()
+                .stockCode(quoteTarget.getStockCode())
+                .market(quoteTarget.getMarket())
+                .stockName(quoteTarget.getStockName())
                 .build();
     }
 

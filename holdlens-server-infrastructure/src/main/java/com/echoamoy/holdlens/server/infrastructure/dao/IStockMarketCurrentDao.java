@@ -12,6 +12,8 @@ public interface IStockMarketCurrentDao {
 
     void upsert(StockMarketCurrentPO stockMarketCurrentPO);
 
+    void upsertTarget(StockMarketCurrentPO stockMarketCurrentPO);
+
     List<StockMarketCurrentPO> selectAllTargets();
 
     List<StockMarketCurrentPO> selectByStockKeys(@Param("stockKeys") Collection<String> stockKeys);

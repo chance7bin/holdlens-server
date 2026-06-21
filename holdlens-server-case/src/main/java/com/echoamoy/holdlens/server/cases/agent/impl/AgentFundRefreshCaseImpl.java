@@ -191,7 +191,9 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         try {
             if (targetStatus == ProcessingTaskStatusEnumVO.SUCCEEDED
                     || targetStatus == ProcessingTaskStatusEnumVO.PARTIAL_FAILED) {
-                fundDataRepository.saveCurrentData(toAggregate(command));
+                FundCurrentDataAggregate aggregate = toAggregate(command);
+                fundDataRepository.saveCurrentData(aggregate);
+                stockMarketRepository.registerQuoteTargets(toQuoteTargets(aggregate));
             }
             taskEntity.transitTo(targetStatus, safeSummary(command.getErrorSummary()));
             processingTaskRepository.updateTask(taskEntity);
@@ -322,6 +324,31 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
                     .build());
         }
         return result;
+    }
+
+    private List<StockQuoteEntity> toQuoteTargets(FundCurrentDataAggregate aggregate) {
+        if (aggregate == null || aggregate.getFunds() == null) {
+            return List.of();
+        }
+        Map<String, StockQuoteEntity> dedup = new LinkedHashMap<>();
+        for (FundCurrentDataAggregate.FundDetail fund : aggregate.getFunds()) {
+            if (fund == null || fund.getTopHoldings() == null) {
+                continue;
+            }
+            for (FundCurrentDataAggregate.TopHolding topHolding : fund.getTopHoldings()) {
+                if (topHolding == null || isBlank(topHolding.getStockCode()) || isBlank(topHolding.getMarket())) {
+                    continue;
+                }
+                String stockCode = topHolding.getStockCode().trim();
+                String market = topHolding.getMarket().trim();
+                dedup.putIfAbsent(stockCode + "#" + market, StockQuoteEntity.builder()
+                        .stockCode(stockCode)
+                        .market(market)
+                        .stockName(isBlank(topHolding.getStockName()) ? null : topHolding.getStockName().trim())
+                        .build());
+            }
+        }
+        return new ArrayList<>(dedup.values());
     }
 
     private List<FundCurrentDataAggregate.RefreshWarning> toWarnings(List<AgentFundRefreshCallbackCommand.RefreshWarning> warnings) {

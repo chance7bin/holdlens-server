@@ -101,6 +101,10 @@ public class PortfolioFundDetailCaseImplTest {
         }
 
         @Override
+        public void registerQuoteTargets(List<StockQuoteEntity> quoteTargets) {
+        }
+
+        @Override
         public void upsertQuotes(List<StockQuoteEntity> quotes) {
         }
 
