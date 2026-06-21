@@ -4,7 +4,6 @@
 
     <resultMap id="BaseResultMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailItemPO">
         <id column="id" property="id"/>
-        <result column="snapshot_id" property="snapshotId"/>
         <result column="fund_asset_id" property="fundAssetId"/>
         <result column="fund_code" property="fundCode"/>
         <result column="fund_name" property="fundName"/>
@@ -18,31 +17,44 @@
         <result column="six_months_return" property="sixMonthsReturn"/>
         <result column="one_year_return" property="oneYearReturn"/>
         <result column="three_years_return" property="threeYearsReturn"/>
-        <result column="field_sources_json" property="fieldSourcesJson"/>
-        <result column="missing_reasons_json" property="missingReasonsJson"/>
         <result column="create_time" property="createTime"/>
         <result column="update_time" property="updateTime"/>
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, snapshot_id, fund_asset_id, fund_code, fund_name, buy_status,
+        id, fund_asset_id, fund_code, fund_name, buy_status,
         daily_purchase_limit, returns_as_of, top_holdings_as_of, public_holdings_status,
         one_month_return, three_months_return, six_months_return, one_year_return,
-        three_years_return, field_sources_json, missing_reasons_json, create_time, update_time
+        three_years_return, create_time, update_time
     </sql>
 
-    <insert id="insert" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailItemPO" useGeneratedKeys="true" keyProperty="id">
+    <insert id="upsert" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailItemPO" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO fund_detail_item (
-            snapshot_id, fund_asset_id, fund_code, fund_name, buy_status,
+            fund_asset_id, fund_code, fund_name, buy_status,
             daily_purchase_limit, returns_as_of, top_holdings_as_of, public_holdings_status,
             one_month_return, three_months_return, six_months_return, one_year_return,
-            three_years_return, field_sources_json, missing_reasons_json
+            three_years_return
         ) VALUES (
-            #{snapshotId}, #{fundAssetId}, #{fundCode}, #{fundName}, #{buyStatus},
+            #{fundAssetId}, #{fundCode}, #{fundName}, #{buyStatus},
             #{dailyPurchaseLimit}, #{returnsAsOf}, #{topHoldingsAsOf}, #{publicHoldingsStatus},
             #{oneMonthReturn}, #{threeMonthsReturn}, #{sixMonthsReturn}, #{oneYearReturn},
-            #{threeYearsReturn}, #{fieldSourcesJson}, #{missingReasonsJson}
+            #{threeYearsReturn}
         )
+        ON DUPLICATE KEY UPDATE
+            id = LAST_INSERT_ID(id),
+            fund_asset_id = VALUES(fund_asset_id),
+            fund_name = VALUES(fund_name),
+            buy_status = VALUES(buy_status),
+            daily_purchase_limit = VALUES(daily_purchase_limit),
+            returns_as_of = VALUES(returns_as_of),
+            top_holdings_as_of = VALUES(top_holdings_as_of),
+            public_holdings_status = VALUES(public_holdings_status),
+            one_month_return = VALUES(one_month_return),
+            three_months_return = VALUES(three_months_return),
+            six_months_return = VALUES(six_months_return),
+            one_year_return = VALUES(one_year_return),
+            three_years_return = VALUES(three_years_return),
+            update_time = CURRENT_TIMESTAMP
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
@@ -51,36 +63,14 @@
         WHERE id = #{id}
     </select>
 
-    <select id="selectBySnapshotId" resultMap="BaseResultMap">
+    <select id="selectByFundCodes" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM fund_detail_item
-        WHERE snapshot_id = #{snapshotId}
-        ORDER BY id ASC
-    </select>
-
-    <select id="selectLatestByFundCodes" resultMap="BaseResultMap">
-        SELECT i.id, i.snapshot_id, i.fund_asset_id, i.fund_code, i.fund_name,
-               i.buy_status, i.daily_purchase_limit, i.returns_as_of, i.top_holdings_as_of,
-               i.public_holdings_status, i.one_month_return, i.three_months_return,
-               i.six_months_return, i.one_year_return, i.three_years_return,
-               i.field_sources_json, i.missing_reasons_json, i.create_time, i.update_time
-        FROM fund_detail_item i
-        JOIN fund_detail_snapshot s ON s.id = i.snapshot_id
-        WHERE i.fund_code IN
+        WHERE fund_code IN
         <foreach collection="fundCodes" item="fundCode" open="(" separator="," close=")">
             #{fundCode}
         </foreach>
-          AND s.snapshot_status IN ('succeeded', 'partial_failed', 'success', 'partial')
-          AND i.id = (
-              SELECT ii.id
-              FROM fund_detail_item ii
-              JOIN fund_detail_snapshot ss ON ss.id = ii.snapshot_id
-              WHERE ii.fund_code = i.fund_code
-                AND ss.snapshot_status IN ('succeeded', 'partial_failed', 'success', 'partial')
-              ORDER BY ss.generated_at DESC, ii.id DESC
-              LIMIT 1
-          )
-        ORDER BY i.fund_code ASC
+        ORDER BY fund_code ASC
     </select>
 
 </mapper>

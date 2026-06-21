@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.echoamoy.holdlens.server.infrastructure.dao.IStockMarketCurrentDao">
+
+    <resultMap id="BaseResultMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.StockMarketCurrentPO">
+        <id column="id" property="id"/>
+        <result column="stock_code" property="stockCode"/>
+        <result column="market" property="market"/>
+        <result column="stock_name" property="stockName"/>
+        <result column="trade_date" property="tradeDate"/>
+        <result column="daily_return" property="dailyReturn"/>
+        <result column="quote_time" property="quoteTime"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, stock_code, market, stock_name, trade_date, daily_return, quote_time, create_time, update_time
+    </sql>
+
+    <insert id="upsert" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.StockMarketCurrentPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO stock_market_current (
+            stock_code, market, stock_name, trade_date, daily_return, quote_time
+        ) VALUES (
+            #{stockCode}, #{market}, #{stockName}, #{tradeDate}, #{dailyReturn}, #{quoteTime}
+        )
+        ON DUPLICATE KEY UPDATE
+            id = LAST_INSERT_ID(id),
+            stock_name = VALUES(stock_name),
+            trade_date = VALUES(trade_date),
+            daily_return = VALUES(daily_return),
+            quote_time = VALUES(quote_time),
+            update_time = CURRENT_TIMESTAMP
+    </insert>
+
+    <select id="selectAllTargets" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM stock_market_current
+        WHERE stock_code IS NOT NULL
+          AND stock_code != ''
+          AND market IS NOT NULL
+          AND market != ''
+        ORDER BY stock_code ASC, market ASC
+    </select>
+
+    <select id="selectByStockKeys" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM stock_market_current
+        WHERE CONCAT(stock_code, '#', market) IN
+        <foreach collection="stockKeys" item="stockKey" open="(" separator="," close=")">
+            #{stockKey}
+        </foreach>
+    </select>
+
+</mapper>

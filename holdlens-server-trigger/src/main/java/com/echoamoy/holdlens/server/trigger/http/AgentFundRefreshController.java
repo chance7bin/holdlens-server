@@ -3,10 +3,12 @@ package com.echoamoy.holdlens.server.trigger.http;
 import com.echoamoy.holdlens.server.api.IAgentFundRefreshService;
 import com.echoamoy.holdlens.server.api.dto.FundRefreshTaskDTO;
 import com.echoamoy.holdlens.server.api.request.AgentFundRefreshCallbackRequest;
+import com.echoamoy.holdlens.server.api.request.AgentStockQuoteRefreshCallbackRequest;
 import com.echoamoy.holdlens.server.api.request.FundRefreshCreateRequest;
 import com.echoamoy.holdlens.server.api.response.Response;
 import com.echoamoy.holdlens.server.cases.agent.IAgentFundRefreshCase;
 import com.echoamoy.holdlens.server.cases.agent.model.AgentFundRefreshCallbackCommand;
+import com.echoamoy.holdlens.server.cases.agent.model.AgentStockQuoteRefreshCallbackCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
 import com.echoamoy.holdlens.server.types.enums.ResponseCode;
@@ -45,6 +47,12 @@ public class AgentFundRefreshController implements IAgentFundRefreshService {
         return Response.ok(toTaskDTO(agentFundRefreshCase.queryTask(serverTaskId)));
     }
 
+    @PostMapping("/api/agent/stock-quote-refresh/tasks")
+    @Override
+    public Response<FundRefreshTaskDTO> createStockQuoteTask() {
+        return Response.ok(toTaskDTO(agentFundRefreshCase.createAndDispatchStockQuotes()));
+    }
+
     @PostMapping("/internal/agent/fund-detail-refresh/callback")
     @Override
     public Response<FundRefreshTaskDTO> callback(@RequestHeader(value = "X-HoldLens-Agent-Callback", required = false) String callbackHeader,
@@ -53,6 +61,16 @@ public class AgentFundRefreshController implements IAgentFundRefreshService {
             return Response.fail(ResponseCode.ILLEGAL_PARAMETER.getCode(), "未授权 agent 回调");
         }
         return Response.ok(toTaskDTO(agentFundRefreshCase.handleCallback(toCallbackCommand(request))));
+    }
+
+    @PostMapping("/internal/agent/stock-quote-refresh/callback")
+    @Override
+    public Response<FundRefreshTaskDTO> stockQuoteCallback(@RequestHeader(value = "X-HoldLens-Agent-Callback", required = false) String callbackHeader,
+                                                           @RequestBody AgentStockQuoteRefreshCallbackRequest request) {
+        if (!callbackHeaderValue.equals(callbackHeader)) {
+            return Response.fail(ResponseCode.ILLEGAL_PARAMETER.getCode(), "未授权 agent 回调");
+        }
+        return Response.ok(toTaskDTO(agentFundRefreshCase.handleStockQuoteCallback(toStockQuoteCallbackCommand(request))));
     }
 
     private FundRefreshCreateCommand toCreateCommand(FundRefreshCreateRequest request) {
@@ -75,7 +93,6 @@ public class AgentFundRefreshController implements IAgentFundRefreshService {
                 .status(request.getStatus())
                 .generatedAt(request.getGeneratedAt())
                 .funds(toFundDetails(request.getFunds()))
-                .dataSources(toDataSources(request.getDataSources()))
                 .refreshWarnings(toRefreshWarnings(request.getRefreshWarnings()))
                 .errorSummary(request.getErrorSummary())
                 .build();
@@ -99,8 +116,6 @@ public class AgentFundRefreshController implements IAgentFundRefreshService {
                         .sixMonthsReturn(fund.getSixMonthsReturn())
                         .oneYearReturn(fund.getOneYearReturn())
                         .threeYearsReturn(fund.getThreeYearsReturn())
-                        .fieldSources(fund.getFieldSources())
-                        .missingReasons(fund.getMissingReasons())
                         .topHoldings(toTopHoldings(fund.getTopHoldings()))
                         .build())
                 .toList();
@@ -116,26 +131,9 @@ public class AgentFundRefreshController implements IAgentFundRefreshService {
                         .stockName(topHolding.getStockName())
                         .stockCode(topHolding.getStockCode())
                         .market(topHolding.getMarket())
-                        .dailyReturn(topHolding.getDailyReturn())
                         .holdingRatio(topHolding.getHoldingRatio())
                         .quarterChangeType(topHolding.getQuarterChangeType())
                         .quarterChangeValue(topHolding.getQuarterChangeValue())
-                        .missingReasons(topHolding.getMissingReasons())
-                        .build())
-                .toList();
-    }
-
-    private List<AgentFundRefreshCallbackCommand.DataSourceMeta> toDataSources(List<AgentFundRefreshCallbackRequest.DataSourceMeta> dataSources) {
-        if (dataSources == null) {
-            return null;
-        }
-        return dataSources.stream()
-                .map(dataSource -> dataSource == null ? null : AgentFundRefreshCallbackCommand.DataSourceMeta.builder()
-                        .provider(dataSource.getProvider())
-                        .name(dataSource.getName())
-                        .url(dataSource.getUrl())
-                        .fetchedAt(dataSource.getFetchedAt())
-                        .status(dataSource.getStatus())
                         .build())
                 .toList();
     }
@@ -146,6 +144,52 @@ public class AgentFundRefreshController implements IAgentFundRefreshService {
         }
         return warnings.stream()
                 .map(warning -> warning == null ? null : AgentFundRefreshCallbackCommand.RefreshWarning.builder()
+                        .module(warning.getModule())
+                        .event(warning.getEvent())
+                        .message(warning.getMessage())
+                        .severity(warning.getSeverity())
+                        .build())
+                .toList();
+    }
+
+    private AgentStockQuoteRefreshCallbackCommand toStockQuoteCallbackCommand(AgentStockQuoteRefreshCallbackRequest request) {
+        if (request == null) {
+            return null;
+        }
+        return AgentStockQuoteRefreshCallbackCommand.builder()
+                .schemaVersion(request.getSchemaVersion())
+                .serverTaskId(request.getServerTaskId())
+                .idempotencyKey(request.getIdempotencyKey())
+                .status(request.getStatus())
+                .generatedAt(request.getGeneratedAt())
+                .quotes(toStockQuotes(request.getQuotes()))
+                .refreshWarnings(toStockRefreshWarnings(request.getRefreshWarnings()))
+                .errorSummary(request.getErrorSummary())
+                .build();
+    }
+
+    private List<AgentStockQuoteRefreshCallbackCommand.StockQuote> toStockQuotes(List<AgentStockQuoteRefreshCallbackRequest.StockQuote> quotes) {
+        if (quotes == null) {
+            return null;
+        }
+        return quotes.stream()
+                .map(quote -> quote == null ? null : AgentStockQuoteRefreshCallbackCommand.StockQuote.builder()
+                        .stockCode(quote.getStockCode())
+                        .market(quote.getMarket())
+                        .stockName(quote.getStockName())
+                        .tradeDate(quote.getTradeDate())
+                        .dailyReturn(quote.getDailyReturn())
+                        .quoteTime(quote.getQuoteTime())
+                        .build())
+                .toList();
+    }
+
+    private List<AgentStockQuoteRefreshCallbackCommand.RefreshWarning> toStockRefreshWarnings(List<AgentStockQuoteRefreshCallbackRequest.RefreshWarning> warnings) {
+        if (warnings == null) {
+            return null;
+        }
+        return warnings.stream()
+                .map(warning -> warning == null ? null : AgentStockQuoteRefreshCallbackCommand.RefreshWarning.builder()
                         .module(warning.getModule())
                         .event(warning.getEvent())
                         .message(warning.getMessage())

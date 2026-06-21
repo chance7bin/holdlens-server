@@ -9,7 +9,6 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 @Data
 @Builder
@@ -34,9 +33,6 @@ public class AgentFundRefreshCallbackRequest implements Serializable {
     private String generatedAt;
 
     private List<FundDetail> funds;
-
-    @JsonProperty("data_sources")
-    private List<DataSourceMeta> dataSources;
 
     @JsonProperty("refresh_warnings")
     private List<RefreshWarning> refreshWarnings;
@@ -88,12 +84,6 @@ public class AgentFundRefreshCallbackRequest implements Serializable {
         @JsonProperty("three_years_return")
         private BigDecimal threeYearsReturn;
 
-        @JsonProperty("field_sources")
-        private Map<String, Object> fieldSources;
-
-        @JsonProperty("missing_reasons")
-        private Map<String, Object> missingReasons;
-
         @JsonProperty("top_holdings")
         private List<TopHolding> topHoldings;
 
@@ -118,9 +108,6 @@ public class AgentFundRefreshCallbackRequest implements Serializable {
 
         private String market;
 
-        @JsonProperty("daily_return")
-        private BigDecimal dailyReturn;
-
         @JsonProperty("holding_ratio")
         private BigDecimal holdingRatio;
 
@@ -129,30 +116,6 @@ public class AgentFundRefreshCallbackRequest implements Serializable {
 
         @JsonProperty("quarter_change_value")
         private BigDecimal quarterChangeValue;
-
-        @JsonProperty("missing_reasons")
-        private Map<String, Object> missingReasons;
-
-    }
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class DataSourceMeta implements Serializable {
-
-        private static final long serialVersionUID = 1L;
-
-        private String provider;
-
-        private String name;
-
-        private String url;
-
-        @JsonProperty("fetched_at")
-        private String fetchedAt;
-
-        private String status;
 
     }
 

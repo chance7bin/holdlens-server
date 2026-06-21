@@ -2,16 +2,20 @@ package com.echoamoy.holdlens.server.infrastructure.adapter.repository;
 
 import com.echoamoy.holdlens.server.domain.processing.adapter.repository.IProcessingTaskRepository;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingCallbackEntity;
+import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingLogEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingTaskEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.valobj.ProcessingTaskStatusEnumVO;
 import com.echoamoy.holdlens.server.infrastructure.dao.IProcessingCallbackDao;
+import com.echoamoy.holdlens.server.infrastructure.dao.IProcessingLogDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IProcessingTaskDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.ProcessingCallbackPO;
+import com.echoamoy.holdlens.server.infrastructure.dao.po.ProcessingLogPO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.ProcessingTaskPO;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import jakarta.annotation.Resource;
+import java.util.List;
 
 @Repository
 public class ProcessingTaskRepository implements IProcessingTaskRepository {
@@ -21,6 +25,9 @@ public class ProcessingTaskRepository implements IProcessingTaskRepository {
 
     @Resource
     private IProcessingCallbackDao processingCallbackDao;
+
+    @Resource
+    private IProcessingLogDao processingLogDao;
 
     @Override
     public void saveTask(ProcessingTaskEntity taskEntity) {
@@ -50,6 +57,16 @@ public class ProcessingTaskRepository implements IProcessingTaskRepository {
     @Override
     public void markCallbackProcessed(String serverTaskId, String idempotencyKey, String processStatus, String errorSummary) {
         processingCallbackDao.updateProcessStatus(serverTaskId, idempotencyKey, processStatus, errorSummary);
+    }
+
+    @Override
+    public void saveLogs(List<ProcessingLogEntity> logs) {
+        if (logs == null || logs.isEmpty()) {
+            return;
+        }
+        for (ProcessingLogEntity log : logs) {
+            processingLogDao.insert(toPO(log));
+        }
     }
 
     private ProcessingTaskPO toPO(ProcessingTaskEntity entity) {
@@ -90,6 +107,16 @@ public class ProcessingTaskRepository implements IProcessingTaskRepository {
                 .callbackStatus(entity.getCallbackStatus())
                 .processStatus(entity.getProcessStatus())
                 .errorSummary(entity.getErrorSummary())
+                .build();
+    }
+
+    private ProcessingLogPO toPO(ProcessingLogEntity entity) {
+        return ProcessingLogPO.builder()
+                .sourceRefId(entity.getSourceRefId())
+                .module(entity.getModule())
+                .event(entity.getEvent())
+                .message(entity.getMessage())
+                .severity(entity.getSeverity())
                 .build();
     }
 

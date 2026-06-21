@@ -65,8 +65,6 @@ public class PortfolioFundDetailResult {
         private BigDecimal sixMonthsReturn;
         private BigDecimal oneYearReturn;
         private BigDecimal threeYearsReturn;
-        private String fieldSourcesJson;
-        private String missingReasonsJson;
         private List<TopHolding> topHoldings;
 
     }
@@ -82,10 +80,12 @@ public class PortfolioFundDetailResult {
         private String stockCode;
         private String market;
         private BigDecimal dailyReturn;
+        private Date quoteTradeDate;
+        private Date quoteTime;
+        private String quoteStatus;
         private BigDecimal holdingRatio;
         private String quarterChangeType;
         private BigDecimal quarterChangeValue;
-        private String missingReasonsJson;
 
     }
 

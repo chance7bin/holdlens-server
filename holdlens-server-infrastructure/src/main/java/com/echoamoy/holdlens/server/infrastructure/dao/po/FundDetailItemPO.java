@@ -20,9 +20,6 @@ public class FundDetailItemPO implements Serializable {
     /** 基金详情ID */
     private Long id;
 
-    /** 快照ID */
-    private Long snapshotId;
-
     /** 基金资产ID */
     private Long fundAssetId;
 
@@ -61,12 +58,6 @@ public class FundDetailItemPO implements Serializable {
 
     /** 近3年涨跌幅 */
     private BigDecimal threeYearsReturn;
-
-    /** 字段来源JSON */
-    private String fieldSourcesJson;
-
-    /** 字段缺失原因JSON */
-    private String missingReasonsJson;
 
     /** 创建时间 */
     private Date createTime;

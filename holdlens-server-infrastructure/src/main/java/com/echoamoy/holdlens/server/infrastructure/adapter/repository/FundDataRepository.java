@@ -1,19 +1,18 @@
 package com.echoamoy.holdlens.server.infrastructure.adapter.repository;
 
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
-import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundDetailSnapshotAggregate;
+import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
 import com.echoamoy.holdlens.server.infrastructure.dao.IFundDetailItemDao;
-import com.echoamoy.holdlens.server.infrastructure.dao.IFundDetailSnapshotDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IFundTopHoldingDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IProcessingLogDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailItemPO;
-import com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailSnapshotPO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.FundTopHoldingPO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.ProcessingLogPO;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.annotation.Resource;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,9 +20,6 @@ import java.util.Set;
 
 @Repository
 public class FundDataRepository implements IFundDataRepository {
-
-    @Resource
-    private IFundDetailSnapshotDao fundDetailSnapshotDao;
 
     @Resource
     private IFundDetailItemDao fundDetailItemDao;
@@ -36,54 +32,51 @@ public class FundDataRepository implements IFundDataRepository {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Long saveSnapshot(FundDetailSnapshotAggregate aggregate) {
-        FundDetailSnapshotPO snapshotPO = FundDetailSnapshotPO.builder()
-                .schemaVersion(aggregate.getSchemaVersion())
-                .generatedAt(aggregate.getGeneratedAt())
-                .snapshotStatus(aggregate.getSnapshotStatus())
-                .sourceRefId(aggregate.getSourceRefId())
-                .dataSourcesJson(aggregate.getDataSourcesJson())
-                .build();
-        fundDetailSnapshotDao.insert(snapshotPO);
-
-        Long snapshotId = snapshotPO.getId();
+    public void saveCurrentData(FundCurrentDataAggregate aggregate) {
         if (aggregate.getFunds() != null) {
-            for (FundDetailSnapshotAggregate.FundDetail fund : aggregate.getFunds()) {
-                FundDetailItemPO itemPO = toItemPO(snapshotId, fund);
-                fundDetailItemDao.insert(itemPO);
+            for (FundCurrentDataAggregate.FundDetail fund : aggregate.getFunds()) {
+                fundDetailItemDao.upsert(toItemPO(fund));
+                // 当前重仓以基金代码为边界整体替换，避免最新结果减少 rank 时旧 rank 残留。
+                fundTopHoldingDao.deleteByFundCode(fund.getFundCode());
                 if (fund.getTopHoldings() != null) {
-                    for (FundDetailSnapshotAggregate.TopHolding topHolding : fund.getTopHoldings()) {
-                        fundTopHoldingDao.insert(toTopHoldingPO(snapshotId, itemPO.getId(), topHolding));
+                    for (FundCurrentDataAggregate.TopHolding topHolding : fund.getTopHoldings()) {
+                        fundTopHoldingDao.insert(toTopHoldingPO(fund.getFundCode(), topHolding));
                     }
                 }
             }
         }
         if (aggregate.getWarnings() != null) {
-            for (FundDetailSnapshotAggregate.RefreshWarning warning : aggregate.getWarnings()) {
+            for (FundCurrentDataAggregate.RefreshWarning warning : aggregate.getWarnings()) {
                 processingLogDao.insert(toProcessingLogPO(aggregate.getSourceRefId(), warning));
             }
         }
-        return snapshotId;
     }
 
     @Override
-    public Map<String, FundDetailSnapshotAggregate.FundDetail> queryLatestDetails(Set<String> fundCodes) {
+    public Map<String, FundCurrentDataAggregate.FundDetail> queryCurrentDetails(Set<String> fundCodes) {
         if (fundCodes == null || fundCodes.isEmpty()) {
             return Map.of();
         }
-        List<FundDetailItemPO> itemPOList = fundDetailItemDao.selectLatestByFundCodes(fundCodes);
-        Map<String, FundDetailSnapshotAggregate.FundDetail> result = new LinkedHashMap<>();
+        List<FundDetailItemPO> itemPOList = fundDetailItemDao.selectByFundCodes(fundCodes);
+        Map<String, List<FundTopHoldingPO>> topHoldingsByFundCode = groupTopHoldings(fundCodes);
+        Map<String, FundCurrentDataAggregate.FundDetail> result = new LinkedHashMap<>();
         for (FundDetailItemPO itemPO : itemPOList) {
-            FundDetailSnapshotPO snapshotPO = fundDetailSnapshotDao.selectById(itemPO.getSnapshotId());
-            List<FundTopHoldingPO> topHoldingPOList = fundTopHoldingDao.selectByFundDetailItemId(itemPO.getId());
-            result.put(itemPO.getFundCode(), toFundDetail(itemPO, snapshotPO, topHoldingPOList));
+            result.put(itemPO.getFundCode(), toFundDetail(itemPO, topHoldingsByFundCode.getOrDefault(itemPO.getFundCode(), List.of())));
         }
         return result;
     }
 
-    private FundDetailItemPO toItemPO(Long snapshotId, FundDetailSnapshotAggregate.FundDetail fund) {
+    private Map<String, List<FundTopHoldingPO>> groupTopHoldings(Collection<String> fundCodes) {
+        List<FundTopHoldingPO> topHoldingPOList = fundTopHoldingDao.selectByFundCodes(fundCodes);
+        Map<String, List<FundTopHoldingPO>> result = new LinkedHashMap<>();
+        for (FundTopHoldingPO po : topHoldingPOList) {
+            result.computeIfAbsent(po.getFundCode(), key -> new java.util.ArrayList<>()).add(po);
+        }
+        return result;
+    }
+
+    private FundDetailItemPO toItemPO(FundCurrentDataAggregate.FundDetail fund) {
         return FundDetailItemPO.builder()
-                .snapshotId(snapshotId)
                 .fundAssetId(null)
                 .fundCode(fund.getFundCode())
                 .fundName(fund.getFundName())
@@ -97,28 +90,23 @@ public class FundDataRepository implements IFundDataRepository {
                 .sixMonthsReturn(fund.getSixMonthsReturn())
                 .oneYearReturn(fund.getOneYearReturn())
                 .threeYearsReturn(fund.getThreeYearsReturn())
-                .fieldSourcesJson(fund.getFieldSourcesJson())
-                .missingReasonsJson(fund.getMissingReasonsJson())
                 .build();
     }
 
-    private FundTopHoldingPO toTopHoldingPO(Long snapshotId, Long fundDetailItemId, FundDetailSnapshotAggregate.TopHolding topHolding) {
+    private FundTopHoldingPO toTopHoldingPO(String fundCode, FundCurrentDataAggregate.TopHolding topHolding) {
         return FundTopHoldingPO.builder()
-                .fundDetailItemId(fundDetailItemId)
-                .snapshotId(snapshotId)
+                .fundCode(fundCode)
                 .rankNo(topHolding.getRankNo())
                 .stockName(topHolding.getStockName())
                 .stockCode(topHolding.getStockCode())
                 .market(topHolding.getMarket())
-                .dailyReturn(topHolding.getDailyReturn())
                 .holdingRatio(topHolding.getHoldingRatio())
                 .quarterChangeType(topHolding.getQuarterChangeType())
                 .quarterChangeValue(topHolding.getQuarterChangeValue())
-                .missingReasonsJson(topHolding.getMissingReasonsJson())
                 .build();
     }
 
-    private ProcessingLogPO toProcessingLogPO(String sourceRefId, FundDetailSnapshotAggregate.RefreshWarning warning) {
+    private ProcessingLogPO toProcessingLogPO(String sourceRefId, FundCurrentDataAggregate.RefreshWarning warning) {
         return ProcessingLogPO.builder()
                 .sourceRefId(sourceRefId)
                 .module(warning.getModule())
@@ -128,12 +116,10 @@ public class FundDataRepository implements IFundDataRepository {
                 .build();
     }
 
-    private FundDetailSnapshotAggregate.FundDetail toFundDetail(FundDetailItemPO itemPO,
-                                                               FundDetailSnapshotPO snapshotPO,
-                                                               List<FundTopHoldingPO> topHoldingPOList) {
-        return FundDetailSnapshotAggregate.FundDetail.builder()
+    private FundCurrentDataAggregate.FundDetail toFundDetail(FundDetailItemPO itemPO,
+                                                            List<FundTopHoldingPO> topHoldingPOList) {
+        return FundCurrentDataAggregate.FundDetail.builder()
                 .id(itemPO.getId())
-                .snapshotId(itemPO.getSnapshotId())
                 .fundCode(itemPO.getFundCode())
                 .fundName(itemPO.getFundName())
                 .buyStatus(itemPO.getBuyStatus())
@@ -146,24 +132,21 @@ public class FundDataRepository implements IFundDataRepository {
                 .sixMonthsReturn(itemPO.getSixMonthsReturn())
                 .oneYearReturn(itemPO.getOneYearReturn())
                 .threeYearsReturn(itemPO.getThreeYearsReturn())
-                .fieldSourcesJson(itemPO.getFieldSourcesJson())
-                .missingReasonsJson(itemPO.getMissingReasonsJson())
-                .generatedAt(snapshotPO == null ? null : snapshotPO.getGeneratedAt())
+                .generatedAt(itemPO.getUpdateTime())
                 .topHoldings(topHoldingPOList.stream().map(this::toTopHolding).toList())
                 .build();
     }
 
-    private FundDetailSnapshotAggregate.TopHolding toTopHolding(FundTopHoldingPO po) {
-        return FundDetailSnapshotAggregate.TopHolding.builder()
+    private FundCurrentDataAggregate.TopHolding toTopHolding(FundTopHoldingPO po) {
+        return FundCurrentDataAggregate.TopHolding.builder()
+                .fundCode(po.getFundCode())
                 .rankNo(po.getRankNo())
                 .stockName(po.getStockName())
                 .stockCode(po.getStockCode())
                 .market(po.getMarket())
-                .dailyReturn(po.getDailyReturn())
                 .holdingRatio(po.getHoldingRatio())
                 .quarterChangeType(po.getQuarterChangeType())
                 .quarterChangeValue(po.getQuarterChangeValue())
-                .missingReasonsJson(po.getMissingReasonsJson())
                 .build();
     }
 

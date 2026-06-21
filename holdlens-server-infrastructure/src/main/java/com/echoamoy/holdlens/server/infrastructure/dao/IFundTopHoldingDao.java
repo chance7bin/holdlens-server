@@ -11,11 +11,11 @@ public interface IFundTopHoldingDao {
 
     void insert(FundTopHoldingPO fundTopHoldingPO);
 
+    void deleteByFundCode(@Param("fundCode") String fundCode);
+
     FundTopHoldingPO selectById(@Param("id") Long id);
 
-    List<FundTopHoldingPO> selectByFundDetailItemId(@Param("fundDetailItemId") Long fundDetailItemId);
-
-    List<FundTopHoldingPO> selectBySnapshotId(@Param("snapshotId") Long snapshotId);
+    List<FundTopHoldingPO> selectByFundCodes(@Param("fundCodes") java.util.Collection<String> fundCodes);
 
     List<FundTopHoldingPO> selectByStockCode(@Param("stockCode") String stockCode);
 

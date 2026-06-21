@@ -109,7 +109,7 @@ DROP TABLE IF EXISTS `processing_task`;
 CREATE TABLE `processing_task` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '处理任务ID',
     `server_task_id` VARCHAR(100) NOT NULL COMMENT 'server任务标识',
-    `task_type` VARCHAR(50) NOT NULL COMMENT '任务类型：fund_detail_refresh',
+    `task_type` VARCHAR(50) NOT NULL COMMENT '任务类型：fund_detail_refresh/stock_quote_refresh',
     `task_params_json` TEXT DEFAULT NULL COMMENT '安全任务参数摘要JSON',
     `status` VARCHAR(30) NOT NULL DEFAULT 'created' COMMENT '状态：created/dispatched/running/succeeded/partial_failed/failed/dispatch_failed/callback_failed',
     `error_summary` VARCHAR(1000) DEFAULT NULL COMMENT '安全错误摘要',
@@ -139,30 +139,11 @@ CREATE TABLE `processing_callback` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='处理回调幂等记录表';
 
 -- ----------------------------
--- 基金详情快照表
--- ----------------------------
-DROP TABLE IF EXISTS `fund_detail_snapshot`;
-CREATE TABLE `fund_detail_snapshot` (
-    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '基金详情快照ID',
-    `schema_version` VARCHAR(100) NOT NULL COMMENT 'agent契约版本',
-    `generated_at` DATETIME NOT NULL COMMENT '快照生成时间',
-    `snapshot_status` VARCHAR(20) NOT NULL DEFAULT 'success' COMMENT '快照状态：success/partial/failed',
-    `source_ref_id` VARCHAR(100) DEFAULT NULL COMMENT '来源引用ID',
-    `data_sources_json` TEXT DEFAULT NULL COMMENT '数据来源元信息JSON',
-    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    KEY `idx_fund_detail_snapshot_generated_at` (`generated_at`),
-    KEY `idx_fund_detail_snapshot_source_ref_id` (`source_ref_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='基金详情快照表';
-
--- ----------------------------
--- 基金详情明细表
+-- 基金当前详情表
 -- ----------------------------
 DROP TABLE IF EXISTS `fund_detail_item`;
 CREATE TABLE `fund_detail_item` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '基金详情ID',
-    `snapshot_id` BIGINT NOT NULL COMMENT '快照ID',
     `fund_asset_id` BIGINT DEFAULT NULL COMMENT '基金资产ID',
     `fund_code` VARCHAR(50) NOT NULL COMMENT '基金代码',
     `fund_name` VARCHAR(200) NOT NULL COMMENT '基金名称',
@@ -176,39 +157,52 @@ CREATE TABLE `fund_detail_item` (
     `six_months_return` DECIMAL(12, 4) DEFAULT NULL COMMENT '近6月涨跌幅',
     `one_year_return` DECIMAL(12, 4) DEFAULT NULL COMMENT '近1年涨跌幅',
     `three_years_return` DECIMAL(12, 4) DEFAULT NULL COMMENT '近3年涨跌幅',
-    `field_sources_json` TEXT DEFAULT NULL COMMENT '字段来源JSON',
-    `missing_reasons_json` TEXT DEFAULT NULL COMMENT '字段缺失原因JSON',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
-    KEY `idx_fund_detail_item_snapshot_id` (`snapshot_id`),
-    KEY `idx_fund_detail_item_fund_code` (`fund_code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='基金详情明细表';
+    UNIQUE KEY `uk_fund_detail_item_fund_code` (`fund_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='基金当前详情表';
 
 -- ----------------------------
--- 基金前十大重仓表
+-- 基金当前前十大重仓表
 -- ----------------------------
 DROP TABLE IF EXISTS `fund_top_holding`;
 CREATE TABLE `fund_top_holding` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '基金重仓ID',
-    `fund_detail_item_id` BIGINT NOT NULL COMMENT '基金详情ID',
-    `snapshot_id` BIGINT NOT NULL COMMENT '快照ID',
+    `fund_code` VARCHAR(50) NOT NULL COMMENT '基金代码',
     `rank_no` INT NOT NULL COMMENT '重仓排名',
     `stock_name` VARCHAR(100) DEFAULT NULL COMMENT '股票简称',
     `stock_code` VARCHAR(50) DEFAULT NULL COMMENT '股票代码',
     `market` VARCHAR(20) DEFAULT NULL COMMENT '市场标识',
-    `daily_return` DECIMAL(12, 4) DEFAULT NULL COMMENT '当日涨跌幅',
     `holding_ratio` DECIMAL(12, 4) DEFAULT NULL COMMENT '持仓占比',
     `quarter_change_type` VARCHAR(30) NOT NULL DEFAULT 'unknown' COMMENT '较上季度变化类型：new/increased/decreased/unchanged/removed/not_applicable/unknown',
     `quarter_change_value` DECIMAL(12, 4) DEFAULT NULL COMMENT '较上季度变化值',
-    `missing_reasons_json` TEXT DEFAULT NULL COMMENT '字段缺失原因JSON',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_fund_top_holding_item_rank` (`fund_detail_item_id`, `rank_no`),
-    KEY `idx_fund_top_holding_snapshot_id` (`snapshot_id`),
+    UNIQUE KEY `uk_fund_top_holding_fund_rank` (`fund_code`, `rank_no`),
+    KEY `idx_fund_top_holding_fund_code` (`fund_code`),
     KEY `idx_fund_top_holding_stock_code` (`stock_code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='基金前十大重仓表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='基金当前前十大重仓表';
+
+-- ----------------------------
+-- 股票当前行情表
+-- ----------------------------
+DROP TABLE IF EXISTS `stock_market_current`;
+CREATE TABLE `stock_market_current` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '股票行情ID',
+    `stock_code` VARCHAR(50) NOT NULL COMMENT '股票代码',
+    `market` VARCHAR(20) NOT NULL COMMENT '市场标识',
+    `stock_name` VARCHAR(100) DEFAULT NULL COMMENT '股票简称',
+    `trade_date` DATE DEFAULT NULL COMMENT '交易日期',
+    `daily_return` DECIMAL(12, 4) DEFAULT NULL COMMENT '当日涨跌幅',
+    `quote_time` DATETIME DEFAULT NULL COMMENT '行情时间',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_stock_market_current_code_market` (`stock_code`, `market`),
+    KEY `idx_stock_market_current_trade_date` (`trade_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='股票当前行情表';
 
 -- ----------------------------
 -- 处理日志表

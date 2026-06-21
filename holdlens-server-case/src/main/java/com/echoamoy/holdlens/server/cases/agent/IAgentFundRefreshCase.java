@@ -1,6 +1,7 @@
 package com.echoamoy.holdlens.server.cases.agent;
 
 import com.echoamoy.holdlens.server.cases.agent.model.AgentFundRefreshCallbackCommand;
+import com.echoamoy.holdlens.server.cases.agent.model.AgentStockQuoteRefreshCallbackCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
 
@@ -11,5 +12,9 @@ public interface IAgentFundRefreshCase {
     FundRefreshTaskResult handleCallback(AgentFundRefreshCallbackCommand command);
 
     FundRefreshTaskResult queryTask(String serverTaskId);
+
+    FundRefreshTaskResult createAndDispatchStockQuotes();
+
+    FundRefreshTaskResult handleStockQuoteCallback(AgentStockQuoteRefreshCallbackCommand command);
 
 }

@@ -13,14 +13,12 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FundDetailSnapshotAggregate {
+public class FundCurrentDataAggregate {
 
-    private Long snapshotId;
     private String schemaVersion;
     private Date generatedAt;
-    private String snapshotStatus;
+    private String status;
     private String sourceRefId;
-    private String dataSourcesJson;
     private List<FundDetail> funds;
     private List<RefreshWarning> warnings;
 
@@ -30,7 +28,6 @@ public class FundDetailSnapshotAggregate {
     @AllArgsConstructor
     public static class FundDetail {
         private Long id;
-        private Long snapshotId;
         private String fundCode;
         private String fundName;
         private String buyStatus;
@@ -43,8 +40,6 @@ public class FundDetailSnapshotAggregate {
         private BigDecimal sixMonthsReturn;
         private BigDecimal oneYearReturn;
         private BigDecimal threeYearsReturn;
-        private String fieldSourcesJson;
-        private String missingReasonsJson;
         private Date generatedAt;
         private List<TopHolding> topHoldings;
     }
@@ -54,15 +49,29 @@ public class FundDetailSnapshotAggregate {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class TopHolding {
+        private String fundCode;
         private Integer rankNo;
         private String stockName;
         private String stockCode;
         private String market;
-        private BigDecimal dailyReturn;
         private BigDecimal holdingRatio;
         private String quarterChangeType;
         private BigDecimal quarterChangeValue;
-        private String missingReasonsJson;
+        private StockQuote stockQuote;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class StockQuote {
+        private String stockCode;
+        private String market;
+        private String stockName;
+        private Date tradeDate;
+        private BigDecimal dailyReturn;
+        private Date quoteTime;
+        private Date updateTime;
     }
 
     @Data

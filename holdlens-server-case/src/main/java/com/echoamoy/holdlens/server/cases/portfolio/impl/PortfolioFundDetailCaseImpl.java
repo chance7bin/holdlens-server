@@ -3,9 +3,11 @@ package com.echoamoy.holdlens.server.cases.portfolio.impl;
 import com.echoamoy.holdlens.server.cases.portfolio.IPortfolioFundDetailCase;
 import com.echoamoy.holdlens.server.cases.portfolio.model.PortfolioFundDetailResult;
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
-import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundDetailSnapshotAggregate;
+import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
 import com.echoamoy.holdlens.server.domain.portfolio.adapter.repository.IPortfolioRepository;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.PortfolioHoldingEntity;
+import com.echoamoy.holdlens.server.domain.stockdata.adapter.repository.IStockMarketRepository;
+import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteEntity;
 import com.echoamoy.holdlens.server.types.enums.ResponseCode;
 import com.echoamoy.holdlens.server.types.exception.AppException;
 import org.springframework.stereotype.Service;
@@ -29,6 +31,9 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
     @Resource
     private IFundDataRepository fundDataRepository;
 
+    @Resource
+    private IStockMarketRepository stockMarketRepository;
+
     @Override
     public PortfolioFundDetailResult queryPortfolioFundDetails(Long userId) {
         if (userId == null) {
@@ -43,17 +48,19 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                 fundCodes.add(fundCode);
             }
         }
-        Map<String, FundDetailSnapshotAggregate.FundDetail> latestDetails = fundDataRepository.queryLatestDetails(fundCodes);
+        Map<String, FundCurrentDataAggregate.FundDetail> currentDetails = fundDataRepository.queryCurrentDetails(fundCodes);
+        Map<String, StockQuoteEntity> stockQuotes = stockMarketRepository.queryByStockKeys(collectStockKeys(currentDetails));
         return PortfolioFundDetailResult.builder()
                 .userId(userId)
                 .holdings(holdings.stream()
-                        .map(holding -> toHoldingDetail(holding, latestDetails.get(holding.fundCodeOrNull())))
+                        .map(holding -> toHoldingDetail(holding, currentDetails.get(holding.fundCodeOrNull()), stockQuotes))
                         .toList())
                 .build();
     }
 
     private PortfolioFundDetailResult.HoldingDetail toHoldingDetail(PortfolioHoldingEntity holding,
-                                                                    FundDetailSnapshotAggregate.FundDetail fundDetail) {
+                                                                    FundCurrentDataAggregate.FundDetail fundDetail,
+                                                                    Map<String, StockQuoteEntity> stockQuotes) {
         return PortfolioFundDetailResult.HoldingDetail.builder()
                 .holdingId(holding.getHoldingId())
                 .accountId(holding.getAccountId())
@@ -71,11 +78,13 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                 .amountDisplay(holding.getAmountDisplay())
                 .amountMissingReason(holding.getAmountMissingReason())
                 .status(holding.getStatus())
-                .fundDetail(toFundDetail(holding.fundCodeOrNull(), fundDetail))
+                .fundDetail(toFundDetail(holding.fundCodeOrNull(), fundDetail, stockQuotes))
                 .build();
     }
 
-    private PortfolioFundDetailResult.FundDetail toFundDetail(String fundCode, FundDetailSnapshotAggregate.FundDetail detail) {
+    private PortfolioFundDetailResult.FundDetail toFundDetail(String fundCode,
+                                                             FundCurrentDataAggregate.FundDetail detail,
+                                                             Map<String, StockQuoteEntity> stockQuotes) {
         if (fundCode == null) {
             return PortfolioFundDetailResult.FundDetail.builder().detailStatus("unavailable").build();
         }
@@ -100,29 +109,49 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                 .sixMonthsReturn(detail.getSixMonthsReturn())
                 .oneYearReturn(detail.getOneYearReturn())
                 .threeYearsReturn(detail.getThreeYearsReturn())
-                .fieldSourcesJson(detail.getFieldSourcesJson())
-                .missingReasonsJson(detail.getMissingReasonsJson())
                 .topHoldings(detail.getTopHoldings() == null ? List.of() : detail.getTopHoldings().stream()
-                        .map(this::toTopHolding)
+                        .map(topHolding -> toTopHolding(topHolding, stockQuotes.get(stockKey(topHolding.getStockCode(), topHolding.getMarket()))))
                         .toList())
                 .build();
     }
 
-    private PortfolioFundDetailResult.TopHolding toTopHolding(FundDetailSnapshotAggregate.TopHolding topHolding) {
+    private PortfolioFundDetailResult.TopHolding toTopHolding(FundCurrentDataAggregate.TopHolding topHolding,
+                                                              StockQuoteEntity stockQuote) {
         return PortfolioFundDetailResult.TopHolding.builder()
                 .rankNo(topHolding.getRankNo())
                 .stockName(topHolding.getStockName())
                 .stockCode(topHolding.getStockCode())
                 .market(topHolding.getMarket())
-                .dailyReturn(topHolding.getDailyReturn())
+                .dailyReturn(stockQuote == null ? null : stockQuote.getDailyReturn())
+                .quoteTradeDate(stockQuote == null ? null : stockQuote.getTradeDate())
+                .quoteTime(stockQuote == null ? null : stockQuote.getQuoteTime())
+                .quoteStatus(stockQuote == null ? "missing" : "available")
                 .holdingRatio(topHolding.getHoldingRatio())
                 .quarterChangeType(topHolding.getQuarterChangeType())
                 .quarterChangeValue(topHolding.getQuarterChangeValue())
-                .missingReasonsJson(topHolding.getMissingReasonsJson())
                 .build();
     }
 
-    private boolean isStale(FundDetailSnapshotAggregate.FundDetail detail) {
+    private Set<String> collectStockKeys(Map<String, FundCurrentDataAggregate.FundDetail> details) {
+        Set<String> stockKeys = new LinkedHashSet<>();
+        for (FundCurrentDataAggregate.FundDetail detail : details.values()) {
+            if (detail.getTopHoldings() == null) {
+                continue;
+            }
+            for (FundCurrentDataAggregate.TopHolding topHolding : detail.getTopHoldings()) {
+                if (topHolding.getStockCode() != null && topHolding.getMarket() != null) {
+                    stockKeys.add(stockKey(topHolding.getStockCode(), topHolding.getMarket()));
+                }
+            }
+        }
+        return stockKeys;
+    }
+
+    private String stockKey(String stockCode, String market) {
+        return stockCode + "#" + market;
+    }
+
+    private boolean isStale(FundCurrentDataAggregate.FundDetail detail) {
         return detail.getGeneratedAt() != null
                 && detail.getGeneratedAt().toInstant().isBefore(Instant.now().minus(STALE_DAYS, ChronoUnit.DAYS));
     }

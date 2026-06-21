@@ -80,8 +80,6 @@ public class PortfolioFundDetailController implements IPortfolioFundDetailServic
                 .sixMonthsReturn(fundDetail.getSixMonthsReturn())
                 .oneYearReturn(fundDetail.getOneYearReturn())
                 .threeYearsReturn(fundDetail.getThreeYearsReturn())
-                .fieldSourcesJson(fundDetail.getFieldSourcesJson())
-                .missingReasonsJson(fundDetail.getMissingReasonsJson())
                 .topHoldings(toTopHoldings(fundDetail.getTopHoldings()))
                 .build();
     }
@@ -97,10 +95,12 @@ public class PortfolioFundDetailController implements IPortfolioFundDetailServic
                         .stockCode(topHolding.getStockCode())
                         .market(topHolding.getMarket())
                         .dailyReturn(topHolding.getDailyReturn())
+                        .quoteTradeDate(topHolding.getQuoteTradeDate())
+                        .quoteTime(topHolding.getQuoteTime())
+                        .quoteStatus(topHolding.getQuoteStatus())
                         .holdingRatio(topHolding.getHoldingRatio())
                         .quarterChangeType(topHolding.getQuarterChangeType())
                         .quarterChangeValue(topHolding.getQuarterChangeValue())
-                        .missingReasonsJson(topHolding.getMissingReasonsJson())
                         .build())
                 .toList();
     }

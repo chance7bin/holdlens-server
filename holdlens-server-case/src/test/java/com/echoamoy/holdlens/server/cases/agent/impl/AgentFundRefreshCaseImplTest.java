@@ -1,17 +1,24 @@
 package com.echoamoy.holdlens.server.cases.agent.impl;
 
 import com.echoamoy.holdlens.server.cases.agent.model.AgentFundRefreshCallbackCommand;
+import com.echoamoy.holdlens.server.cases.agent.model.AgentStockQuoteRefreshCallbackCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
-import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundDetailSnapshotAggregate;
+import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
 import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentFundRefreshPort;
+import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentStockQuoteRefreshPort;
 import com.echoamoy.holdlens.server.domain.processing.adapter.repository.IProcessingTaskRepository;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.FundRefreshDispatchCommandEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.FundRefreshDispatchResultEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingCallbackEntity;
+import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingLogEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingTaskEntity;
+import com.echoamoy.holdlens.server.domain.processing.model.entity.StockQuoteRefreshDispatchCommandEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.valobj.ProcessingTaskStatusEnumVO;
+import com.echoamoy.holdlens.server.domain.stockdata.adapter.repository.IStockMarketRepository;
+import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteEntity;
+import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteTargetEntity;
 import com.echoamoy.holdlens.server.types.exception.AppException;
 import org.junit.Assert;
 import org.junit.Test;
@@ -69,7 +76,7 @@ public class AgentFundRefreshCaseImplTest {
         processingRepository.saveTask(task);
 
         AgentFundRefreshCallbackCommand callback = AgentFundRefreshCallbackCommand.builder()
-                .schemaVersion("fund-detail-refresh-result/v1")
+                .schemaVersion("fund-detail-refresh-result/v2")
                 .serverTaskId("task_1")
                 .idempotencyKey("task_1:result:1")
                 .status("succeeded")
@@ -107,7 +114,7 @@ public class AgentFundRefreshCaseImplTest {
                 .build());
 
         FundRefreshTaskResult result = refreshCase.handleCallback(AgentFundRefreshCallbackCommand.builder()
-                .schemaVersion("fund-detail-refresh-result/v1")
+                .schemaVersion("fund-detail-refresh-result/v2")
                 .serverTaskId("task_callback_failed")
                 .idempotencyKey("task_callback_failed:result:1")
                 .status("callback_failed")
@@ -143,14 +150,96 @@ public class AgentFundRefreshCaseImplTest {
         }
     }
 
+    @Test
+    public void createStockQuoteTaskUsesCurrentQuoteTargets() throws Exception {
+        FakeProcessingRepository processingRepository = new FakeProcessingRepository();
+        FakeAgentPort agentPort = new FakeAgentPort(true, "running");
+        FakeStockMarketRepository stockMarketRepository = new FakeStockMarketRepository();
+        AgentFundRefreshCaseImpl refreshCase = newCase(processingRepository, agentPort, new FakeFundDataRepository(), stockMarketRepository);
+
+        FundRefreshTaskResult result = refreshCase.createAndDispatchStockQuotes();
+
+        Assert.assertEquals("running", result.getStatus());
+        Assert.assertEquals("stock_quote_refresh", result.getTaskType());
+        Assert.assertEquals(2, agentPort.lastStockCommand.getStocks().size());
+        Assert.assertTrue(processingRepository.queryTask(result.getServerTaskId()).getTaskParamsJson().contains("\"stockCount\":2"));
+    }
+
+    @Test
+    public void createStockQuoteTaskRejectsEmptyTargets() throws Exception {
+        AgentFundRefreshCaseImpl refreshCase = newCase(new FakeProcessingRepository(), new FakeAgentPort(true, "running"),
+                new FakeFundDataRepository(), new FakeStockMarketRepository(List.of()));
+
+        try {
+            refreshCase.createAndDispatchStockQuotes();
+            Assert.fail("should reject empty stock quote targets");
+        } catch (AppException e) {
+            Assert.assertNotNull(e);
+        }
+    }
+
+    @Test
+    public void handleStockQuoteCallbackPersistsQuotesAndWarningsOnce() throws Exception {
+        FakeProcessingRepository processingRepository = new FakeProcessingRepository();
+        FakeStockMarketRepository stockMarketRepository = new FakeStockMarketRepository();
+        AgentFundRefreshCaseImpl refreshCase = newCase(processingRepository, new FakeAgentPort(true, "running"),
+                new FakeFundDataRepository(), stockMarketRepository);
+        processingRepository.saveTask(ProcessingTaskEntity.builder()
+                .serverTaskId("stock_task_1")
+                .taskType(ProcessingTaskEntity.STOCK_QUOTE_REFRESH)
+                .status(ProcessingTaskStatusEnumVO.RUNNING)
+                .taskParamsJson("{\"stockCount\":1,\"trigger\":\"system\"}")
+                .build());
+
+        AgentStockQuoteRefreshCallbackCommand callback = AgentStockQuoteRefreshCallbackCommand.builder()
+                .schemaVersion("stock-quote-refresh-result/v1")
+                .serverTaskId("stock_task_1")
+                .idempotencyKey("stock_task_1:result:1")
+                .status("partial_failed")
+                .quotes(List.of(AgentStockQuoteRefreshCallbackCommand.StockQuote.builder()
+                        .stockCode("600000")
+                        .market("1")
+                        .stockName("测试股份")
+                        .tradeDate("2026-06-18")
+                        .dailyReturn(new java.math.BigDecimal("0.50"))
+                        .quoteTime("2026-06-18T10:04:30Z")
+                        .build()))
+                .refreshWarnings(List.of(AgentStockQuoteRefreshCallbackCommand.RefreshWarning.builder()
+                        .module("stock_quote_refresh")
+                        .event("provider_failed")
+                        .message("provider failed for one stock")
+                        .severity("warning")
+                        .build()))
+                .build();
+
+        FundRefreshTaskResult first = refreshCase.handleStockQuoteCallback(callback);
+        FundRefreshTaskResult duplicate = refreshCase.handleStockQuoteCallback(callback);
+
+        Assert.assertEquals("partial_failed", first.getStatus());
+        Assert.assertEquals("partial_failed", duplicate.getStatus());
+        Assert.assertEquals(1, stockMarketRepository.upsertCount);
+        Assert.assertEquals(1, processingRepository.logs.size());
+        Assert.assertEquals("stock_quote_refresh", processingRepository.logs.get(0).getModule());
+    }
+
     private AgentFundRefreshCaseImpl newCase(FakeProcessingRepository processingRepository,
                                              FakeAgentPort agentPort,
                                              FakeFundDataRepository fundDataRepository) throws Exception {
+        return newCase(processingRepository, agentPort, fundDataRepository, new FakeStockMarketRepository());
+    }
+
+    private AgentFundRefreshCaseImpl newCase(FakeProcessingRepository processingRepository,
+                                             FakeAgentPort agentPort,
+                                             FakeFundDataRepository fundDataRepository,
+                                             FakeStockMarketRepository stockMarketRepository) throws Exception {
         AgentFundRefreshCaseImpl refreshCase = new AgentFundRefreshCaseImpl();
         setField(refreshCase, "processingTaskRepository", processingRepository);
         setField(refreshCase, "agentFundRefreshPort", agentPort);
+        setField(refreshCase, "agentStockQuoteRefreshPort", agentPort);
         setField(refreshCase, "fundDataRepository", fundDataRepository);
+        setField(refreshCase, "stockMarketRepository", stockMarketRepository);
         setField(refreshCase, "callbackUrl", "http://server/internal/agent/fund-detail-refresh/callback");
+        setField(refreshCase, "stockCallbackUrl", "http://server/internal/agent/stock-quote-refresh/callback");
         return refreshCase;
     }
 
@@ -160,10 +249,11 @@ public class AgentFundRefreshCaseImplTest {
         field.set(target, value);
     }
 
-    private static class FakeAgentPort implements IAgentFundRefreshPort {
+    private static class FakeAgentPort implements IAgentFundRefreshPort, IAgentStockQuoteRefreshPort {
         private final boolean accepted;
         private final String status;
         private FundRefreshDispatchCommandEntity lastCommand;
+        private StockQuoteRefreshDispatchCommandEntity lastStockCommand;
 
         private FakeAgentPort(boolean accepted, String status) {
             this.accepted = accepted;
@@ -179,11 +269,22 @@ public class AgentFundRefreshCaseImplTest {
                     .errorSummary(accepted ? null : "rejected")
                     .build();
         }
+
+        @Override
+        public FundRefreshDispatchResultEntity dispatch(StockQuoteRefreshDispatchCommandEntity commandEntity) {
+            lastStockCommand = commandEntity;
+            return FundRefreshDispatchResultEntity.builder()
+                    .accepted(accepted)
+                    .agentStatus(status)
+                    .errorSummary(accepted ? null : "rejected")
+                    .build();
+        }
     }
 
     private static class FakeProcessingRepository implements IProcessingTaskRepository {
         private final Map<String, ProcessingTaskEntity> tasks = new HashMap<>();
         private final Set<String> callbacks = new java.util.HashSet<>();
+        private final List<ProcessingLogEntity> logs = new java.util.ArrayList<>();
 
         @Override
         public void saveTask(ProcessingTaskEntity taskEntity) {
@@ -209,6 +310,11 @@ public class AgentFundRefreshCaseImplTest {
         public void markCallbackProcessed(String serverTaskId, String idempotencyKey, String processStatus, String errorSummary) {
         }
 
+        @Override
+        public void saveLogs(List<ProcessingLogEntity> logs) {
+            this.logs.addAll(logs);
+        }
+
         private ProcessingTaskEntity copy(ProcessingTaskEntity task) {
             if (task == null) {
                 return null;
@@ -230,21 +336,50 @@ public class AgentFundRefreshCaseImplTest {
         private int saveCount;
 
         @Override
-        public Long saveSnapshot(FundDetailSnapshotAggregate aggregate) {
+        public void saveCurrentData(FundCurrentDataAggregate aggregate) {
             saveCount++;
             Assert.assertEquals("000001", aggregate.getFunds().get(0).getFundCode());
             Assert.assertEquals("task_1", aggregate.getSourceRefId());
             if (aggregate.getWarnings() != null && !aggregate.getWarnings().isEmpty()) {
-                FundDetailSnapshotAggregate.RefreshWarning warning = aggregate.getWarnings().get(0);
+                FundCurrentDataAggregate.RefreshWarning warning = aggregate.getWarnings().get(0);
                 Assert.assertEquals("fund_refresh", warning.getModule());
                 Assert.assertEquals("provider_fund_failed", warning.getEvent());
                 Assert.assertEquals("error", warning.getSeverity());
             }
-            return 1L;
         }
 
         @Override
-        public Map<String, FundDetailSnapshotAggregate.FundDetail> queryLatestDetails(Set<String> fundCodes) {
+        public Map<String, FundCurrentDataAggregate.FundDetail> queryCurrentDetails(Set<String> fundCodes) {
+            return Map.of();
+        }
+    }
+
+    private static class FakeStockMarketRepository implements IStockMarketRepository {
+        private final List<StockQuoteTargetEntity> targets;
+        private int upsertCount;
+
+        private FakeStockMarketRepository() {
+            this(List.of(
+                    StockQuoteTargetEntity.builder().stockCode("600000").market("1").build(),
+                    StockQuoteTargetEntity.builder().stockCode("000001").market("0").build()));
+        }
+
+        private FakeStockMarketRepository(List<StockQuoteTargetEntity> targets) {
+            this.targets = targets;
+        }
+
+        @Override
+        public List<StockQuoteTargetEntity> queryAllQuoteTargets() {
+            return targets;
+        }
+
+        @Override
+        public void upsertQuotes(List<StockQuoteEntity> quotes) {
+            upsertCount += quotes.size();
+        }
+
+        @Override
+        public Map<String, StockQuoteEntity> queryByStockKeys(java.util.Collection<String> stockKeys) {
             return Map.of();
         }
     }

@@ -20,11 +20,8 @@ public class FundTopHoldingPO implements Serializable {
     /** 基金重仓ID */
     private Long id;
 
-    /** 基金详情ID */
-    private Long fundDetailItemId;
-
-    /** 快照ID */
-    private Long snapshotId;
+    /** 基金代码 */
+    private String fundCode;
 
     /** 重仓排名 */
     private Integer rankNo;
@@ -38,9 +35,6 @@ public class FundTopHoldingPO implements Serializable {
     /** 市场标识 */
     private String market;
 
-    /** 当日涨跌幅 */
-    private BigDecimal dailyReturn;
-
     /** 持仓占比 */
     private BigDecimal holdingRatio;
 
@@ -49,9 +43,6 @@ public class FundTopHoldingPO implements Serializable {
 
     /** 较上季度变化值 */
     private BigDecimal quarterChangeValue;
-
-    /** 字段缺失原因JSON */
-    private String missingReasonsJson;
 
     /** 创建时间 */
     private Date createTime;

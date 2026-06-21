@@ -6,33 +6,37 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Date;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FundDetailSnapshotPO implements Serializable {
+public class StockMarketCurrentPO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /** 基金详情快照ID */
+    /** 股票行情ID */
     private Long id;
 
-    /** agent契约版本 */
-    private String schemaVersion;
+    /** 股票代码 */
+    private String stockCode;
 
-    /** 快照生成时间 */
-    private Date generatedAt;
+    /** 市场标识 */
+    private String market;
 
-    /** 快照状态：success/partial/failed */
-    private String snapshotStatus;
+    /** 股票简称 */
+    private String stockName;
 
-    /** 来源引用ID */
-    private String sourceRefId;
+    /** 交易日期 */
+    private Date tradeDate;
 
-    /** 数据来源元信息JSON */
-    private String dataSourcesJson;
+    /** 当日涨跌幅 */
+    private BigDecimal dailyReturn;
+
+    /** 行情时间 */
+    private Date quoteTime;
 
     /** 创建时间 */
     private Date createTime;

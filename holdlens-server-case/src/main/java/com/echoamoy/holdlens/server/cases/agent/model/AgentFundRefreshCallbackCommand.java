@@ -7,7 +7,6 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 @Data
 @Builder
@@ -26,8 +25,6 @@ public class AgentFundRefreshCallbackCommand {
     private String generatedAt;
 
     private List<FundDetail> funds;
-
-    private List<DataSourceMeta> dataSources;
 
     private List<RefreshWarning> refreshWarnings;
 
@@ -63,10 +60,6 @@ public class AgentFundRefreshCallbackCommand {
 
         private BigDecimal threeYearsReturn;
 
-        private Map<String, Object> fieldSources;
-
-        private Map<String, Object> missingReasons;
-
         private List<TopHolding> topHoldings;
 
     }
@@ -85,33 +78,11 @@ public class AgentFundRefreshCallbackCommand {
 
         private String market;
 
-        private BigDecimal dailyReturn;
-
         private BigDecimal holdingRatio;
 
         private String quarterChangeType;
 
         private BigDecimal quarterChangeValue;
-
-        private Map<String, Object> missingReasons;
-
-    }
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class DataSourceMeta {
-
-        private String provider;
-
-        private String name;
-
-        private String url;
-
-        private String fetchedAt;
-
-        private String status;
 
     }
 

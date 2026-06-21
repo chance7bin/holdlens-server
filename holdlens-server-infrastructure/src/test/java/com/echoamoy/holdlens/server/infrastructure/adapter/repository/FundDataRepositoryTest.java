@@ -1,12 +1,10 @@
 package com.echoamoy.holdlens.server.infrastructure.adapter.repository;
 
-import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundDetailSnapshotAggregate;
+import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
 import com.echoamoy.holdlens.server.infrastructure.dao.IFundDetailItemDao;
-import com.echoamoy.holdlens.server.infrastructure.dao.IFundDetailSnapshotDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IFundTopHoldingDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IProcessingLogDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailItemPO;
-import com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailSnapshotPO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.FundTopHoldingPO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.ProcessingLogPO;
 import org.junit.Assert;
@@ -20,21 +18,30 @@ import java.util.List;
 public class FundDataRepositoryTest {
 
     @Test
-    public void saveSnapshotPersistsProcessingLogWithModuleAndEvent() throws Exception {
+    public void saveCurrentDataUpsertsFundAndReplacesTopHoldingsAndLogsWarnings() throws Exception {
         FundDataRepository repository = new FundDataRepository();
-        FakeSnapshotDao snapshotDao = new FakeSnapshotDao();
+        FakeFundDetailItemDao fundDetailItemDao = new FakeFundDetailItemDao();
+        FakeFundTopHoldingDao fundTopHoldingDao = new FakeFundTopHoldingDao();
         FakeProcessingLogDao processingLogDao = new FakeProcessingLogDao();
-        setField(repository, "fundDetailSnapshotDao", snapshotDao);
-        setField(repository, "fundDetailItemDao", new FakeFundDetailItemDao());
-        setField(repository, "fundTopHoldingDao", new FakeFundTopHoldingDao());
+        setField(repository, "fundDetailItemDao", fundDetailItemDao);
+        setField(repository, "fundTopHoldingDao", fundTopHoldingDao);
         setField(repository, "processingLogDao", processingLogDao);
 
-        repository.saveSnapshot(FundDetailSnapshotAggregate.builder()
-                .schemaVersion("fund-detail-refresh-result/v1")
+        repository.saveCurrentData(FundCurrentDataAggregate.builder()
+                .schemaVersion("fund-detail-refresh-result/v2")
                 .generatedAt(new Date())
-                .snapshotStatus("partial_failed")
+                .status("partial_failed")
                 .sourceRefId("task_1")
-                .warnings(List.of(FundDetailSnapshotAggregate.RefreshWarning.builder()
+                .funds(List.of(FundCurrentDataAggregate.FundDetail.builder()
+                        .fundCode("000001")
+                        .fundName("测试基金")
+                        .topHoldings(List.of(FundCurrentDataAggregate.TopHolding.builder()
+                                .rankNo(1)
+                                .stockCode("600000")
+                                .market("1")
+                                .build()))
+                        .build()))
+                .warnings(List.of(FundCurrentDataAggregate.RefreshWarning.builder()
                         .module("fund_refresh")
                         .event("provider_fund_failed")
                         .message("provider failed for one fund")
@@ -42,7 +49,10 @@ public class FundDataRepositoryTest {
                         .build()))
                 .build());
 
-        Assert.assertEquals("task_1", snapshotDao.inserted.getSourceRefId());
+        Assert.assertEquals("000001", fundDetailItemDao.upserted.getFundCode());
+        Assert.assertEquals("000001", fundTopHoldingDao.deletedFundCode);
+        Assert.assertEquals("000001", fundTopHoldingDao.inserted.getFundCode());
+        Assert.assertEquals("600000", fundTopHoldingDao.inserted.getStockCode());
         Assert.assertEquals("task_1", processingLogDao.inserted.getSourceRefId());
         Assert.assertEquals("fund_refresh", processingLogDao.inserted.getModule());
         Assert.assertEquals("provider_fund_failed", processingLogDao.inserted.getEvent());
@@ -56,29 +66,12 @@ public class FundDataRepositoryTest {
         field.set(target, value);
     }
 
-    private static class FakeSnapshotDao implements IFundDetailSnapshotDao {
-        private FundDetailSnapshotPO inserted;
-
-        @Override
-        public void insert(FundDetailSnapshotPO fundDetailSnapshotPO) {
-            fundDetailSnapshotPO.setId(1L);
-            inserted = fundDetailSnapshotPO;
-        }
-
-        @Override
-        public FundDetailSnapshotPO selectById(Long id) {
-            return null;
-        }
-
-        @Override
-        public List<FundDetailSnapshotPO> selectBySourceRefId(String sourceRefId) {
-            return List.of();
-        }
-    }
-
     private static class FakeFundDetailItemDao implements IFundDetailItemDao {
+        private FundDetailItemPO upserted;
+
         @Override
-        public void insert(FundDetailItemPO fundDetailItemPO) {
+        public void upsert(FundDetailItemPO fundDetailItemPO) {
+            upserted = fundDetailItemPO;
         }
 
         @Override
@@ -87,19 +80,23 @@ public class FundDataRepositoryTest {
         }
 
         @Override
-        public List<FundDetailItemPO> selectBySnapshotId(Long snapshotId) {
-            return List.of();
-        }
-
-        @Override
-        public List<FundDetailItemPO> selectLatestByFundCodes(Collection<String> fundCodes) {
+        public List<FundDetailItemPO> selectByFundCodes(Collection<String> fundCodes) {
             return List.of();
         }
     }
 
     private static class FakeFundTopHoldingDao implements IFundTopHoldingDao {
+        private String deletedFundCode;
+        private FundTopHoldingPO inserted;
+
         @Override
         public void insert(FundTopHoldingPO fundTopHoldingPO) {
+            inserted = fundTopHoldingPO;
+        }
+
+        @Override
+        public void deleteByFundCode(String fundCode) {
+            deletedFundCode = fundCode;
         }
 
         @Override
@@ -108,12 +105,7 @@ public class FundDataRepositoryTest {
         }
 
         @Override
-        public List<FundTopHoldingPO> selectByFundDetailItemId(Long fundDetailItemId) {
-            return List.of();
-        }
-
-        @Override
-        public List<FundTopHoldingPO> selectBySnapshotId(Long snapshotId) {
+        public List<FundTopHoldingPO> selectByFundCodes(Collection<String> fundCodes) {
             return List.of();
         }
 
