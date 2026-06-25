@@ -96,8 +96,7 @@ Superpowers 相关技能默认不自动加载，也不替代本文件中的 Open
 `brainstorming` 只负责澄清需求、探索方案、明确假设、范围边界和成功标准。
 
 项目级约束优先：
-- brainstorming 适用于单 Agent 和多 Agent 场景。
-- brainstorming 不代表已获得实现授权。
+- brainstorming 适用于需求澄清、方案探索和范围收敛场景。
 - 非琐碎结论必须收敛进 OpenSpec proposal、design、spec 和 tasks。
 - OpenSpec 仍是需求、设计、验收标准和任务状态的唯一事实来源。
 - 不默认写入 `docs/superpowers/specs/**`，除非用户明确要求。
@@ -131,7 +130,6 @@ Superpowers 相关技能默认不自动加载，也不替代本文件中的 Open
 - 在编写生产代码、测试、数据库迁移、生成产物或脚手架前，必须先确认需求、范围、假设和成功标准，并等待用户明确说“开始实现”“写代码”“按这个方案实现”“执行这个计划”“应用这个变更”或等价指令。
 - 如果用户措辞既可能是在批准设计，也可能是在授权实现，编辑代码前先询问。
 - OpenSpec proposal、design、spec 和 tasks 是规划产物；用户只要求创建或完善这些产物时，不要同时修改生产代码。
-- 契约骨架、DTO、接口、mock、controller 路由等都属于代码实现，必须在用户明确授权实现后才能修改。
 
 ### Work Classification
 
@@ -146,19 +144,12 @@ Superpowers 相关技能默认不自动加载，也不替代本文件中的 Open
 - 不要借一次功能变更清理无关的遗留问题。
 - 为新行为和被触及的遗留路径添加测试。除非明确要求，不要尝试大范围补测试。
 
-### Multi-Agent Collaboration
+### Change Decomposition
 
-- 在规划或实现前，必须先判断当前变更应采用单 Agent 还是多 Agent，并简要说明原因；判断依据包括变更范围、跨模块/跨端程度、权限/交易/数据一致性风险、任务是否可并行拆分，以及是否需要独立评审和最终集成。小修复、小任务默认单 Agent，中大型、跨模块、跨端、权限、交易、数据一致性或高风险变更优先考虑多 Agent。
-- 多 Agent 协作默认遵循以下 workflow：
-  1. 先用 OpenSpec 产出或完善 `proposal.md`、`design.md`、`specs/*/spec.md` 和 `tasks.md`。
-  2. 总结假设、开放问题和待用户确认点。
-  3. 等用户明确授权实现后，才进入代码实现。
-  4. 如果变更属于中大型、跨模块、跨端、权限、交易、数据一致性等高风险场景，或用户明确要求规划/执行多 Agent 协作，则加载 `openspec-multi-agent-collaboration` 并按该 skill 组织角色分工、质量门和最终集成。
-- 小修复、小任务默认由单 Agent 完成。
-- `openspec-apply-change` 是 OpenSpec change 的默认实现入口，负责读取 change、推进 `tasks.md`、同步任务状态和处理暂停条件。
-- `openspec-multi-agent-collaboration` 不替代 `openspec-apply-change`；它只在复杂或高风险变更中补充角色分工、契约先行、评审和集成收口。
-- 使用多 Agent 时，应由一个主执行者按 `openspec-apply-change` 读取上下文和任务状态，再按 `openspec-multi-agent-collaboration` 分配清晰任务切片。主执行者指定一个 Integration Agent 负责最终集成、质量门验证和 `tasks.md` 同步；主执行者对最终状态确认负责。单 Agent 场景下，主执行者同时承担 Integration Agent 职责。
-- 避免“双调度”：不要让多个 Agent 各自独立推进同一批 OpenSpec tasks，最终完成状态只能由统一收口者确认。
+- 在开始非琐碎变更前，必须先评估本次变更的 OpenSpec 粒度是否合适；评估依据包括变更边界、未确认问题、涉及模块、验证成本、回滚边界、发布原子性和实现顺序。
+- 如果判断本次需求更适合拆成多个 OpenSpec change，必须先向用户说明拆分理由、建议拆分边界和预期收益，并等待用户确认。
+- 拆分优先服务于实现效果：让每次改动更容易理解、验证、回滚和暂停，而不是为了同时推进或形式上拆小；不要把必须原子交付的契约、事务、权限校验、审计或数据迁移强行拆成多个可独立发布的 change。
+- 能独立交付和独立验收的范围，可以拆成多个连续 OpenSpec change；不能独立交付但内部复杂的范围，应放在同一个 OpenSpec change 内分阶段实现和验证。
 
 ### OpenSpec Workflow
 
@@ -207,10 +198,8 @@ Superpowers 相关技能默认不自动加载，也不替代本文件中的 Open
 
 ### Quality Gates and Review
 
-质量门是在进入下一阶段前必须通过的检查。它不是新的任务事实来源。
+质量门只定义进入下一阶段前的检查要求，不替代 OpenSpec 作为任务事实来源。
 
 - 在声明工作已经修复、完成、可提交、可推送或可归档前，根据风险运行相关单元测试、集成测试、回归测试、build、lint、typecheck 或 package 命令。
 - OpenSpec 相关变更必须确认 `tasks.md` 与实际完成状态一致，并运行 `openspec validate --strict <change>`。
-- 对鉴权、支付、权限、数据暴露、外部输入或集成边界变更，必须明确检查安全影响。
-- 对较大、风险较高、跨模块或面向用户的变更，用产品、工程、QA、发布、安全五个视角做轻量评审。
 - 如果检查失败，先复现并定位原因，再做最小修复并重新测试。
