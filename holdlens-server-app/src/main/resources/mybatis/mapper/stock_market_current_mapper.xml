@@ -26,10 +26,10 @@
         )
         ON DUPLICATE KEY UPDATE
             id = LAST_INSERT_ID(id),
-            stock_name = VALUES(stock_name),
-            trade_date = VALUES(trade_date),
-            daily_return = VALUES(daily_return),
-            quote_time = VALUES(quote_time),
+            stock_name = #{stockName},
+            trade_date = #{tradeDate},
+            daily_return = #{dailyReturn},
+            quote_time = #{quoteTime},
             update_time = CURRENT_TIMESTAMP
     </insert>
 
@@ -41,10 +41,7 @@
         )
         ON DUPLICATE KEY UPDATE
             id = LAST_INSERT_ID(id),
-            stock_name = CASE
-                WHEN VALUES(stock_name) IS NULL OR VALUES(stock_name) = '' THEN stock_name
-                ELSE VALUES(stock_name)
-            END
+            stock_name = #{stockName}
     </insert>
 
     <select id="selectAllTargets" resultMap="BaseResultMap">
@@ -52,15 +49,13 @@
         FROM stock_market_current
         WHERE stock_code IS NOT NULL
           AND stock_code != ''
-          AND market IS NOT NULL
-          AND market != ''
         ORDER BY stock_code ASC, market ASC
     </select>
 
     <select id="selectByStockKeys" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM stock_market_current
-        WHERE CONCAT(stock_code, '#', market) IN
+        WHERE CONCAT(stock_code, '#', COALESCE(market, '')) IN
         <foreach collection="stockKeys" item="stockKey" open="(" separator="," close=")">
             #{stockKey}
         </foreach>

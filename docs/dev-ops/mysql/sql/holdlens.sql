@@ -192,7 +192,8 @@ DROP TABLE IF EXISTS `stock_market_current`;
 CREATE TABLE `stock_market_current` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '股票行情ID',
     `stock_code` VARCHAR(50) NOT NULL COMMENT '股票代码',
-    `market` VARCHAR(20) NOT NULL COMMENT '市场标识',
+    `market` VARCHAR(20) DEFAULT NULL COMMENT '市场标识，可为空',
+    `market_key` VARCHAR(20) GENERATED ALWAYS AS (COALESCE(`market`, '')) STORED COMMENT '市场标识归一化键，仅用于唯一约束',
     `stock_name` VARCHAR(100) DEFAULT NULL COMMENT '股票简称',
     `trade_date` DATE DEFAULT NULL COMMENT '交易日期',
     `daily_return` DECIMAL(12, 4) DEFAULT NULL COMMENT '当日涨跌幅',
@@ -200,7 +201,7 @@ CREATE TABLE `stock_market_current` (
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_stock_market_current_code_market` (`stock_code`, `market`),
+    UNIQUE KEY `uk_stock_market_current_code_market_key` (`stock_code`, `market_key`),
     KEY `idx_stock_market_current_trade_date` (`trade_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='股票当前行情表';
 

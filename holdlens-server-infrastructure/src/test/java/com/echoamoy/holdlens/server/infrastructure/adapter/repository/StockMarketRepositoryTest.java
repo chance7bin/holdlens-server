@@ -16,30 +16,59 @@ import java.util.List;
 public class StockMarketRepositoryTest {
 
     @Test
-    public void registerQuoteTargetsUsesTargetUpsertWithoutQuoteFields() throws Exception {
-        StockMarketRepository repository = new StockMarketRepository();
-        FakeStockMarketCurrentDao stockMarketCurrentDao = new FakeStockMarketCurrentDao();
-        setField(repository, "stockMarketCurrentDao", stockMarketCurrentDao);
+	    public void registerQuoteTargetsUsesTargetUpsertWithoutQuoteFields() throws Exception {
+	        StockMarketRepository repository = new StockMarketRepository();
+	        FakeStockMarketCurrentDao stockMarketCurrentDao = new FakeStockMarketCurrentDao();
+	        setField(repository, "stockMarketCurrentDao", stockMarketCurrentDao);
 
-        repository.registerQuoteTargets(List.of(StockQuoteEntity.builder()
-                .stockCode("600000")
-                .market("1")
-                .stockName("测试股份")
-                .tradeDate(new Date())
+	        repository.registerQuoteTargets(List.of(StockQuoteEntity.builder()
+	                .stockCode("600000")
+	                .market(null)
+	                .stockName(null)
+	                .tradeDate(new Date())
                 .dailyReturn(new BigDecimal("0.50"))
                 .quoteTime(new Date())
                 .build()));
 
         Assert.assertEquals(1, stockMarketCurrentDao.targetUpserts.size());
         Assert.assertEquals(0, stockMarketCurrentDao.quoteUpserts.size());
-        StockMarketCurrentPO target = stockMarketCurrentDao.targetUpserts.get(0);
-        Assert.assertEquals("600000", target.getStockCode());
-        Assert.assertEquals("1", target.getMarket());
-        Assert.assertEquals("测试股份", target.getStockName());
-        Assert.assertNull(target.getTradeDate());
-        Assert.assertNull(target.getDailyReturn());
-        Assert.assertNull(target.getQuoteTime());
-    }
+	        StockMarketCurrentPO target = stockMarketCurrentDao.targetUpserts.get(0);
+	        Assert.assertEquals("600000", target.getStockCode());
+	        Assert.assertNull(target.getMarket());
+	        Assert.assertNull(target.getStockName());
+	        Assert.assertNull(target.getTradeDate());
+	        Assert.assertNull(target.getDailyReturn());
+	        Assert.assertNull(target.getQuoteTime());
+	    }
+
+	    @Test
+	    public void queryAllQuoteTargetsIncludesNullMarketTargets() throws Exception {
+	        StockMarketRepository repository = new StockMarketRepository();
+	        FakeStockMarketCurrentDao stockMarketCurrentDao = new FakeStockMarketCurrentDao();
+	        stockMarketCurrentDao.targets = List.of(StockMarketCurrentPO.builder()
+	                .stockCode("000001")
+	                .market(null)
+	                .build());
+	        setField(repository, "stockMarketCurrentDao", stockMarketCurrentDao);
+
+	        Assert.assertEquals(1, repository.queryAllQuoteTargets().size());
+	        Assert.assertEquals("000001", repository.queryAllQuoteTargets().get(0).getStockCode());
+	        Assert.assertNull(repository.queryAllQuoteTargets().get(0).getMarket());
+	    }
+
+	    @Test
+	    public void queryByStockKeysUsesEmptyMarketKeyForNullMarket() throws Exception {
+	        StockMarketRepository repository = new StockMarketRepository();
+	        FakeStockMarketCurrentDao stockMarketCurrentDao = new FakeStockMarketCurrentDao();
+	        stockMarketCurrentDao.stockQuotes = List.of(StockMarketCurrentPO.builder()
+	                .stockCode("000001")
+	                .market(null)
+	                .dailyReturn(new BigDecimal("0.10"))
+	                .build());
+	        setField(repository, "stockMarketCurrentDao", stockMarketCurrentDao);
+
+	        Assert.assertTrue(repository.queryByStockKeys(List.of("000001#")).containsKey("000001#"));
+	    }
 
     private void setField(Object target, String name, Object value) throws Exception {
         Field field = target.getClass().getDeclaredField(name);
@@ -48,8 +77,10 @@ public class StockMarketRepositoryTest {
     }
 
     private static class FakeStockMarketCurrentDao implements IStockMarketCurrentDao {
-        private final List<StockMarketCurrentPO> quoteUpserts = new ArrayList<>();
-        private final List<StockMarketCurrentPO> targetUpserts = new ArrayList<>();
+	        private final List<StockMarketCurrentPO> quoteUpserts = new ArrayList<>();
+	        private final List<StockMarketCurrentPO> targetUpserts = new ArrayList<>();
+	        private List<StockMarketCurrentPO> targets = List.of();
+	        private List<StockMarketCurrentPO> stockQuotes = List.of();
 
         @Override
         public void upsert(StockMarketCurrentPO stockMarketCurrentPO) {
@@ -62,13 +93,13 @@ public class StockMarketRepositoryTest {
         }
 
         @Override
-        public List<StockMarketCurrentPO> selectAllTargets() {
-            return List.of();
-        }
+	        public List<StockMarketCurrentPO> selectAllTargets() {
+	            return targets;
+	        }
 
-        @Override
-        public List<StockMarketCurrentPO> selectByStockKeys(Collection<String> stockKeys) {
-            return List.of();
-        }
+	        @Override
+	        public List<StockMarketCurrentPO> selectByStockKeys(Collection<String> stockKeys) {
+	            return stockQuotes;
+	        }
     }
 }

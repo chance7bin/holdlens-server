@@ -93,7 +93,7 @@ public class StockMarketRepository implements IStockMarketRepository {
     }
 
     private String stockKey(String stockCode, String market) {
-        return stockCode + "#" + market;
+        return stockCode + "#" + (market == null ? "" : market);
     }
 
 }

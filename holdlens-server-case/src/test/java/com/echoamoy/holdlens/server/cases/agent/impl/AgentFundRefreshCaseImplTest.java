@@ -104,11 +104,17 @@ public class AgentFundRefreshCaseImplTest {
                                         .stockName("缺少代码")
                                         .market("1")
                                         .build(),
-                                AgentFundRefreshCallbackCommand.TopHolding.builder()
-                                        .rankNo(4)
-                                        .stockName("缺少市场")
-                                        .stockCode("000001")
-                                        .build()))
+	                                AgentFundRefreshCallbackCommand.TopHolding.builder()
+	                                        .rankNo(4)
+	                                        .stockName("缺少市场")
+	                                        .stockCode("000001")
+	                                        .build(),
+	                                AgentFundRefreshCallbackCommand.TopHolding.builder()
+	                                        .rankNo(5)
+	                                        .stockName("重复空市场")
+	                                        .stockCode(" 000001 ")
+	                                        .market(" ")
+	                                        .build()))
                         .build()))
                 .refreshWarnings(List.of(AgentFundRefreshCallbackCommand.RefreshWarning.builder()
                         .module("fund_refresh")
@@ -123,12 +129,15 @@ public class AgentFundRefreshCaseImplTest {
 
         Assert.assertEquals("succeeded", first.getStatus());
         Assert.assertEquals("succeeded", duplicate.getStatus());
-        Assert.assertEquals(1, fundDataRepository.saveCount);
-        Assert.assertEquals(1, stockMarketRepository.registerCount);
-        Assert.assertEquals(1, stockMarketRepository.registeredTargets.size());
-        Assert.assertEquals("600000", stockMarketRepository.registeredTargets.get(0).getStockCode());
-        Assert.assertEquals("1", stockMarketRepository.registeredTargets.get(0).getMarket());
-        Assert.assertEquals("测试股份", stockMarketRepository.registeredTargets.get(0).getStockName());
+	        Assert.assertEquals(1, fundDataRepository.saveCount);
+	        Assert.assertEquals(1, stockMarketRepository.registerCount);
+	        Assert.assertEquals(2, stockMarketRepository.registeredTargets.size());
+	        Assert.assertEquals("600000", stockMarketRepository.registeredTargets.get(0).getStockCode());
+	        Assert.assertEquals("1", stockMarketRepository.registeredTargets.get(0).getMarket());
+	        Assert.assertEquals("测试股份", stockMarketRepository.registeredTargets.get(0).getStockName());
+	        Assert.assertEquals("000001", stockMarketRepository.registeredTargets.get(1).getStockCode());
+	        Assert.assertNull(stockMarketRepository.registeredTargets.get(1).getMarket());
+	        Assert.assertEquals("缺少市场", stockMarketRepository.registeredTargets.get(1).getStockName());
     }
 
     @Test
@@ -191,8 +200,9 @@ public class AgentFundRefreshCaseImplTest {
 
         Assert.assertEquals("running", result.getStatus());
         Assert.assertEquals("stock_quote_refresh", result.getTaskType());
-        Assert.assertEquals(2, agentPort.lastStockCommand.getStocks().size());
-        Assert.assertTrue(processingRepository.queryTask(result.getServerTaskId()).getTaskParamsJson().contains("\"stockCount\":2"));
+	        Assert.assertEquals(3, agentPort.lastStockCommand.getStocks().size());
+	        Assert.assertNull(agentPort.lastStockCommand.getStocks().get(2).getMarket());
+	        Assert.assertTrue(processingRepository.queryTask(result.getServerTaskId()).getTaskParamsJson().contains("\"stockCount\":3"));
     }
 
     @Test
@@ -227,13 +237,20 @@ public class AgentFundRefreshCaseImplTest {
                 .idempotencyKey("stock_task_1:result:1")
                 .status("partial_failed")
                 .quotes(List.of(AgentStockQuoteRefreshCallbackCommand.StockQuote.builder()
-                        .stockCode("600000")
-                        .market("1")
-                        .stockName("测试股份")
-                        .tradeDate("2026-06-18")
-                        .dailyReturn(new java.math.BigDecimal("0.50"))
-                        .quoteTime("2026-06-18T10:04:30Z")
-                        .build()))
+                                .stockCode("600000")
+                                .market("1")
+                                .stockName("测试股份")
+                                .tradeDate("2026-06-18")
+                                .dailyReturn(new java.math.BigDecimal("0.50"))
+                                .quoteTime("2026-06-18T10:04:30Z")
+                                .build(),
+                        AgentStockQuoteRefreshCallbackCommand.StockQuote.builder()
+                                .stockCode("000001")
+                                .stockName("空市场股份")
+                                .tradeDate("2026-06-18")
+                                .dailyReturn(new java.math.BigDecimal("0.10"))
+                                .quoteTime("2026-06-18T10:05:30Z")
+                                .build()))
                 .refreshWarnings(List.of(AgentStockQuoteRefreshCallbackCommand.RefreshWarning.builder()
                         .module("stock_quote_refresh")
                         .event("provider_failed")
@@ -247,7 +264,8 @@ public class AgentFundRefreshCaseImplTest {
 
         Assert.assertEquals("partial_failed", first.getStatus());
         Assert.assertEquals("partial_failed", duplicate.getStatus());
-        Assert.assertEquals(1, stockMarketRepository.upsertCount);
+	        Assert.assertEquals(2, stockMarketRepository.upsertCount);
+	        Assert.assertNull(stockMarketRepository.upsertedQuotes.get(1).getMarket());
         Assert.assertEquals(1, processingRepository.logs.size());
         Assert.assertEquals("stock_quote_refresh", processingRepository.logs.get(0).getModule());
     }
@@ -389,11 +407,13 @@ public class AgentFundRefreshCaseImplTest {
         private int upsertCount;
         private int registerCount;
         private final List<StockQuoteEntity> registeredTargets = new java.util.ArrayList<>();
+        private final List<StockQuoteEntity> upsertedQuotes = new java.util.ArrayList<>();
 
         private FakeStockMarketRepository() {
             this(List.of(
                     StockQuoteTargetEntity.builder().stockCode("600000").market("1").build(),
-                    StockQuoteTargetEntity.builder().stockCode("000001").market("0").build()));
+                    StockQuoteTargetEntity.builder().stockCode("000001").market("0").build(),
+                    StockQuoteTargetEntity.builder().stockCode("000002").market(null).build()));
         }
 
         private FakeStockMarketRepository(List<StockQuoteTargetEntity> targets) {
@@ -414,6 +434,7 @@ public class AgentFundRefreshCaseImplTest {
         @Override
         public void upsertQuotes(List<StockQuoteEntity> quotes) {
             upsertCount += quotes.size();
+            upsertedQuotes.addAll(quotes);
         }
 
         @Override

@@ -33,9 +33,11 @@ public class PortfolioFundDetailCaseImplTest {
         Assert.assertEquals(2, result.getHoldings().size());
         Assert.assertEquals("available", result.getHoldings().get(0).getFundDetail().getDetailStatus());
         Assert.assertEquals("missing", result.getHoldings().get(1).getFundDetail().getDetailStatus());
-        Assert.assertEquals("available", result.getHoldings().get(0).getFundDetail().getTopHoldings().get(0).getQuoteStatus());
-        Assert.assertEquals(new BigDecimal("0.50"), result.getHoldings().get(0).getFundDetail().getTopHoldings().get(0).getDailyReturn());
-        Assert.assertEquals(new BigDecimal("123.45"), result.getHoldings().get(0).getAmount());
+	        Assert.assertEquals("available", result.getHoldings().get(0).getFundDetail().getTopHoldings().get(0).getQuoteStatus());
+	        Assert.assertEquals(new BigDecimal("0.50"), result.getHoldings().get(0).getFundDetail().getTopHoldings().get(0).getDailyReturn());
+	        Assert.assertEquals("available", result.getHoldings().get(0).getFundDetail().getTopHoldings().get(1).getQuoteStatus());
+	        Assert.assertEquals(new BigDecimal("0.10"), result.getHoldings().get(0).getFundDetail().getTopHoldings().get(1).getDailyReturn());
+	        Assert.assertEquals(new BigDecimal("123.45"), result.getHoldings().get(0).getAmount());
     }
 
     private void setField(Object target, String name, Object value) throws Exception {
@@ -80,11 +82,17 @@ public class PortfolioFundDetailCaseImplTest {
                             .fundCode("000001")
                             .fundName("测试基金")
                             .generatedAt(new Date())
-                            .topHoldings(List.of(FundCurrentDataAggregate.TopHolding.builder()
-                                    .rankNo(1)
-                                    .stockCode("600000")
-                                    .market("1")
-                                    .build()))
+	                            .topHoldings(List.of(
+	                                    FundCurrentDataAggregate.TopHolding.builder()
+	                                            .rankNo(1)
+	                                            .stockCode("600000")
+	                                            .market("1")
+	                                            .build(),
+	                                    FundCurrentDataAggregate.TopHolding.builder()
+	                                            .rankNo(2)
+	                                            .stockCode("000001")
+	                                            .market(null)
+	                                            .build()))
                             .build(),
                     "999999", FundCurrentDataAggregate.FundDetail.builder()
                             .fundCode("999999")
@@ -109,14 +117,21 @@ public class PortfolioFundDetailCaseImplTest {
         }
 
         @Override
-        public Map<String, StockQuoteEntity> queryByStockKeys(java.util.Collection<String> stockKeys) {
-            Assert.assertTrue(stockKeys.contains("600000#1"));
-            return Map.of("600000#1", StockQuoteEntity.builder()
-                    .stockCode("600000")
-                    .market("1")
-                    .dailyReturn(new BigDecimal("0.50"))
-                    .build());
-        }
+	        public Map<String, StockQuoteEntity> queryByStockKeys(java.util.Collection<String> stockKeys) {
+	            Assert.assertTrue(stockKeys.contains("600000#1"));
+	            Assert.assertTrue(stockKeys.contains("000001#"));
+	            return Map.of(
+	                    "600000#1", StockQuoteEntity.builder()
+	                            .stockCode("600000")
+	                            .market("1")
+	                            .dailyReturn(new BigDecimal("0.50"))
+	                            .build(),
+	                    "000001#", StockQuoteEntity.builder()
+	                            .stockCode("000001")
+	                            .market(null)
+	                            .dailyReturn(new BigDecimal("0.10"))
+	                            .build());
+	        }
     }
 
 }

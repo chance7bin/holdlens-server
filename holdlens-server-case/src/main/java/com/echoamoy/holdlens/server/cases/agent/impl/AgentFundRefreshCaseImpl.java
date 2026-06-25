@@ -336,12 +336,12 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
                 continue;
             }
             for (FundCurrentDataAggregate.TopHolding topHolding : fund.getTopHoldings()) {
-                if (topHolding == null || isBlank(topHolding.getStockCode()) || isBlank(topHolding.getMarket())) {
+                if (topHolding == null || isBlank(topHolding.getStockCode())) {
                     continue;
                 }
                 String stockCode = topHolding.getStockCode().trim();
-                String market = topHolding.getMarket().trim();
-                dedup.putIfAbsent(stockCode + "#" + market, StockQuoteEntity.builder()
+                String market = normalizeNullable(topHolding.getMarket());
+                dedup.putIfAbsent(stockKey(stockCode, market), StockQuoteEntity.builder()
                         .stockCode(stockCode)
                         .market(market)
                         .stockName(isBlank(topHolding.getStockName()) ? null : topHolding.getStockName().trim())
@@ -373,12 +373,12 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         }
         List<StockQuoteEntity> result = new ArrayList<>();
         for (AgentStockQuoteRefreshCallbackCommand.StockQuote quote : quotes) {
-            if (quote == null || isBlank(quote.getStockCode()) || isBlank(quote.getMarket())) {
+            if (quote == null || isBlank(quote.getStockCode())) {
                 continue;
             }
             result.add(StockQuoteEntity.builder()
                     .stockCode(quote.getStockCode().trim())
-                    .market(quote.getMarket().trim())
+                    .market(normalizeNullable(quote.getMarket()))
                     .stockName(quote.getStockName())
                     .tradeDate(parseLocalDate(quote.getTradeDate()))
                     .dailyReturn(quote.getDailyReturn())
@@ -511,6 +511,14 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
 
     private String defaultString(String value, String defaultValue) {
         return isBlank(value) ? defaultValue : value;
+    }
+
+    private String normalizeNullable(String value) {
+        return isBlank(value) ? null : value.trim();
+    }
+
+    private String stockKey(String stockCode, String market) {
+        return stockCode + "#" + (market == null ? "" : market);
     }
 
     private boolean isBlank(String value) {

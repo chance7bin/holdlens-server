@@ -110,7 +110,8 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                 .oneYearReturn(detail.getOneYearReturn())
                 .threeYearsReturn(detail.getThreeYearsReturn())
                 .topHoldings(detail.getTopHoldings() == null ? List.of() : detail.getTopHoldings().stream()
-                        .map(topHolding -> toTopHolding(topHolding, stockQuotes.get(stockKey(topHolding.getStockCode(), topHolding.getMarket()))))
+                        .map(topHolding -> toTopHolding(topHolding,
+                                stockQuotes.get(stockKey(topHolding.getStockCode(), normalizeNullable(topHolding.getMarket())))))
                         .toList())
                 .build();
     }
@@ -139,8 +140,8 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                 continue;
             }
             for (FundCurrentDataAggregate.TopHolding topHolding : detail.getTopHoldings()) {
-                if (topHolding.getStockCode() != null && topHolding.getMarket() != null) {
-                    stockKeys.add(stockKey(topHolding.getStockCode(), topHolding.getMarket()));
+                if (!isBlank(topHolding.getStockCode())) {
+                    stockKeys.add(stockKey(topHolding.getStockCode().trim(), normalizeNullable(topHolding.getMarket())));
                 }
             }
         }
@@ -148,7 +149,15 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
     }
 
     private String stockKey(String stockCode, String market) {
-        return stockCode + "#" + market;
+        return stockCode + "#" + (market == null ? "" : market);
+    }
+
+    private String normalizeNullable(String value) {
+        return isBlank(value) ? null : value.trim();
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 
     private boolean isStale(FundCurrentDataAggregate.FundDetail detail) {
