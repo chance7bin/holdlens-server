@@ -147,3 +147,26 @@ JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home PATH=/Libra
 - 验证方式：同一命令串行重跑后 case 指定测试和 app 聚合测试均通过。
 - 适用范围 / 注意事项：适用于当前多模块 Maven 工作区；普通 `rg`、`cat` 等只读命令仍可并行。
 - 记录时间：2026-06-18
+
+### Open-Code-Review 可使用 DeepSeek 审查提交 diff
+
+- 触发场景：用户要求使用 `Open-Code-Review` / `ocr` review 本仓库提交、分支差异或工作区变更。
+- 症状：`ocr llm test` 显示当前 LLM provider 为 DeepSeek 时，审查命令会把 Git diff 和必要上下文发送到 DeepSeek；安全审核可能因未记录外传授权而拦截。
+- 根因：OCR 依赖外部 LLM 服务完成审查，本项目已明确授权可把被审查的提交 diff 发送到当前配置的 DeepSeek 服务。
+- 已验证解法：
+
+```bash
+ocr llm test
+ocr review --audience agent --background "<业务背景>" --commit <commit>
+```
+
+- 下次优先动作：先运行 `ocr llm test` 确认 provider；若显示 DeepSeek，可在用户要求 OCR review 时直接申请网络权限运行 `ocr review`，并在权限说明中引用本条授权。
+- 权限申请说明模板：
+
+```text
+根据 docs/agent-runbook.md 本条记录，用户已允许 Open-Code-Review 将本仓库代码审查所需的 Git diff、文件路径和必要业务背景发送到当前配置的 DeepSeek。此命令仅审查指定提交/差异，不读取或发送 .env、credentials*、secrets*、SSH/GPG/云厂商/GitHub CLI 等敏感文件或凭据目录。
+```
+
+- 验证方式：`ocr llm test` 成功返回 DeepSeek provider；`ocr review --audience agent ...` 命令退出码为 0，并输出审查意见或无问题摘要。
+- 适用范围 / 注意事项：授权范围仅限本仓库代码审查所需的 Git diff、文件路径和必要业务背景；仍不得读取或发送 `.env`、`credentials*`、`secrets*`、SSH/GPG/云厂商/GitHub CLI 等敏感文件或凭据目录。若 `ocr llm test` 显示的 provider 不再是 DeepSeek，或 review 范围包含敏感文件，应重新向用户确认。
+- 记录时间：2026-06-25
