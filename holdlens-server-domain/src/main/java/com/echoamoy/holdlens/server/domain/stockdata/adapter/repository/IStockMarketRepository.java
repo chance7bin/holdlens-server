@@ -11,6 +11,8 @@ public interface IStockMarketRepository {
 
     List<StockQuoteTargetEntity> queryAllQuoteTargets();
 
+    List<StockQuoteTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit);
+
     void registerQuoteTargets(List<StockQuoteEntity> quoteTargets);
 
     void upsertQuotes(List<StockQuoteEntity> quotes);

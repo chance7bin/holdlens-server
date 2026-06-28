@@ -1,4 +1,4 @@
-package com.echoamoy.holdlens.server.domain.stockdata.model.entity;
+package com.echoamoy.holdlens.server.domain.funddata.model.entity;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,11 +9,10 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class StockQuoteTargetEntity {
+public class FundRefreshTargetEntity {
 
     private Long id;
 
-    private String stockCode;
-    private String market;
+    private String fundCode;
 
 }

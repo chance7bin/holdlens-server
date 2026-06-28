@@ -2,6 +2,7 @@ package com.echoamoy.holdlens.server.infrastructure.adapter.repository;
 
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
+import com.echoamoy.holdlens.server.domain.funddata.model.entity.FundRefreshTargetEntity;
 import com.echoamoy.holdlens.server.infrastructure.dao.IFundDetailItemDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IFundTopHoldingDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IProcessingLogDao;
@@ -69,6 +70,19 @@ public class FundDataRepository implements IFundDataRepository {
             result.put(itemPO.getFundCode(), toFundDetail(itemPO, topHoldingsByFundCode.getOrDefault(itemPO.getFundCode(), List.of())));
         }
         return result;
+    }
+
+    @Override
+    public List<FundRefreshTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        return fundDetailItemDao.selectRefreshTargetsAfterId(lastId == null ? 0L : lastId, limit).stream()
+                .map(po -> FundRefreshTargetEntity.builder()
+                        .id(po.getId())
+                        .fundCode(po.getFundCode())
+                        .build())
+                .toList();
     }
 
     private Map<String, List<FundTopHoldingPO>> groupTopHoldings(Collection<String> fundCodes) {

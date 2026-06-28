@@ -5,12 +5,14 @@ import com.echoamoy.holdlens.server.api.dto.FundRefreshTaskDTO;
 import com.echoamoy.holdlens.server.api.request.AgentFundRefreshCallbackRequest;
 import com.echoamoy.holdlens.server.api.request.AgentStockQuoteRefreshCallbackRequest;
 import com.echoamoy.holdlens.server.api.request.FundRefreshCreateRequest;
+import com.echoamoy.holdlens.server.api.request.StockQuoteRefreshCreateRequest;
 import com.echoamoy.holdlens.server.api.response.Response;
 import com.echoamoy.holdlens.server.cases.agent.IAgentFundRefreshCase;
 import com.echoamoy.holdlens.server.cases.agent.model.AgentFundRefreshCallbackCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.AgentStockQuoteRefreshCallbackCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
+import com.echoamoy.holdlens.server.cases.agent.model.StockQuoteRefreshCreateCommand;
 import com.echoamoy.holdlens.server.types.enums.ResponseCode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -49,8 +51,8 @@ public class AgentFundRefreshController implements IAgentFundRefreshService {
 
     @PostMapping("/api/agent/stock-quote-refresh/tasks")
     @Override
-    public Response<FundRefreshTaskDTO> createStockQuoteTask() {
-        return Response.ok(toTaskDTO(agentFundRefreshCase.createAndDispatchStockQuotes()));
+    public Response<FundRefreshTaskDTO> createStockQuoteTask(@Valid @RequestBody StockQuoteRefreshCreateRequest request) {
+        return Response.ok(toTaskDTO(agentFundRefreshCase.createAndDispatchStockQuotes(toStockQuoteCreateCommand(request))));
     }
 
     @PostMapping("/internal/agent/fund-detail-refresh/callback")
@@ -80,6 +82,27 @@ public class AgentFundRefreshController implements IAgentFundRefreshService {
         return FundRefreshCreateCommand.builder()
                 .fundCodes(request.getFundCodes())
                 .build();
+    }
+
+    private StockQuoteRefreshCreateCommand toStockQuoteCreateCommand(StockQuoteRefreshCreateRequest request) {
+        if (request == null) {
+            return null;
+        }
+        return StockQuoteRefreshCreateCommand.builder()
+                .stocks(toStockQuoteTargets(request.getStocks()))
+                .build();
+    }
+
+    private List<StockQuoteRefreshCreateCommand.Stock> toStockQuoteTargets(List<StockQuoteRefreshCreateRequest.Stock> stocks) {
+        if (stocks == null) {
+            return null;
+        }
+        return stocks.stream()
+                .map(stock -> stock == null ? null : StockQuoteRefreshCreateCommand.Stock.builder()
+                        .stockCode(stock.getStockCode())
+                        .market(stock.getMarket())
+                        .build())
+                .toList();
     }
 
     private AgentFundRefreshCallbackCommand toCallbackCommand(AgentFundRefreshCallbackRequest request) {

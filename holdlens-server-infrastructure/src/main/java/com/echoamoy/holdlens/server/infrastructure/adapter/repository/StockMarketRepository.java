@@ -23,6 +23,21 @@ public class StockMarketRepository implements IStockMarketRepository {
     public List<StockQuoteTargetEntity> queryAllQuoteTargets() {
         return stockMarketCurrentDao.selectAllTargets().stream()
                 .map(po -> StockQuoteTargetEntity.builder()
+                        .id(po.getId())
+                        .stockCode(po.getStockCode())
+                        .market(po.getMarket())
+                        .build())
+                .toList();
+    }
+
+    @Override
+    public List<StockQuoteTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        return stockMarketCurrentDao.selectRefreshTargetsAfterId(lastId == null ? 0L : lastId, limit).stream()
+                .map(po -> StockQuoteTargetEntity.builder()
+                        .id(po.getId())
                         .stockCode(po.getStockCode())
                         .market(po.getMarket())
                         .build())

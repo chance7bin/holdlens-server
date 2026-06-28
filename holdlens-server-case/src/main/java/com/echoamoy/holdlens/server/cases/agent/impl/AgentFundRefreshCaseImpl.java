@@ -6,6 +6,7 @@ import com.echoamoy.holdlens.server.cases.agent.model.AgentFundRefreshCallbackCo
 import com.echoamoy.holdlens.server.cases.agent.model.AgentStockQuoteRefreshCallbackCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
+import com.echoamoy.holdlens.server.cases.agent.model.StockQuoteRefreshCreateCommand;
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
 import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentFundRefreshPort;
@@ -83,7 +84,7 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         ProcessingTaskEntity taskEntity = ProcessingTaskEntity.builder()
                 .serverTaskId(newServerTaskId())
                 .taskType(ProcessingTaskEntity.FUND_DETAIL_REFRESH)
-                .taskParamsJson(buildTaskParamsJson(fundCodes.size()))
+                .taskParamsJson(buildTaskParamsJson(fundCodes.size(), command == null ? null : command.getTrigger()))
                 .status(ProcessingTaskStatusEnumVO.CREATED)
                 .build();
         processingTaskRepository.saveTask(taskEntity);
@@ -116,7 +117,25 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public FundRefreshTaskResult createAndDispatchStockQuotes() {
-        List<StockQuoteTargetEntity> quoteTargets = toDispatchableStockQuoteTargets(stockMarketRepository.queryAllQuoteTargets());
+        return createAndDispatchStockQuoteTargets(toDispatchableStockQuoteTargets(stockMarketRepository.queryAllQuoteTargets()), null);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public FundRefreshTaskResult createAndDispatchStockQuotes(StockQuoteRefreshCreateCommand command) {
+        return createAndDispatchStockQuoteTargets(normalizeStockQuoteTargets(command == null ? null : command.getStocks()),
+                command == null ? null : command.getTrigger());
+    }
+
+    @Override
+    public boolean hasNonTerminalTask(String taskType) {
+        if (isBlank(taskType)) {
+            return false;
+        }
+        return processingTaskRepository.existsNonTerminalTask(taskType.trim());
+    }
+
+    private FundRefreshTaskResult createAndDispatchStockQuoteTargets(List<StockQuoteTargetEntity> quoteTargets, String trigger) {
         if (quoteTargets.isEmpty()) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "股票刷新范围为空");
         }
@@ -124,7 +143,7 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         ProcessingTaskEntity taskEntity = ProcessingTaskEntity.builder()
                 .serverTaskId(newStockServerTaskId())
                 .taskType(ProcessingTaskEntity.STOCK_QUOTE_REFRESH)
-                .taskParamsJson(buildStockTaskParamsJson(quoteTargets.size()))
+                .taskParamsJson(buildStockTaskParamsJson(quoteTargets.size(), trigger))
                 .status(ProcessingTaskStatusEnumVO.CREATED)
                 .build();
         processingTaskRepository.saveTask(taskEntity);
@@ -368,6 +387,25 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         return result;
     }
 
+    private List<StockQuoteTargetEntity> normalizeStockQuoteTargets(List<StockQuoteRefreshCreateCommand.Stock> stocks) {
+        if (stocks == null) {
+            return List.of();
+        }
+        Map<String, StockQuoteTargetEntity> dedup = new LinkedHashMap<>();
+        for (StockQuoteRefreshCreateCommand.Stock stock : stocks) {
+            if (stock == null || isBlank(stock.getStockCode()) || isBlank(stock.getMarket())) {
+                continue;
+            }
+            String stockCode = stock.getStockCode().trim();
+            String market = stock.getMarket().trim();
+            dedup.putIfAbsent(stockKey(stockCode, market), StockQuoteTargetEntity.builder()
+                    .stockCode(stockCode)
+                    .market(market)
+                    .build());
+        }
+        return new ArrayList<>(dedup.values());
+    }
+
     private List<FundCurrentDataAggregate.RefreshWarning> toWarnings(List<AgentFundRefreshCallbackCommand.RefreshWarning> warnings) {
         if (warnings == null) {
             return List.of();
@@ -471,17 +509,17 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         return "stock_quote_refresh_" + UUID.randomUUID().toString().replace("-", "");
     }
 
-    private String buildTaskParamsJson(int fundCodeCount) {
+    private String buildTaskParamsJson(int fundCodeCount, String trigger) {
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("fundCodeCount", fundCodeCount);
-        params.put("trigger", "system");
+        params.put("trigger", defaultString(trigger, "system"));
         return JSON.toJSONString(params);
     }
 
-    private String buildStockTaskParamsJson(int stockCount) {
+    private String buildStockTaskParamsJson(int stockCount, String trigger) {
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("stockCount", stockCount);
-        params.put("trigger", "system");
+        params.put("trigger", defaultString(trigger, "system"));
         return JSON.toJSONString(params);
     }
 

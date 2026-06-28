@@ -91,6 +91,7 @@ mvn -pl mall-trigger -am -Dtest=ApiAccessLogFilterTest -Dsurefire.failIfNoSpecif
 ```
 
 - 下次优先动作：运行指定模块测试且带 `-am` 时，追加 `-Dsurefire.failIfNoSpecifiedTests=false`。
+- 补充：如果子模块使用较旧的 `maven-surefire-plugin:2.6`，指定 `-Dtest=...` 时依赖模块仍可能报 `No tests were executed`；此时同时追加 `-DfailIfNoTests=false`。
 - 验证方式：`ApiAccessLogFilterTest` 相关单元测试执行并通过。
 - 适用范围 / 注意事项：适用于指定测试类且依赖模块可能没有该测试类的 Maven Reactor 命令；不要用它掩盖目标模块测试未执行的问题，需要确认日志中目标测试类实际运行。
 - 记录时间：2026-05-23

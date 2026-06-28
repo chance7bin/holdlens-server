@@ -73,4 +73,14 @@
         ORDER BY fund_code ASC
     </select>
 
+    <select id="selectRefreshTargetsAfterId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM fund_detail_item
+        WHERE id &gt; #{lastId}
+          AND fund_code IS NOT NULL
+          AND fund_code != ''
+        ORDER BY id ASC
+        LIMIT #{limit}
+    </select>
+
 </mapper>

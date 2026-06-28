@@ -13,4 +13,6 @@ public interface IProcessingTaskDao {
 
     ProcessingTaskPO selectByServerTaskId(@Param("serverTaskId") String serverTaskId);
 
+    int countNonTerminalByTaskType(@Param("taskType") String taskType);
+
 }

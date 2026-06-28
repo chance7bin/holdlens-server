@@ -39,4 +39,11 @@
         WHERE server_task_id = #{serverTaskId}
     </select>
 
+    <select id="countNonTerminalByTaskType" resultType="int">
+        SELECT COUNT(1)
+        FROM processing_task
+        WHERE task_type = #{taskType}
+          AND status IN ('created', 'dispatched', 'running')
+    </select>
+
 </mapper>

@@ -14,6 +14,8 @@ public interface IProcessingTaskRepository {
 
     ProcessingTaskEntity queryTask(String serverTaskId);
 
+    boolean existsNonTerminalTask(String taskType);
+
     boolean saveCallbackIfAbsent(ProcessingCallbackEntity callbackEntity);
 
     void markCallbackProcessed(String serverTaskId, String idempotencyKey, String processStatus, String errorSummary);

@@ -45,6 +45,11 @@ public class ProcessingTaskRepository implements IProcessingTaskRepository {
     }
 
     @Override
+    public boolean existsNonTerminalTask(String taskType) {
+        return processingTaskDao.countNonTerminalByTaskType(taskType) > 0;
+    }
+
+    @Override
     public boolean saveCallbackIfAbsent(ProcessingCallbackEntity callbackEntity) {
         try {
             processingCallbackDao.insert(toPO(callbackEntity));

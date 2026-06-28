@@ -15,4 +15,6 @@ public interface IFundDetailItemDao {
 
     List<FundDetailItemPO> selectByFundCodes(@Param("fundCodes") java.util.Collection<String> fundCodes);
 
+    List<FundDetailItemPO> selectRefreshTargetsAfterId(@Param("lastId") Long lastId, @Param("limit") int limit);
+
 }

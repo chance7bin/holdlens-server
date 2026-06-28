@@ -11,10 +11,22 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FundRefreshCreateCommand {
+public class StockQuoteRefreshCreateCommand {
 
-    private List<String> fundCodes;
+    private List<Stock> stocks;
 
     private String trigger;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Stock {
+
+        private String stockCode;
+
+        private String market;
+
+    }
 
 }

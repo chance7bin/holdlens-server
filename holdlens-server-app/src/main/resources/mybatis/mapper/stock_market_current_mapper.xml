@@ -52,6 +52,18 @@
         ORDER BY stock_code ASC, market ASC
     </select>
 
+    <select id="selectRefreshTargetsAfterId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM stock_market_current
+        WHERE id &gt; #{lastId}
+          AND stock_code IS NOT NULL
+          AND stock_code != ''
+          AND market IS NOT NULL
+          AND market != ''
+        ORDER BY id ASC
+        LIMIT #{limit}
+    </select>
+
     <select id="selectByStockKeys" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM stock_market_current

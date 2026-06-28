@@ -58,7 +58,7 @@ public class StockMarketRepositoryTest {
 	    }
 
 	    @Test
-	    public void queryByStockKeysUsesEmptyMarketKeyForNullMarket() throws Exception {
+    public void queryByStockKeysUsesEmptyMarketKeyForNullMarket() throws Exception {
 	        StockMarketRepository repository = new StockMarketRepository();
 	        FakeStockMarketCurrentDao stockMarketCurrentDao = new FakeStockMarketCurrentDao();
 	        stockMarketCurrentDao.stockQuotes = List.of(StockMarketCurrentPO.builder()
@@ -68,8 +68,24 @@ public class StockMarketRepositoryTest {
 	                .build());
 	        setField(repository, "stockMarketCurrentDao", stockMarketCurrentDao);
 
-	        Assert.assertTrue(repository.queryByStockKeys(List.of("000001#")).containsKey("000001#"));
-	    }
+        Assert.assertTrue(repository.queryByStockKeys(List.of("000001#")).containsKey("000001#"));
+    }
+
+    @Test
+    public void queryRefreshTargetsAfterIdMapsStockTargets() throws Exception {
+        StockMarketRepository repository = new StockMarketRepository();
+        FakeStockMarketCurrentDao stockMarketCurrentDao = new FakeStockMarketCurrentDao();
+        stockMarketCurrentDao.refreshTargets = List.of(
+                StockMarketCurrentPO.builder().id(7L).stockCode("600000").market("1").build(),
+                StockMarketCurrentPO.builder().id(8L).stockCode("000001").market("0").build());
+        setField(repository, "stockMarketCurrentDao", stockMarketCurrentDao);
+
+        Assert.assertEquals(2, repository.queryRefreshTargetsAfterId(6L, 50).size());
+        Assert.assertEquals(Long.valueOf(7L), repository.queryRefreshTargetsAfterId(6L, 50).get(0).getId());
+        Assert.assertEquals("600000", repository.queryRefreshTargetsAfterId(6L, 50).get(0).getStockCode());
+        Assert.assertEquals(Long.valueOf(6L), stockMarketCurrentDao.lastId);
+        Assert.assertEquals(50, stockMarketCurrentDao.limit);
+    }
 
     private void setField(Object target, String name, Object value) throws Exception {
         Field field = target.getClass().getDeclaredField(name);
@@ -82,6 +98,9 @@ public class StockMarketRepositoryTest {
 	        private final List<StockMarketCurrentPO> targetUpserts = new ArrayList<>();
 	        private List<StockMarketCurrentPO> targets = List.of();
 	        private List<StockMarketCurrentPO> stockQuotes = List.of();
+            private List<StockMarketCurrentPO> refreshTargets = List.of();
+            private Long lastId;
+            private int limit;
 
         @Override
         public void upsert(StockMarketCurrentPO stockMarketCurrentPO) {
@@ -95,11 +114,18 @@ public class StockMarketRepositoryTest {
 
         @Override
 	        public List<StockMarketCurrentPO> selectAllTargets() {
-	            return targets;
-	        }
+		            return targets;
+		        }
 
-	        @Override
-	        public List<StockMarketCurrentPO> selectByStockKeys(Collection<String> stockKeys) {
+            @Override
+            public List<StockMarketCurrentPO> selectRefreshTargetsAfterId(Long lastId, int limit) {
+                this.lastId = lastId;
+                this.limit = limit;
+                return refreshTargets;
+            }
+
+		        @Override
+		        public List<StockMarketCurrentPO> selectByStockKeys(Collection<String> stockKeys) {
 	            return stockQuotes;
 	        }
     }

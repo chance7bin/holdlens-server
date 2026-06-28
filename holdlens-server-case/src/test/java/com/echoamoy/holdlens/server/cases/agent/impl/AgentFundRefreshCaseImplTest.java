@@ -4,8 +4,10 @@ import com.echoamoy.holdlens.server.cases.agent.model.AgentFundRefreshCallbackCo
 import com.echoamoy.holdlens.server.cases.agent.model.AgentStockQuoteRefreshCallbackCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
+import com.echoamoy.holdlens.server.cases.agent.model.StockQuoteRefreshCreateCommand;
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
+import com.echoamoy.holdlens.server.domain.funddata.model.entity.FundRefreshTargetEntity;
 import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentFundRefreshPort;
 import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentStockQuoteRefreshPort;
 import com.echoamoy.holdlens.server.domain.processing.adapter.repository.IProcessingTaskRepository;
@@ -210,6 +212,48 @@ public class AgentFundRefreshCaseImplTest {
     }
 
     @Test
+    public void createStockQuoteTaskUsesExplicitStocksAndDeduplicates() throws Exception {
+        FakeProcessingRepository processingRepository = new FakeProcessingRepository();
+        FakeAgentPort agentPort = new FakeAgentPort(true, "dispatched");
+        AgentFundRefreshCaseImpl refreshCase = newCase(processingRepository, agentPort, new FakeFundDataRepository());
+
+        FundRefreshTaskResult result = refreshCase.createAndDispatchStockQuotes(StockQuoteRefreshCreateCommand.builder()
+                .stocks(List.of(
+                        StockQuoteRefreshCreateCommand.Stock.builder().stockCode(" 600000 ").market(" 1 ").build(),
+                        StockQuoteRefreshCreateCommand.Stock.builder().stockCode("600000").market("1").build(),
+                        StockQuoteRefreshCreateCommand.Stock.builder().stockCode("000001").market("0").build()))
+                .trigger("schedule")
+                .build());
+
+        Assert.assertEquals("dispatched", result.getStatus());
+        Assert.assertEquals(2, agentPort.lastStockCommand.getStocks().size());
+        Assert.assertEquals("600000", agentPort.lastStockCommand.getStocks().get(0).getStockCode());
+        Assert.assertEquals("1", agentPort.lastStockCommand.getStocks().get(0).getMarket());
+        Assert.assertEquals("000001", agentPort.lastStockCommand.getStocks().get(1).getStockCode());
+        Assert.assertTrue(processingRepository.queryTask(result.getServerTaskId()).getTaskParamsJson().contains("\"stockCount\":2"));
+        Assert.assertTrue(processingRepository.queryTask(result.getServerTaskId()).getTaskParamsJson().contains("\"trigger\":\"schedule\""));
+    }
+
+    @Test
+    public void createStockQuoteTaskRejectsExplicitStocksWithoutMarket() throws Exception {
+        FakeProcessingRepository processingRepository = new FakeProcessingRepository();
+        FakeAgentPort agentPort = new FakeAgentPort(true, "running");
+        AgentFundRefreshCaseImpl refreshCase = newCase(processingRepository, agentPort, new FakeFundDataRepository());
+
+        try {
+            refreshCase.createAndDispatchStockQuotes(StockQuoteRefreshCreateCommand.builder()
+                    .stocks(List.of(
+                            StockQuoteRefreshCreateCommand.Stock.builder().stockCode("600000").market(" ").build(),
+                            StockQuoteRefreshCreateCommand.Stock.builder().stockCode(null).market("1").build()))
+                    .build());
+            Assert.fail("should reject invalid explicit stock targets");
+        } catch (AppException e) {
+            Assert.assertTrue(processingRepository.tasks.isEmpty());
+            Assert.assertNull(agentPort.lastStockCommand);
+        }
+    }
+
+    @Test
     public void createStockQuoteTaskRejectsEmptyTargets() throws Exception {
         AgentFundRefreshCaseImpl refreshCase = newCase(new FakeProcessingRepository(), new FakeAgentPort(true, "running"),
                 new FakeFundDataRepository(), new FakeStockMarketRepository(List.of()));
@@ -386,6 +430,12 @@ public class AgentFundRefreshCaseImplTest {
         }
 
         @Override
+        public boolean existsNonTerminalTask(String taskType) {
+            return tasks.values().stream()
+                    .anyMatch(task -> taskType.equals(task.getTaskType()) && task.getStatus() != null && !task.getStatus().isTerminal());
+        }
+
+        @Override
         public void saveLogs(List<ProcessingLogEntity> logs) {
             this.logs.addAll(logs);
         }
@@ -428,6 +478,11 @@ public class AgentFundRefreshCaseImplTest {
         public Map<String, FundCurrentDataAggregate.FundDetail> queryCurrentDetails(Set<String> fundCodes) {
             return Map.of();
         }
+
+        @Override
+        public List<FundRefreshTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit) {
+            return List.of();
+        }
     }
 
     private static class FakeStockMarketRepository implements IStockMarketRepository {
@@ -451,6 +506,14 @@ public class AgentFundRefreshCaseImplTest {
         @Override
         public List<StockQuoteTargetEntity> queryAllQuoteTargets() {
             return targets;
+        }
+
+        @Override
+        public List<StockQuoteTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit) {
+            return targets.stream()
+                    .filter(target -> target.getId() != null && target.getId() > lastId)
+                    .limit(limit)
+                    .toList();
         }
 
         @Override

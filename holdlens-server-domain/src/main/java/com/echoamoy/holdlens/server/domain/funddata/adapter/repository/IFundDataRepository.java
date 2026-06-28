@@ -1,6 +1,7 @@
 package com.echoamoy.holdlens.server.domain.funddata.adapter.repository;
 
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
+import com.echoamoy.holdlens.server.domain.funddata.model.entity.FundRefreshTargetEntity;
 
 import java.util.List;
 import java.util.Map;
@@ -11,5 +12,7 @@ public interface IFundDataRepository {
     void saveCurrentData(FundCurrentDataAggregate aggregate);
 
     Map<String, FundCurrentDataAggregate.FundDetail> queryCurrentDetails(Set<String> fundCodes);
+
+    List<FundRefreshTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit);
 
 }

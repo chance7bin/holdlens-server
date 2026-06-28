@@ -4,6 +4,7 @@ import com.echoamoy.holdlens.server.api.dto.FundRefreshTaskDTO;
 import com.echoamoy.holdlens.server.api.request.AgentFundRefreshCallbackRequest;
 import com.echoamoy.holdlens.server.api.request.AgentStockQuoteRefreshCallbackRequest;
 import com.echoamoy.holdlens.server.api.request.FundRefreshCreateRequest;
+import com.echoamoy.holdlens.server.api.request.StockQuoteRefreshCreateRequest;
 import com.echoamoy.holdlens.server.api.response.Response;
 
 /**
@@ -29,7 +30,7 @@ public interface IAgentFundRefreshService {
     /**
      * 从当前股票行情表创建股票行情刷新任务，并下发给 agent 异步刷新公开行情数据。
      */
-    Response<FundRefreshTaskDTO> createStockQuoteTask();
+    Response<FundRefreshTaskDTO> createStockQuoteTask(StockQuoteRefreshCreateRequest request);
 
     /**
      * 接收 agent 回传的股票行情刷新结果，用于保存当前股票行情并更新任务状态。

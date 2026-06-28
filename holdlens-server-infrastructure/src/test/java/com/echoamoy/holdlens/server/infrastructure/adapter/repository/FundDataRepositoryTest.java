@@ -62,6 +62,21 @@ public class FundDataRepositoryTest {
         Assert.assertEquals("error", processingLogDao.inserted.getSeverity());
     }
 
+    @Test
+    public void queryRefreshTargetsAfterIdMapsFundTargets() throws Exception {
+        FundDataRepository repository = new FundDataRepository();
+        FakeFundDetailItemDao fundDetailItemDao = new FakeFundDetailItemDao();
+        fundDetailItemDao.refreshTargets = List.of(
+                FundDetailItemPO.builder().id(10L).fundCode("000001").build(),
+                FundDetailItemPO.builder().id(11L).fundCode("161725").build());
+        setField(repository, "fundDetailItemDao", fundDetailItemDao);
+
+        Assert.assertEquals(2, repository.queryRefreshTargetsAfterId(9L, 20).size());
+        Assert.assertEquals("000001", repository.queryRefreshTargetsAfterId(9L, 20).get(0).getFundCode());
+        Assert.assertEquals(Long.valueOf(9L), fundDetailItemDao.lastId);
+        Assert.assertEquals(20, fundDetailItemDao.limit);
+    }
+
     private void setField(Object target, String name, Object value) throws Exception {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
@@ -70,6 +85,9 @@ public class FundDataRepositoryTest {
 
     private static class FakeFundDetailItemDao implements IFundDetailItemDao {
         private FundDetailItemPO upserted;
+        private Long lastId;
+        private int limit;
+        private List<FundDetailItemPO> refreshTargets = List.of();
 
         @Override
         public void upsert(FundDetailItemPO fundDetailItemPO) {
@@ -84,6 +102,13 @@ public class FundDataRepositoryTest {
         @Override
         public List<FundDetailItemPO> selectByFundCodes(Collection<String> fundCodes) {
             return List.of();
+        }
+
+        @Override
+        public List<FundDetailItemPO> selectRefreshTargetsAfterId(Long lastId, int limit) {
+            this.lastId = lastId;
+            this.limit = limit;
+            return refreshTargets;
         }
     }
 

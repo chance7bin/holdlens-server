@@ -3,6 +3,7 @@ package com.echoamoy.holdlens.server.cases.portfolio.impl;
 import com.echoamoy.holdlens.server.cases.portfolio.model.PortfolioFundDetailResult;
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
+import com.echoamoy.holdlens.server.domain.funddata.model.entity.FundRefreshTargetEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.adapter.repository.IPortfolioRepository;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.PortfolioHoldingEntity;
 import com.echoamoy.holdlens.server.domain.stockdata.adapter.repository.IStockMarketRepository;
@@ -98,13 +99,23 @@ public class PortfolioFundDetailCaseImplTest {
                             .fundCode("999999")
                             .fundName("未持有基金")
                             .updateTime(LocalDateTime.now())
-                            .build());
+	                            .build());
+        }
+
+        @Override
+        public List<FundRefreshTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit) {
+            return List.of();
         }
     }
 
     private static class FakeStockMarketRepository implements IStockMarketRepository {
         @Override
         public List<StockQuoteTargetEntity> queryAllQuoteTargets() {
+            return List.of();
+        }
+
+        @Override
+        public List<StockQuoteTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit) {
             return List.of();
         }
 

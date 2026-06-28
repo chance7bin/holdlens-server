@@ -16,6 +16,8 @@ public interface IStockMarketCurrentDao {
 
     List<StockMarketCurrentPO> selectAllTargets();
 
+    List<StockMarketCurrentPO> selectRefreshTargetsAfterId(@Param("lastId") Long lastId, @Param("limit") int limit);
+
     List<StockMarketCurrentPO> selectByStockKeys(@Param("stockKeys") Collection<String> stockKeys);
 
 }
