@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Date;
 
 @Data
@@ -19,6 +20,6 @@ public class StockQuoteEntity {
     private String stockName;
     private Date tradeDate;
     private BigDecimal dailyReturn;
-    private Date quoteTime;
+    private LocalDateTime quoteTime;
 
 }

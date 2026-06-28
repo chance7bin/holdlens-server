@@ -11,8 +11,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
+import java.time.LocalDateTime;
 import java.util.Collection;
-import java.util.Date;
 import java.util.List;
 
 public class FundDataRepositoryTest {
@@ -27,9 +27,11 @@ public class FundDataRepositoryTest {
         setField(repository, "fundTopHoldingDao", fundTopHoldingDao);
         setField(repository, "processingLogDao", processingLogDao);
 
+        LocalDateTime generatedAt = LocalDateTime.of(2026, 6, 16, 18, 0);
+
         repository.saveCurrentData(FundCurrentDataAggregate.builder()
                 .schemaVersion("fund-detail-refresh-result/v2")
-                .generatedAt(new Date())
+                .generatedAt(generatedAt)
                 .status("partial_failed")
                 .sourceRefId("task_1")
                 .funds(List.of(FundCurrentDataAggregate.FundDetail.builder()

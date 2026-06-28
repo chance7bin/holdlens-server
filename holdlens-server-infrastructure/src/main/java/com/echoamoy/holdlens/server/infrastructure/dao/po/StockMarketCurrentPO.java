@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Date;
 
 @Data
@@ -36,7 +37,7 @@ public class StockMarketCurrentPO implements Serializable {
     private BigDecimal dailyReturn;
 
     /** 行情时间 */
-    private Date quoteTime;
+    private LocalDateTime quoteTime;
 
     /** 创建时间 */
     private Date createTime;

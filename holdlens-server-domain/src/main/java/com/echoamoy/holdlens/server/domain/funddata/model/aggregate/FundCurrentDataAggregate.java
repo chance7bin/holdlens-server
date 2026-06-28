@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.List;
 
@@ -16,7 +17,7 @@ import java.util.List;
 public class FundCurrentDataAggregate {
 
     private String schemaVersion;
-    private Date generatedAt;
+    private LocalDateTime generatedAt;
     private String status;
     private String sourceRefId;
     private List<FundDetail> funds;
@@ -40,7 +41,7 @@ public class FundCurrentDataAggregate {
         private BigDecimal sixMonthsReturn;
         private BigDecimal oneYearReturn;
         private BigDecimal threeYearsReturn;
-        private Date generatedAt;
+        private LocalDateTime updateTime;
         private List<TopHolding> topHoldings;
     }
 
@@ -70,7 +71,7 @@ public class FundCurrentDataAggregate {
         private String stockName;
         private Date tradeDate;
         private BigDecimal dailyReturn;
-        private Date quoteTime;
+        private LocalDateTime quoteTime;
         private Date updateTime;
     }
 

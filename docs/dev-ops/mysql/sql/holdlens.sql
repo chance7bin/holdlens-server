@@ -1,6 +1,8 @@
 -- =============================================
 -- HoldLens 数据库初始化脚本
 -- Create: 2026-06-15
+-- Timezone: 业务 DATETIME 统一存储 Asia/Shanghai 本地时间
+-- Note: DATETIME 不保存 offset，不表示 UTC instant
 -- =============================================
 
 SET NAMES utf8mb4;

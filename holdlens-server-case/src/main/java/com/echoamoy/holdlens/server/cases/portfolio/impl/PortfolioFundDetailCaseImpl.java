@@ -13,8 +13,10 @@ import com.echoamoy.holdlens.server.types.exception.AppException;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.Resource;
-import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +26,7 @@ import java.util.Set;
 public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
 
     private static final int STALE_DAYS = 7;
+    private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
 
     @Resource
     private IPortfolioRepository portfolioRepository;
@@ -100,7 +103,6 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                 .detailStatus(isStale(detail) ? "stale" : "available")
                 .buyStatus(detail.getBuyStatus())
                 .dailyPurchaseLimit(detail.getDailyPurchaseLimit())
-                .generatedAt(detail.getGeneratedAt())
                 .returnsAsOf(detail.getReturnsAsOf())
                 .topHoldingsAsOf(detail.getTopHoldingsAsOf())
                 .publicHoldingsStatus(detail.getPublicHoldingsStatus())
@@ -125,7 +127,7 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                 .market(topHolding.getMarket())
                 .dailyReturn(stockQuote == null ? null : stockQuote.getDailyReturn())
                 .quoteTradeDate(stockQuote == null ? null : stockQuote.getTradeDate())
-                .quoteTime(stockQuote == null ? null : stockQuote.getQuoteTime())
+                .quoteTime(stockQuote == null ? null : toDate(stockQuote.getQuoteTime()))
                 .quoteStatus(stockQuote == null ? "missing" : "available")
                 .holdingRatio(topHolding.getHoldingRatio())
                 .quarterChangeType(topHolding.getQuarterChangeType())
@@ -161,8 +163,15 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
     }
 
     private boolean isStale(FundCurrentDataAggregate.FundDetail detail) {
-        return detail.getGeneratedAt() != null
-                && detail.getGeneratedAt().toInstant().isBefore(Instant.now().minus(STALE_DAYS, ChronoUnit.DAYS));
+        return detail.getUpdateTime() != null
+                && detail.getUpdateTime().isBefore(LocalDateTime.now(BEIJING_ZONE).minus(STALE_DAYS, ChronoUnit.DAYS));
+    }
+
+    private Date toDate(LocalDateTime value) {
+        if (value == null) {
+            return null;
+        }
+        return Date.from(value.atZone(BEIJING_ZONE).toInstant());
     }
 
 }

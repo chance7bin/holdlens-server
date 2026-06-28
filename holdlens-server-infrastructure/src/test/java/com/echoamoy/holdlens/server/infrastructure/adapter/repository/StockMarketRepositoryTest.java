@@ -8,6 +8,7 @@ import org.junit.Test;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
@@ -23,11 +24,11 @@ public class StockMarketRepositoryTest {
 
 	        repository.registerQuoteTargets(List.of(StockQuoteEntity.builder()
 	                .stockCode("600000")
-	                .market(null)
-	                .stockName(null)
-	                .tradeDate(new Date())
+                .market(null)
+                .stockName(null)
+                .tradeDate(new Date())
                 .dailyReturn(new BigDecimal("0.50"))
-                .quoteTime(new Date())
+                .quoteTime(LocalDateTime.of(2026, 6, 18, 10, 4, 30))
                 .build()));
 
         Assert.assertEquals(1, stockMarketCurrentDao.targetUpserts.size());

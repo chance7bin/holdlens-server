@@ -71,7 +71,6 @@ public class PortfolioFundDetailController implements IPortfolioFundDetailServic
                 .detailStatus(fundDetail.getDetailStatus())
                 .buyStatus(fundDetail.getBuyStatus())
                 .dailyPurchaseLimit(fundDetail.getDailyPurchaseLimit())
-                .generatedAt(fundDetail.getGeneratedAt())
                 .returnsAsOf(fundDetail.getReturnsAsOf())
                 .topHoldingsAsOf(fundDetail.getTopHoldingsAsOf())
                 .publicHoldingsStatus(fundDetail.getPublicHoldingsStatus())

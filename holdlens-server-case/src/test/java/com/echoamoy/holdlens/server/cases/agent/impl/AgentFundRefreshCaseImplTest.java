@@ -24,6 +24,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -264,14 +265,14 @@ public class AgentFundRefreshCaseImplTest {
                                 .stockName("测试股份")
                                 .tradeDate("2026-06-18")
                                 .dailyReturn(new java.math.BigDecimal("0.50"))
-                                .quoteTime("2026-06-18T10:04:30Z")
+                                .quoteTime("2026-06-18T10:04:30+08:00")
                                 .build(),
                         AgentStockQuoteRefreshCallbackCommand.StockQuote.builder()
                                 .stockCode("000001")
                                 .stockName("空市场股份")
                                 .tradeDate("2026-06-18")
                                 .dailyReturn(new java.math.BigDecimal("0.10"))
-                                .quoteTime("2026-06-18T10:05:30Z")
+                                .quoteTime("2026-06-18T02:05:30Z")
                                 .build()))
                 .refreshWarnings(List.of(AgentStockQuoteRefreshCallbackCommand.RefreshWarning.builder()
                         .module("stock_quote_refresh")
@@ -286,8 +287,12 @@ public class AgentFundRefreshCaseImplTest {
 
         Assert.assertEquals("partial_failed", first.getStatus());
         Assert.assertEquals("partial_failed", duplicate.getStatus());
-	        Assert.assertEquals(2, stockMarketRepository.upsertCount);
-	        Assert.assertNull(stockMarketRepository.upsertedQuotes.get(1).getMarket());
+		        Assert.assertEquals(2, stockMarketRepository.upsertCount);
+		        Assert.assertEquals(LocalDateTime.of(2026, 6, 18, 10, 4, 30),
+		                stockMarketRepository.upsertedQuotes.get(0).getQuoteTime());
+		        Assert.assertNull(stockMarketRepository.upsertedQuotes.get(1).getMarket());
+		        Assert.assertEquals(LocalDateTime.of(2026, 6, 18, 10, 5, 30),
+		                stockMarketRepository.upsertedQuotes.get(1).getQuoteTime());
         Assert.assertEquals(1, processingRepository.logs.size());
         Assert.assertEquals("stock_quote_refresh", processingRepository.logs.get(0).getModule());
     }
@@ -410,6 +415,7 @@ public class AgentFundRefreshCaseImplTest {
             saveCount++;
             Assert.assertEquals("000001", aggregate.getFunds().get(0).getFundCode());
             Assert.assertEquals("task_1", aggregate.getSourceRefId());
+            Assert.assertEquals(LocalDateTime.of(2026, 6, 16, 18, 0), aggregate.getGeneratedAt());
             if (aggregate.getWarnings() != null && !aggregate.getWarnings().isEmpty()) {
                 FundCurrentDataAggregate.RefreshWarning warning = aggregate.getWarnings().get(0);
                 Assert.assertEquals("fund_refresh", warning.getModule());

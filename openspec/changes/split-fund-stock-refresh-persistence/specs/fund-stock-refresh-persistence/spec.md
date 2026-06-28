@@ -8,6 +8,7 @@ server SHALL persist fund refresh results as current fund details keyed by fund 
 - **THEN** server SHALL upsert one current `fund_detail_item` record for that fund code
 - **AND** server SHALL NOT create a `fund_detail_snapshot` record
 - **AND** server SHALL NOT require `snapshot_id` to query the current fund detail
+- **AND** server SHALL NOT persist agent callback `generated_at` on `fund_detail_item`
 
 #### Scenario: Reject unsupported fund result schema
 - **WHEN** server receives a fund refresh callback with an unsupported schema version

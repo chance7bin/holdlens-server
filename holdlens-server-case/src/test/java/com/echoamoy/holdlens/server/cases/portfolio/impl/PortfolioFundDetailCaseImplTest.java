@@ -13,7 +13,7 @@ import org.junit.Test;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
-import java.util.Date;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -81,7 +81,7 @@ public class PortfolioFundDetailCaseImplTest {
                     "000001", FundCurrentDataAggregate.FundDetail.builder()
                             .fundCode("000001")
                             .fundName("测试基金")
-                            .generatedAt(new Date())
+                            .updateTime(LocalDateTime.now())
 	                            .topHoldings(List.of(
 	                                    FundCurrentDataAggregate.TopHolding.builder()
 	                                            .rankNo(1)
@@ -97,7 +97,7 @@ public class PortfolioFundDetailCaseImplTest {
                     "999999", FundCurrentDataAggregate.FundDetail.builder()
                             .fundCode("999999")
                             .fundName("未持有基金")
-                            .generatedAt(new Date())
+                            .updateTime(LocalDateTime.now())
                             .build());
         }
     }

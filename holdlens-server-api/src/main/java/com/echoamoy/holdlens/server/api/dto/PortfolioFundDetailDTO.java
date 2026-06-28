@@ -63,7 +63,6 @@ public class PortfolioFundDetailDTO implements Serializable {
         private String detailStatus;
         private String buyStatus;
         private String dailyPurchaseLimit;
-        private Date generatedAt;
         private Date returnsAsOf;
         private Date topHoldingsAsOf;
         private String publicHoldingsStatus;

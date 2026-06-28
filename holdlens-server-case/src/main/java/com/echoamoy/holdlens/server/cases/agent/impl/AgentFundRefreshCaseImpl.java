@@ -21,6 +21,7 @@ import com.echoamoy.holdlens.server.domain.processing.model.valobj.ProcessingTas
 import com.echoamoy.holdlens.server.domain.stockdata.adapter.repository.IStockMarketRepository;
 import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteEntity;
 import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteTargetEntity;
+import com.echoamoy.holdlens.server.types.common.DateTimeUtils;
 import com.echoamoy.holdlens.server.types.enums.ResponseCode;
 import com.echoamoy.holdlens.server.types.exception.AppException;
 import lombok.extern.slf4j.Slf4j;
@@ -30,7 +31,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.annotation.Resource;
 import java.sql.Date;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -267,7 +267,7 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
     private FundCurrentDataAggregate toAggregate(AgentFundRefreshCallbackCommand request) {
         return FundCurrentDataAggregate.builder()
                 .schemaVersion(request.getSchemaVersion())
-                .generatedAt(parseInstantDate(request.getGeneratedAt()))
+                .generatedAt(DateTimeUtils.parseOffsetDateTimeOrNow(request.getGeneratedAt()))
                 .status(request.getStatus())
                 .sourceRefId(request.getServerTaskId())
                 .funds(toFundDetails(request.getFunds()))
@@ -399,7 +399,7 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
                     .stockName(quote.getStockName())
                     .tradeDate(parseLocalDate(quote.getTradeDate()))
                     .dailyReturn(quote.getDailyReturn())
-                    .quoteTime(parseInstantDateOrNull(quote.getQuoteTime()))
+                    .quoteTime(DateTimeUtils.parseOffsetDateTimeOrNull(quote.getQuoteTime()))
                     .build());
         }
         return result;
@@ -450,28 +450,6 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
             }
         }
         return new ArrayList<>(dedup);
-    }
-
-    private java.util.Date parseInstantDate(String value) {
-        if (isBlank(value)) {
-            return new java.util.Date();
-        }
-        try {
-            return java.util.Date.from(Instant.parse(value));
-        } catch (DateTimeParseException e) {
-            return new java.util.Date();
-        }
-    }
-
-    private java.util.Date parseInstantDateOrNull(String value) {
-        if (isBlank(value)) {
-            return null;
-        }
-        try {
-            return java.util.Date.from(Instant.parse(value));
-        } catch (DateTimeParseException e) {
-            return null;
-        }
     }
 
     private java.util.Date parseLocalDate(String value) {

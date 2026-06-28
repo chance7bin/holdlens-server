@@ -12,7 +12,10 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.annotation.Resource;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Collection;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +23,8 @@ import java.util.Set;
 
 @Repository
 public class FundDataRepository implements IFundDataRepository {
+
+    private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
 
     @Resource
     private IFundDetailItemDao fundDetailItemDao;
@@ -132,9 +137,16 @@ public class FundDataRepository implements IFundDataRepository {
                 .sixMonthsReturn(itemPO.getSixMonthsReturn())
                 .oneYearReturn(itemPO.getOneYearReturn())
                 .threeYearsReturn(itemPO.getThreeYearsReturn())
-                .generatedAt(itemPO.getUpdateTime())
+                .updateTime(toBeijingLocalDateTime(itemPO.getUpdateTime()))
                 .topHoldings(topHoldingPOList.stream().map(this::toTopHolding).toList())
                 .build();
+    }
+
+    private LocalDateTime toBeijingLocalDateTime(Date value) {
+        if (value == null) {
+            return null;
+        }
+        return value.toInstant().atZone(BEIJING_ZONE).toLocalDateTime();
     }
 
     private FundCurrentDataAggregate.TopHolding toTopHolding(FundTopHoldingPO po) {
