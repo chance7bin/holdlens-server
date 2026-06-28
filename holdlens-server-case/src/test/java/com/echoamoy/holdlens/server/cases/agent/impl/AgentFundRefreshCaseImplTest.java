@@ -200,9 +200,12 @@ public class AgentFundRefreshCaseImplTest {
 
         Assert.assertEquals("running", result.getStatus());
         Assert.assertEquals("stock_quote_refresh", result.getTaskType());
-	        Assert.assertEquals(3, agentPort.lastStockCommand.getStocks().size());
-	        Assert.assertNull(agentPort.lastStockCommand.getStocks().get(2).getMarket());
-	        Assert.assertTrue(processingRepository.queryTask(result.getServerTaskId()).getTaskParamsJson().contains("\"stockCount\":3"));
+	        Assert.assertEquals(2, agentPort.lastStockCommand.getStocks().size());
+	        Assert.assertEquals("600000", agentPort.lastStockCommand.getStocks().get(0).getStockCode());
+	        Assert.assertEquals("1", agentPort.lastStockCommand.getStocks().get(0).getMarket());
+	        Assert.assertEquals("000001", agentPort.lastStockCommand.getStocks().get(1).getStockCode());
+	        Assert.assertEquals("0", agentPort.lastStockCommand.getStocks().get(1).getMarket());
+	        Assert.assertTrue(processingRepository.queryTask(result.getServerTaskId()).getTaskParamsJson().contains("\"stockCount\":2"));
     }
 
     @Test
@@ -215,6 +218,25 @@ public class AgentFundRefreshCaseImplTest {
             Assert.fail("should reject empty stock quote targets");
         } catch (AppException e) {
             Assert.assertNotNull(e);
+        }
+    }
+
+    @Test
+    public void createStockQuoteTaskRejectsTargetsWithoutMarket() throws Exception {
+        FakeProcessingRepository processingRepository = new FakeProcessingRepository();
+        FakeAgentPort agentPort = new FakeAgentPort(true, "running");
+        AgentFundRefreshCaseImpl refreshCase = newCase(processingRepository, agentPort, new FakeFundDataRepository(),
+                new FakeStockMarketRepository(List.of(
+                        StockQuoteTargetEntity.builder().stockCode("000002").market(null).build(),
+                        StockQuoteTargetEntity.builder().stockCode("000003").market(" ").build())));
+
+        try {
+            refreshCase.createAndDispatchStockQuotes();
+            Assert.fail("should reject stock quote targets without market");
+        } catch (AppException e) {
+            Assert.assertNotNull(e);
+            Assert.assertTrue(processingRepository.tasks.isEmpty());
+            Assert.assertNull(agentPort.lastStockCommand);
         }
     }
 

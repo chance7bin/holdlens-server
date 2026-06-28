@@ -116,7 +116,7 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public FundRefreshTaskResult createAndDispatchStockQuotes() {
-        List<StockQuoteTargetEntity> quoteTargets = stockMarketRepository.queryAllQuoteTargets();
+        List<StockQuoteTargetEntity> quoteTargets = toDispatchableStockQuoteTargets(stockMarketRepository.queryAllQuoteTargets());
         if (quoteTargets.isEmpty()) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "股票刷新范围为空");
         }
@@ -349,6 +349,23 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
             }
         }
         return new ArrayList<>(dedup.values());
+    }
+
+    private List<StockQuoteTargetEntity> toDispatchableStockQuoteTargets(List<StockQuoteTargetEntity> quoteTargets) {
+        if (quoteTargets == null) {
+            return List.of();
+        }
+        List<StockQuoteTargetEntity> result = new ArrayList<>();
+        for (StockQuoteTargetEntity quoteTarget : quoteTargets) {
+            if (quoteTarget == null || isBlank(quoteTarget.getStockCode()) || isBlank(quoteTarget.getMarket())) {
+                continue;
+            }
+            result.add(StockQuoteTargetEntity.builder()
+                    .stockCode(quoteTarget.getStockCode().trim())
+                    .market(quoteTarget.getMarket().trim())
+                    .build());
+        }
+        return result;
     }
 
     private List<FundCurrentDataAggregate.RefreshWarning> toWarnings(List<AgentFundRefreshCallbackCommand.RefreshWarning> warnings) {

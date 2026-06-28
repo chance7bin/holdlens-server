@@ -11,21 +11,21 @@ import java.util.Map;
 public class AgentFundRefreshPortTest {
 
 	@Test
-	public void stockQuoteRefreshPayloadUsesAgentSnakeCaseAndKeepsNullMarket() throws Exception {
+	public void stockQuoteRefreshPayloadUsesAgentSnakeCaseAndSkipsBlankMarket() throws Exception {
 	    AgentFundRefreshPort port = new AgentFundRefreshPort();
 	    Method method = AgentFundRefreshPort.class.getDeclaredMethod("toStockQuoteRequestItems", List.class);
 	    method.setAccessible(true);
 
 	    @SuppressWarnings("unchecked")
 	    List<Map<String, Object>> payload = (List<Map<String, Object>>) method.invoke(port, List.of(
-	            StockQuoteTargetEntity.builder().stockCode("600000").market("1").build(),
-	            StockQuoteTargetEntity.builder().stockCode("000001").market(null).build()));
+	            StockQuoteTargetEntity.builder().stockCode(" 600000 ").market(" 1 ").build(),
+	            StockQuoteTargetEntity.builder().stockCode("000001").market(null).build(),
+	            StockQuoteTargetEntity.builder().stockCode("000002").market(" ").build(),
+	            StockQuoteTargetEntity.builder().stockCode(" ").market("0").build()));
 
+	    Assert.assertEquals(1, payload.size());
 	    Assert.assertEquals("600000", payload.get(0).get("stock_code"));
 	    Assert.assertEquals("1", payload.get(0).get("market"));
-	    Assert.assertEquals("000001", payload.get(1).get("stock_code"));
-	    Assert.assertTrue(payload.get(1).containsKey("market"));
-	    Assert.assertNull(payload.get(1).get("market"));
 	    Assert.assertFalse(payload.get(0).containsKey("stockCode"));
 	}
 

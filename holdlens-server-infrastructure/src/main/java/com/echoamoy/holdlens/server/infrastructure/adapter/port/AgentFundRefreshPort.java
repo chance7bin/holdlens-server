@@ -59,10 +59,11 @@ public class AgentFundRefreshPort implements IAgentFundRefreshPort, IAgentStockQ
             return List.of();
         }
         return stocks.stream()
+                .filter(stock -> stock != null && !isBlank(stock.getStockCode()) && !isBlank(stock.getMarket()))
                 .map(stock -> {
                     Map<String, Object> item = new LinkedHashMap<>();
-                    item.put("stock_code", stock.getStockCode());
-                    item.put("market", stock.getMarket());
+                    item.put("stock_code", stock.getStockCode().trim());
+                    item.put("market", stock.getMarket().trim());
                     return item;
                 })
                 .toList();
@@ -88,6 +89,10 @@ public class AgentFundRefreshPort implements IAgentFundRefreshPort, IAgentStockQ
 
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 
 }
