@@ -34,19 +34,19 @@ public class AgentRefreshScheduleJob {
     @Resource
     private IStockMarketRepository stockMarketRepository;
 
-    @Value("${holdlens.agent.fund-refresh-schedule.enabled:false}")
+    @Value("${holdlens.agent.fund-refresh-schedule.enabled}")
     private boolean fundRefreshScheduleEnabled;
 
-    @Value("${holdlens.agent.fund-refresh-schedule.batch-size:20}")
+    @Value("${holdlens.agent.fund-refresh-schedule.batch-size}")
     private int fundRefreshBatchSize;
 
-    @Value("${holdlens.agent.stock-refresh-schedule.enabled:false}")
+    @Value("${holdlens.agent.stock-refresh-schedule.enabled}")
     private boolean stockRefreshScheduleEnabled;
 
-    @Value("${holdlens.agent.stock-refresh-schedule.batch-size:50}")
+    @Value("${holdlens.agent.stock-refresh-schedule.batch-size}")
     private int stockRefreshBatchSize;
 
-    @Scheduled(cron = "${holdlens.agent.fund-refresh-schedule.cron:0 20 2 * * ?}")
+    @Scheduled(cron = "${holdlens.agent.fund-refresh-schedule.cron}")
     public void runFundRefreshSchedule() {
         if (!fundRefreshScheduleEnabled) {
             return;
@@ -81,7 +81,7 @@ public class AgentRefreshScheduleJob {
         }
     }
 
-    @Scheduled(cron = "${holdlens.agent.stock-refresh-schedule.cron:0 40 2 * * ?}")
+    @Scheduled(cron = "${holdlens.agent.stock-refresh-schedule.cron}")
     public void runStockRefreshSchedule() {
         if (!stockRefreshScheduleEnabled) {
             return;

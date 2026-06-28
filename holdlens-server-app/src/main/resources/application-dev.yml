@@ -47,3 +47,11 @@ holdlens:
     stock-refresh-url: http://127.0.0.1:8765/tasks/stock-quote-refresh
     callback-url: http://127.0.0.1:8091/internal/agent/fund-detail-refresh/callback
     callback-header-value: internal
+    fund-refresh-schedule:
+      enabled: true
+      batch-size: 20
+      cron: "0 20 2 * * ?"
+    stock-refresh-schedule:
+      enabled: true
+      batch-size: 50
+      cron: "0 40 2 * * ?"
