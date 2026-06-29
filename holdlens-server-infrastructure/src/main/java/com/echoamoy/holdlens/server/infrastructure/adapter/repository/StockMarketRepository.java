@@ -9,9 +9,11 @@ import org.springframework.stereotype.Repository;
 
 import jakarta.annotation.Resource;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Repository
 public class StockMarketRepository implements IStockMarketRepository {
@@ -73,6 +75,18 @@ public class StockMarketRepository implements IStockMarketRepository {
         Map<String, StockQuoteEntity> result = new LinkedHashMap<>();
         for (StockMarketCurrentPO po : poList) {
             result.put(stockKey(po.getStockCode(), po.getMarket()), toEntity(po));
+        }
+        return result;
+    }
+
+    @Override
+    public Set<String> queryExistingStockKeys(Collection<String> stockKeys) {
+        if (stockKeys == null || stockKeys.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> result = new LinkedHashSet<>();
+        for (StockMarketCurrentPO po : stockMarketCurrentDao.selectByStockKeys(stockKeys)) {
+            result.add(stockKey(po.getStockCode(), po.getMarket()));
         }
         return result;
     }

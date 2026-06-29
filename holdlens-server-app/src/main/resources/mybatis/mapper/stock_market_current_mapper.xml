@@ -41,7 +41,7 @@
         )
         ON DUPLICATE KEY UPDATE
             id = LAST_INSERT_ID(id),
-            stock_name = #{stockName}
+            stock_name = COALESCE(stock_name, VALUES(stock_name))
     </insert>
 
     <select id="selectAllTargets" resultMap="BaseResultMap">

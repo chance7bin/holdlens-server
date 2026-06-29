@@ -72,6 +72,19 @@ public class StockMarketRepositoryTest {
     }
 
     @Test
+    public void queryExistingStockKeysReturnsEmptyMarketKeyForNullMarket() throws Exception {
+        StockMarketRepository repository = new StockMarketRepository();
+        FakeStockMarketCurrentDao stockMarketCurrentDao = new FakeStockMarketCurrentDao();
+        stockMarketCurrentDao.stockQuotes = List.of(StockMarketCurrentPO.builder()
+                .stockCode("000001")
+                .market(null)
+                .build());
+        setField(repository, "stockMarketCurrentDao", stockMarketCurrentDao);
+
+        Assert.assertTrue(repository.queryExistingStockKeys(List.of("000001#")).contains("000001#"));
+    }
+
+    @Test
     public void queryRefreshTargetsAfterIdMapsStockTargets() throws Exception {
         StockMarketRepository repository = new StockMarketRepository();
         FakeStockMarketCurrentDao stockMarketCurrentDao = new FakeStockMarketCurrentDao();

@@ -15,4 +15,6 @@ public class FundRefreshTargetEntity {
 
     private String fundCode;
 
+    private String fundName;
+
 }

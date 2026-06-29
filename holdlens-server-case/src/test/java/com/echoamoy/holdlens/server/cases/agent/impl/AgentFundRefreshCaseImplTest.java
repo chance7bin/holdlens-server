@@ -480,6 +480,15 @@ public class AgentFundRefreshCaseImplTest {
         }
 
         @Override
+        public Set<String> queryExistingFundCodes(java.util.Collection<String> fundCodes) {
+            return Set.of();
+        }
+
+        @Override
+        public void registerRefreshTargets(List<FundRefreshTargetEntity> refreshTargets) {
+        }
+
+        @Override
         public List<FundRefreshTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit) {
             return List.of();
         }
@@ -531,6 +540,11 @@ public class AgentFundRefreshCaseImplTest {
         @Override
         public Map<String, StockQuoteEntity> queryByStockKeys(java.util.Collection<String> stockKeys) {
             return Map.of();
+        }
+
+        @Override
+        public Set<String> queryExistingStockKeys(java.util.Collection<String> stockKeys) {
+            return Set.of();
         }
     }
 

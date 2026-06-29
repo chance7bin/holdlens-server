@@ -6,6 +6,7 @@ import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentD
 import com.echoamoy.holdlens.server.domain.funddata.model.entity.FundRefreshTargetEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.adapter.repository.IPortfolioRepository;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.PortfolioHoldingEntity;
+import com.echoamoy.holdlens.server.domain.portfolio.model.entity.WatchlistAssetEntity;
 import com.echoamoy.holdlens.server.domain.stockdata.adapter.repository.IStockMarketRepository;
 import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteEntity;
 import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteTargetEntity;
@@ -67,6 +68,15 @@ public class PortfolioFundDetailCaseImplTest {
                             .status("active")
                             .build());
         }
+
+        @Override
+        public void upsertWatchlistAssets(List<WatchlistAssetEntity> watchlistAssets) {
+        }
+
+        @Override
+        public WatchlistAssetEntity queryWatchlistAsset(Long userId, String assetCode, String assetKind) {
+            return null;
+        }
     }
 
     private static class FakeFundDataRepository implements IFundDataRepository {
@@ -100,6 +110,15 @@ public class PortfolioFundDetailCaseImplTest {
                             .fundName("未持有基金")
                             .updateTime(LocalDateTime.now())
 	                            .build());
+        }
+
+        @Override
+        public Set<String> queryExistingFundCodes(java.util.Collection<String> fundCodes) {
+            return Set.of();
+        }
+
+        @Override
+        public void registerRefreshTargets(List<FundRefreshTargetEntity> refreshTargets) {
         }
 
         @Override
@@ -142,7 +161,12 @@ public class PortfolioFundDetailCaseImplTest {
 	                            .market(null)
 	                            .dailyReturn(new BigDecimal("0.10"))
 	                            .build());
-	        }
+		        }
+
+        @Override
+        public Set<String> queryExistingStockKeys(java.util.Collection<String> stockKeys) {
+            return Set.of();
+        }
     }
 
 }

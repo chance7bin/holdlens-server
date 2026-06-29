@@ -18,6 +18,7 @@ import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -73,6 +74,34 @@ public class FundDataRepository implements IFundDataRepository {
     }
 
     @Override
+    public Set<String> queryExistingFundCodes(Collection<String> fundCodes) {
+        if (fundCodes == null || fundCodes.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> result = new LinkedHashSet<>();
+        for (FundDetailItemPO itemPO : fundDetailItemDao.selectByFundCodes(fundCodes)) {
+            result.add(itemPO.getFundCode());
+        }
+        return result;
+    }
+
+    @Override
+    public void registerRefreshTargets(List<FundRefreshTargetEntity> refreshTargets) {
+        if (refreshTargets == null || refreshTargets.isEmpty()) {
+            return;
+        }
+        for (FundRefreshTargetEntity refreshTarget : refreshTargets) {
+            if (refreshTarget == null) {
+                continue;
+            }
+            fundDetailItemDao.upsertTarget(FundDetailItemPO.builder()
+                    .fundCode(refreshTarget.getFundCode())
+                    .fundName(refreshTarget.getFundName())
+                    .build());
+        }
+    }
+
+    @Override
     public List<FundRefreshTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit) {
         if (limit <= 0) {
             return List.of();
@@ -81,6 +110,7 @@ public class FundDataRepository implements IFundDataRepository {
                 .map(po -> FundRefreshTargetEntity.builder()
                         .id(po.getId())
                         .fundCode(po.getFundCode())
+                        .fundName(po.getFundName())
                         .build())
                 .toList();
     }

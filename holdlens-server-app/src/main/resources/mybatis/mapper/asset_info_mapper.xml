@@ -19,6 +19,20 @@
         id, user_id, asset_code, asset_name, asset_kind, asset_type, market, status, create_time, update_time
     </sql>
 
+    <insert id="upsertWatchlistAsset" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.AssetInfoPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO asset_info (
+            user_id, asset_code, asset_name, asset_kind, asset_type, market, status
+        ) VALUES (
+            #{userId}, #{assetCode}, #{assetName}, #{assetKind}, #{assetType}, #{market}, #{status}
+        )
+        ON DUPLICATE KEY UPDATE
+            id = LAST_INSERT_ID(id),
+            asset_name = COALESCE(asset_name, VALUES(asset_name)),
+            asset_type = COALESCE(asset_type, VALUES(asset_type)),
+            status = VALUES(status),
+            update_time = CURRENT_TIMESTAMP
+    </insert>
+
     <select id="selectById" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM asset_info

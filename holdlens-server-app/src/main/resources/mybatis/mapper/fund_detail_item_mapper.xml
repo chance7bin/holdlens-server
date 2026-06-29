@@ -43,7 +43,7 @@
         ON DUPLICATE KEY UPDATE
             id = LAST_INSERT_ID(id),
             fund_asset_id = VALUES(fund_asset_id),
-            fund_name = VALUES(fund_name),
+            fund_name = COALESCE(VALUES(fund_name), fund_name),
             buy_status = VALUES(buy_status),
             daily_purchase_limit = VALUES(daily_purchase_limit),
             returns_as_of = VALUES(returns_as_of),
@@ -55,6 +55,17 @@
             one_year_return = VALUES(one_year_return),
             three_years_return = VALUES(three_years_return),
             update_time = CURRENT_TIMESTAMP
+    </insert>
+
+    <insert id="upsertTarget" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailItemPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO fund_detail_item (
+            fund_code, fund_name
+        ) VALUES (
+            #{fundCode}, #{fundName}
+        )
+        ON DUPLICATE KEY UPDATE
+            id = LAST_INSERT_ID(id),
+            fund_name = COALESCE(fund_name, VALUES(fund_name))
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">

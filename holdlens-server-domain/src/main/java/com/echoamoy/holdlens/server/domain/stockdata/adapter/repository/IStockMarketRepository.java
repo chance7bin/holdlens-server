@@ -6,6 +6,7 @@ import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteTarg
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public interface IStockMarketRepository {
 
@@ -18,5 +19,7 @@ public interface IStockMarketRepository {
     void upsertQuotes(List<StockQuoteEntity> quotes);
 
     Map<String, StockQuoteEntity> queryByStockKeys(Collection<String> stockKeys);
+
+    Set<String> queryExistingStockKeys(Collection<String> stockKeys);
 
 }

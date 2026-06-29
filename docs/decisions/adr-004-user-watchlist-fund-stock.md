@@ -1,0 +1,51 @@
+# ADR-004 用户自选基金/股票
+
+## 1. 背景
+
+账号资产第一版需要支持用户把基金或股票加入自选。该能力只表达“用户关注了某只已知基金或股票”，不表达当前持仓。
+
+加入自选的输入只有资产代码、资产大类和可选市场，不包含账户、金额、币种、持仓来源或变更原因，因此不能形成可审计的当前持仓事实。
+
+公开基金详情和股票行情由 `fund_detail_item`、`stock_market_current` 及对应刷新任务维护。用户自选能力不负责发现新基金/股票，不负责注册公开数据刷新目标，也不负责触发刷新任务。
+
+## 2. 决策
+
+用户可以通过 `POST /api/watchlist/assets/batch-add` 将基金或股票批量加入自选。
+
+批量加入自选时只写入或保持 `asset_info`，表达用户维度的自选资产关系。该流程不写入 `fund_detail_item`，不写入 `stock_market_current`，也不创建或触发基金详情刷新、股票行情刷新任务。
+
+加入自选前必须校验目标公开资产已经存在：
+
+- 基金：`fund_detail_item` 中必须已存在对应 `fund_code`。
+- 股票：`stock_market_current` 中必须已存在对应 `stock_code + market` 组合。
+
+股票 `market` 暂时允许为空。为空时只匹配 `stock_market_current` 中同样为空 market 的股票记录；存在同代码非空 market 记录并不代表空 market 导入项有效。
+
+本次决策不调整 `asset_info` 表结构。`asset_info` 继续沿用现有 `asset_code`、`asset_name`、`asset_kind`、`asset_type` 和 `market` 等字段；唯一身份继续使用当前表结构支持的 `user_id + asset_code + asset_kind`。后续如果要把 `asset_info` 改成引用统一资产目录、公开数据表，或让 `market` 参与自选唯一身份，应通过单独 ADR/OpenSpec change 处理。
+
+请求不要求传入资产名称，也不得用 `asset_code` 作为占位名称。展示名称优先来自已存在的公开基金/股票数据；如果写入 `asset_info.asset_name`，也必须避免用代码伪装名称。
+
+响应只返回 `invalidItems`。未出现在 `invalidItems` 中的输入项，都表示处理后已经处于“已加入自选”状态；接口不区分新建和已存在，也不向前端暴露刷新任务 ID、刷新调度状态或刷新失败摘要。
+
+同一个请求内重复提交同一资产时，重复项按幂等成功处理，不进入 `invalidItems`。后端应按当前 `asset_info` 唯一身份去重或 upsert，避免让前端承担严格去重职责。
+
+`invalidItems.index` 使用请求数组的 0 基下标，便于前端直接映射原始输入；如果需要展示“第几行”，由前端自行转换。
+
+批量加入自选流程不写 `asset_holding`，也不写 `asset_holding_change`。后续如果用户确认账户、金额和来源，再通过独立持仓导入或持仓维护用例创建当前持仓。
+
+## 3. 取舍原因
+
+用户自选资产是用户维度事实，公开基金/股票数据是全局公开数据事实。批量加入自选只负责建立用户与已存在公开资产之间的关系，不负责发现新资产、注册刷新目标或触发刷新任务。
+
+要求公开数据表中已存在目标资产，可以避免一次用户操作同时改变用户事实、公开数据 universe 和后台任务状态，降低接口副作用和排查成本。
+
+暂时保留 `asset_info` 的自然业务身份，是为了避免在本次语义收敛中同时引入表结构迁移和多态引用约束。`asset_kind + ref_id` 指向基金或股票公开表虽然能减少部分字段冗余，但普通数据库外键无法直接约束这种多态引用，且公开数据表的生命周期仍不等同于用户自选关系。
+
+## 4. 影响
+
+- 新接口语义应统一为批量加入自选，路径为 `POST /api/watchlist/assets/batch-add`。
+- 相关命名应避免持仓导入或公开数据导入暗示，统一使用 `WatchlistAsset` 和 `BatchAdd` 语义。
+- Case 层需要在写入 `asset_info` 前查询 `fund_detail_item` 或 `stock_market_current`，不存在的输入项进入 `invalidItems`。
+- 批量加入自选不注册基金/股票刷新目标，不触发刷新任务，也不把刷新失败作为响应或日志语义。
+- `asset_info` 的用户隔离和现有唯一身份必须保留。
+- 股票市场为空时可以加入自选，但只匹配 `stock_market_current` 中空 market 的既有记录；该记录后续能否刷新行情仍由独立刷新能力决定。

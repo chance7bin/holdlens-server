@@ -301,11 +301,11 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         List<FundCurrentDataAggregate.FundDetail> result = new ArrayList<>();
         for (AgentFundRefreshCallbackCommand.FundDetail fund : funds) {
             if (fund == null || isBlank(fund.getFundCode())) {
-                continue;
-            }
+                    continue;
+                }
             result.add(FundCurrentDataAggregate.FundDetail.builder()
                     .fundCode(fund.getFundCode().trim())
-                    .fundName(defaultString(fund.getFundName(), fund.getFundCode().trim()))
+                    .fundName(normalizeNullable(fund.getFundName()))
                     .buyStatus(defaultString(fund.getBuyStatus(), "unknown"))
                     .dailyPurchaseLimit(fund.getDailyPurchaseLimit())
                     .returnsAsOf(parseLocalDate(fund.getReturnsAsOf()))

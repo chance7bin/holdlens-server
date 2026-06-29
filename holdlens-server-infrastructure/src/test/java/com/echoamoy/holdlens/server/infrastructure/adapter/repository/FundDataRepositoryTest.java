@@ -1,6 +1,7 @@
 package com.echoamoy.holdlens.server.infrastructure.adapter.repository;
 
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
+import com.echoamoy.holdlens.server.domain.funddata.model.entity.FundRefreshTargetEntity;
 import com.echoamoy.holdlens.server.infrastructure.dao.IFundDetailItemDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IFundTopHoldingDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IProcessingLogDao;
@@ -77,6 +78,34 @@ public class FundDataRepositoryTest {
         Assert.assertEquals(20, fundDetailItemDao.limit);
     }
 
+    @Test
+    public void registerRefreshTargetsUsesTargetUpsertWithoutCodeNameFallback() throws Exception {
+        FundDataRepository repository = new FundDataRepository();
+        FakeFundDetailItemDao fundDetailItemDao = new FakeFundDetailItemDao();
+        setField(repository, "fundDetailItemDao", fundDetailItemDao);
+
+        repository.registerRefreshTargets(List.of(FundRefreshTargetEntity.builder()
+                .fundCode("000001")
+                .fundName(null)
+                .build()));
+
+        Assert.assertEquals("000001", fundDetailItemDao.targetUpserted.getFundCode());
+        Assert.assertNull(fundDetailItemDao.targetUpserted.getFundName());
+    }
+
+    @Test
+    public void queryExistingFundCodesReturnsOnlyExistingCodes() throws Exception {
+        FundDataRepository repository = new FundDataRepository();
+        FakeFundDetailItemDao fundDetailItemDao = new FakeFundDetailItemDao();
+        fundDetailItemDao.fundItems = List.of(
+                FundDetailItemPO.builder().fundCode("000001").build(),
+                FundDetailItemPO.builder().fundCode("161725").build());
+        setField(repository, "fundDetailItemDao", fundDetailItemDao);
+
+        Assert.assertTrue(repository.queryExistingFundCodes(List.of("000001", "999999")).contains("000001"));
+        Assert.assertFalse(repository.queryExistingFundCodes(List.of("000001", "999999")).contains("999999"));
+    }
+
     private void setField(Object target, String name, Object value) throws Exception {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
@@ -85,13 +114,20 @@ public class FundDataRepositoryTest {
 
     private static class FakeFundDetailItemDao implements IFundDetailItemDao {
         private FundDetailItemPO upserted;
+        private FundDetailItemPO targetUpserted;
         private Long lastId;
         private int limit;
         private List<FundDetailItemPO> refreshTargets = List.of();
+        private List<FundDetailItemPO> fundItems = List.of();
 
         @Override
         public void upsert(FundDetailItemPO fundDetailItemPO) {
             upserted = fundDetailItemPO;
+        }
+
+        @Override
+        public void upsertTarget(FundDetailItemPO fundDetailItemPO) {
+            targetUpserted = fundDetailItemPO;
         }
 
         @Override
@@ -101,7 +137,7 @@ public class FundDataRepositoryTest {
 
         @Override
         public List<FundDetailItemPO> selectByFundCodes(Collection<String> fundCodes) {
-            return List.of();
+            return fundItems;
         }
 
         @Override

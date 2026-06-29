@@ -11,6 +11,8 @@ public interface IFundDetailItemDao {
 
     void upsert(FundDetailItemPO fundDetailItemPO);
 
+    void upsertTarget(FundDetailItemPO fundDetailItemPO);
+
     FundDetailItemPO selectById(@Param("id") Long id);
 
     List<FundDetailItemPO> selectByFundCodes(@Param("fundCodes") java.util.Collection<String> fundCodes);

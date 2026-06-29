@@ -189,6 +189,15 @@ public class AgentRefreshScheduleJobTest {
         }
 
         @Override
+        public Set<String> queryExistingFundCodes(Collection<String> fundCodes) {
+            return Set.of();
+        }
+
+        @Override
+        public void registerRefreshTargets(List<FundRefreshTargetEntity> refreshTargets) {
+        }
+
+        @Override
         public List<FundRefreshTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit) {
             queryCount++;
             return targets.stream()
@@ -231,6 +240,11 @@ public class AgentRefreshScheduleJobTest {
         @Override
         public Map<String, StockQuoteEntity> queryByStockKeys(Collection<String> stockKeys) {
             return Map.of();
+        }
+
+        @Override
+        public Set<String> queryExistingStockKeys(Collection<String> stockKeys) {
+            return Set.of();
         }
     }
 

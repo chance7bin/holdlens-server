@@ -9,6 +9,8 @@ import java.util.List;
 @Mapper
 public interface IAssetInfoDao {
 
+    void upsertWatchlistAsset(AssetInfoPO assetInfoPO);
+
     AssetInfoPO selectById(@Param("id") Long id);
 
     List<AssetInfoPO> selectByUserId(@Param("userId") Long userId);

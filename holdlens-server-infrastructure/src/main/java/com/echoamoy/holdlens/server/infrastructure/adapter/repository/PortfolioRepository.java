@@ -2,6 +2,7 @@ package com.echoamoy.holdlens.server.infrastructure.adapter.repository;
 
 import com.echoamoy.holdlens.server.domain.portfolio.adapter.repository.IPortfolioRepository;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.PortfolioHoldingEntity;
+import com.echoamoy.holdlens.server.domain.portfolio.model.entity.WatchlistAssetEntity;
 import com.echoamoy.holdlens.server.infrastructure.dao.IAssetAccountDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IAssetHoldingDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IAssetInfoDao;
@@ -9,6 +10,7 @@ import com.echoamoy.holdlens.server.infrastructure.dao.po.AssetAccountPO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.AssetHoldingPO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.AssetInfoPO;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.annotation.Resource;
 import java.util.List;
@@ -33,6 +35,24 @@ public class PortfolioRepository implements IPortfolioRepository {
                 .toList();
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void upsertWatchlistAssets(List<WatchlistAssetEntity> watchlistAssets) {
+        if (watchlistAssets == null || watchlistAssets.isEmpty()) {
+            return;
+        }
+        for (WatchlistAssetEntity watchlistAsset : watchlistAssets) {
+            assetInfoDao.upsertWatchlistAsset(toAssetInfoPO(watchlistAsset));
+        }
+    }
+
+    @Override
+    public WatchlistAssetEntity queryWatchlistAsset(Long userId, String assetCode, String assetKind) {
+        AssetInfoPO assetInfoPO = assetInfoDao.selectByUserIdAndAssetCodeAndAssetKind(
+                userId, assetCode, assetKind);
+        return assetInfoPO == null ? null : toWatchlistAssetEntity(assetInfoPO);
+    }
+
     private PortfolioHoldingEntity toEntity(AssetHoldingPO holdingPO) {
         AssetAccountPO accountPO = assetAccountDao.selectById(holdingPO.getAccountId());
         AssetInfoPO assetInfoPO = assetInfoDao.selectById(holdingPO.getAssetId());
@@ -55,6 +75,32 @@ public class PortfolioRepository implements IPortfolioRepository {
                 .amountMissingReason(holdingPO.getAmountMissingReason())
                 .missingReasonsJson(holdingPO.getMissingReasonsJson())
                 .status(holdingPO.getStatus())
+                .build();
+    }
+
+    private AssetInfoPO toAssetInfoPO(WatchlistAssetEntity watchAsset) {
+        return AssetInfoPO.builder()
+                .id(watchAsset.getId())
+                .userId(watchAsset.getUserId())
+                .assetCode(watchAsset.getAssetCode())
+                .assetName(watchAsset.getAssetName())
+                .assetKind(watchAsset.getAssetKind())
+                .assetType(watchAsset.getAssetType())
+                .market(watchAsset.getMarket())
+                .status(watchAsset.getStatus())
+                .build();
+    }
+
+    private WatchlistAssetEntity toWatchlistAssetEntity(AssetInfoPO assetInfoPO) {
+        return WatchlistAssetEntity.builder()
+                .id(assetInfoPO.getId())
+                .userId(assetInfoPO.getUserId())
+                .assetCode(assetInfoPO.getAssetCode())
+                .assetName(assetInfoPO.getAssetName())
+                .assetKind(assetInfoPO.getAssetKind())
+                .assetType(assetInfoPO.getAssetType())
+                .market(assetInfoPO.getMarket())
+                .status(assetInfoPO.getStatus())
                 .build();
     }
 
