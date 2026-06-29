@@ -1,0 +1,29 @@
+# HoldLens Server Domain Language
+
+HoldLens server is the long-lived business fact source for user assets, public fund data, market quote targets, and processing task state.
+
+## Language
+
+**当前持仓**:
+用户在某个资产账户下真实持有的资产事实，包含账户、资产、金额、币种、来源和状态等信息。
+_Avoid_: 仅凭代码导入形成的持仓、关注项
+
+**关注资产**:
+用户主动导入用于跟踪和刷新公开数据的基金或股票资产主数据；第一版不代表用户已经持有该资产。
+_Avoid_: 当前持仓、交易记录
+
+**刷新目标**:
+进入公开基金详情或股票行情刷新范围的代码目标，通常由用户关注资产、基金重仓或系统任务注册产生。
+_Avoid_: 当前持仓
+
+**业务市场**:
+HoldLens 对资产所属公开市场的稳定业务分类，例如 A 股、港股或美股；它不绑定某个第三方行情源的接口编码。
+_Avoid_: 东方财富市场编码、交易所代码
+
+**交易所代码**:
+资产在业务市场内的交易所或板块归属代码，例如 A 股内的上交所、深交所或北交所。
+_Avoid_: 业务市场、第三方接口市场编号
+
+**数据源市场编码**:
+第三方行情源为了请求或解析数据使用的市场编码，例如东方财富 secid 中的市场编号；它只表达数据源适配语义，不作为 HoldLens 的业务市场分类。
+_Avoid_: 业务市场、交易所代码
