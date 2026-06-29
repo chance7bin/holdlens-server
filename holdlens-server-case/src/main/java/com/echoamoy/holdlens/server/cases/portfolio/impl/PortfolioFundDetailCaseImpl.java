@@ -8,6 +8,7 @@ import com.echoamoy.holdlens.server.domain.portfolio.adapter.repository.IPortfol
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.PortfolioHoldingEntity;
 import com.echoamoy.holdlens.server.domain.stockdata.adapter.repository.IStockMarketRepository;
 import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteEntity;
+import com.echoamoy.holdlens.server.types.common.DateTimeUtils;
 import com.echoamoy.holdlens.server.types.enums.ResponseCode;
 import com.echoamoy.holdlens.server.types.exception.AppException;
 import org.springframework.stereotype.Service;
@@ -16,11 +17,13 @@ import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static com.echoamoy.holdlens.server.types.common.StringUtils.isBlank;
+import static com.echoamoy.holdlens.server.types.common.StringUtils.normalizeNullable;
 
 @Service
 public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
@@ -127,7 +130,7 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                 .market(topHolding.getMarket())
                 .dailyReturn(stockQuote == null ? null : stockQuote.getDailyReturn())
                 .quoteTradeDate(stockQuote == null ? null : stockQuote.getTradeDate())
-                .quoteTime(stockQuote == null ? null : toDate(stockQuote.getQuoteTime()))
+                .quoteTime(stockQuote == null ? null : DateTimeUtils.toBusinessDate(stockQuote.getQuoteTime()))
                 .quoteStatus(stockQuote == null ? "missing" : "available")
                 .holdingRatio(topHolding.getHoldingRatio())
                 .quarterChangeType(topHolding.getQuarterChangeType())
@@ -154,24 +157,9 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
         return stockCode + "#" + (market == null ? "" : market);
     }
 
-    private String normalizeNullable(String value) {
-        return isBlank(value) ? null : value.trim();
-    }
-
-    private boolean isBlank(String value) {
-        return value == null || value.trim().isEmpty();
-    }
-
     private boolean isStale(FundCurrentDataAggregate.FundDetail detail) {
         return detail.getUpdateTime() != null
                 && detail.getUpdateTime().isBefore(LocalDateTime.now(BEIJING_ZONE).minus(STALE_DAYS, ChronoUnit.DAYS));
-    }
-
-    private Date toDate(LocalDateTime value) {
-        if (value == null) {
-            return null;
-        }
-        return Date.from(value.atZone(BEIJING_ZONE).toInstant());
     }
 
 }

@@ -4,6 +4,9 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
+import java.util.Date;
+
+import static com.echoamoy.holdlens.server.types.common.StringUtils.isBlank;
 
 public class DateTimeUtils {
 
@@ -47,8 +50,11 @@ public class DateTimeUtils {
                 .toLocalDateTime();
     }
 
-    private static boolean isBlank(String value) {
-        return value == null || value.trim().isEmpty();
+    public static Date toBusinessDate(LocalDateTime value) {
+        if (value == null) {
+            return null;
+        }
+        return Date.from(value.atZone(BUSINESS_ZONE).toInstant());
     }
 
 }
