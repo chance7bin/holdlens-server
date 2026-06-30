@@ -3,25 +3,24 @@ package com.echoamoy.holdlens.server.cases.agent.impl;
 import com.alibaba.fastjson.JSON;
 import com.echoamoy.holdlens.server.cases.agent.IAgentFundRefreshCase;
 import com.echoamoy.holdlens.server.cases.agent.model.AgentFundRefreshCallbackCommand;
-import com.echoamoy.holdlens.server.cases.agent.model.AgentStockQuoteRefreshCallbackCommand;
+import com.echoamoy.holdlens.server.cases.agent.model.AShareMarketRefreshCallbackCommand;
+import com.echoamoy.holdlens.server.cases.agent.model.AShareMarketRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
-import com.echoamoy.holdlens.server.cases.agent.model.StockQuoteRefreshCreateCommand;
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
+import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentAShareMarketRefreshPort;
 import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentFundRefreshPort;
-import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentStockQuoteRefreshPort;
 import com.echoamoy.holdlens.server.domain.processing.adapter.repository.IProcessingTaskRepository;
+import com.echoamoy.holdlens.server.domain.processing.model.entity.AShareMarketRefreshDispatchCommandEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.FundRefreshDispatchCommandEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.FundRefreshDispatchResultEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingCallbackEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingLogEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingTaskEntity;
-import com.echoamoy.holdlens.server.domain.processing.model.entity.StockQuoteRefreshDispatchCommandEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.valobj.ProcessingTaskStatusEnumVO;
 import com.echoamoy.holdlens.server.domain.stockdata.adapter.repository.IStockMarketRepository;
-import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteEntity;
-import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteTargetEntity;
+import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockMarketEntity;
 import com.echoamoy.holdlens.server.types.common.DateTimeUtils;
 import com.echoamoy.holdlens.server.types.enums.ResponseCode;
 import com.echoamoy.holdlens.server.types.exception.AppException;
@@ -31,8 +30,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.annotation.Resource;
+import java.math.BigDecimal;
 import java.sql.Date;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -49,8 +50,9 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
 
     private static final String TASK_SCHEMA_VERSION = "fund-detail-refresh-task/v1";
     private static final String RESULT_SCHEMA_VERSION = "fund-detail-refresh-result/v2";
-    private static final String STOCK_TASK_SCHEMA_VERSION = "stock-quote-refresh-task/v1";
-    private static final String STOCK_RESULT_SCHEMA_VERSION = "stock-quote-refresh-result/v1";
+    private static final String A_SHARE_MARKET_TASK_SCHEMA_VERSION = "a-share-market-refresh-task/v1";
+    private static final String A_SHARE_MARKET_RESULT_SCHEMA_VERSION = "a-share-market-refresh-result/v1";
+    private static final int STOCK_MARKET_UPSERT_BATCH_SIZE = 500;
 
     @Resource
     private IProcessingTaskRepository processingTaskRepository;
@@ -59,7 +61,7 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
     private IAgentFundRefreshPort agentFundRefreshPort;
 
     @Resource
-    private IAgentStockQuoteRefreshPort agentStockQuoteRefreshPort;
+    private IAgentAShareMarketRefreshPort agentAShareMarketRefreshPort;
 
     @Resource
     private IFundDataRepository fundDataRepository;
@@ -70,8 +72,8 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
     @Value("${holdlens.agent.callback-url:http://127.0.0.1:8091/internal/agent/fund-detail-refresh/callback}")
     private String callbackUrl;
 
-    @Value("${holdlens.agent.stock-callback-url:http://127.0.0.1:8091/internal/agent/stock-quote-refresh/callback}")
-    private String stockCallbackUrl;
+    @Value("${holdlens.agent.a-share-market-callback-url:http://127.0.0.1:8091/internal/agent/a-share-market-refresh/callback}")
+    private String aShareMarketCallbackUrl;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -116,18 +118,6 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public FundRefreshTaskResult createAndDispatchStockQuotes() {
-        return createAndDispatchStockQuoteTargets(toDispatchableStockQuoteTargets(stockMarketRepository.queryAllQuoteTargets()), null);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public FundRefreshTaskResult createAndDispatchStockQuotes(StockQuoteRefreshCreateCommand command) {
-        return createAndDispatchStockQuoteTargets(normalizeStockQuoteTargets(command == null ? null : command.getStocks()),
-                command == null ? null : command.getTrigger());
-    }
-
-    @Override
     public boolean hasNonTerminalTask(String taskType) {
         if (isBlank(taskType)) {
             return false;
@@ -135,26 +125,27 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         return processingTaskRepository.existsNonTerminalTask(taskType.trim());
     }
 
-    private FundRefreshTaskResult createAndDispatchStockQuoteTargets(List<StockQuoteTargetEntity> quoteTargets, String trigger) {
-        if (quoteTargets.isEmpty()) {
-            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "股票刷新范围为空");
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public FundRefreshTaskResult createAndDispatchAShareMarket(AShareMarketRefreshCreateCommand command) {
+        if (processingTaskRepository.existsNonTerminalTask(ProcessingTaskEntity.A_SHARE_MARKET_REFRESH)) {
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "A 股全量行情刷新任务正在运行");
         }
 
         ProcessingTaskEntity taskEntity = ProcessingTaskEntity.builder()
-                .serverTaskId(newStockServerTaskId())
-                .taskType(ProcessingTaskEntity.STOCK_QUOTE_REFRESH)
-                .taskParamsJson(buildStockTaskParamsJson(quoteTargets.size(), trigger))
+                .serverTaskId(newAShareMarketServerTaskId())
+                .taskType(ProcessingTaskEntity.A_SHARE_MARKET_REFRESH)
+                .taskParamsJson(buildAShareMarketTaskParamsJson(command == null ? null : command.getTrigger()))
                 .status(ProcessingTaskStatusEnumVO.CREATED)
                 .build();
         processingTaskRepository.saveTask(taskEntity);
 
         try {
-            FundRefreshDispatchResultEntity dispatchResult = agentStockQuoteRefreshPort.dispatch(StockQuoteRefreshDispatchCommandEntity.builder()
-                    .schemaVersion(STOCK_TASK_SCHEMA_VERSION)
+            FundRefreshDispatchResultEntity dispatchResult = agentAShareMarketRefreshPort.dispatch(AShareMarketRefreshDispatchCommandEntity.builder()
+                    .schemaVersion(A_SHARE_MARKET_TASK_SCHEMA_VERSION)
                     .serverTaskId(taskEntity.getServerTaskId())
-                    .stocks(quoteTargets)
                     .allowNetwork(Boolean.TRUE)
-                    .callbackUrl(stockCallbackUrl)
+                    .callbackUrl(aShareMarketCallbackUrl)
                     .build());
             if (dispatchResult != null && dispatchResult.isAccepted()) {
                 ProcessingTaskStatusEnumVO nextStatus = "running".equals(dispatchResult.getAgentStatus())
@@ -166,7 +157,7 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
                         safeSummary(dispatchResult == null ? "agent dispatch rejected" : dispatchResult.getErrorSummary()));
             }
         } catch (Exception e) {
-            log.warn("股票行情刷新任务下发失败 taskId={} stockCount={}", taskEntity.getServerTaskId(), quoteTargets.size());
+            log.warn("A 股全量行情刷新任务下发失败 taskId={}", taskEntity.getServerTaskId());
             taskEntity.transitTo(ProcessingTaskStatusEnumVO.DISPATCH_FAILED, safeSummary(e.getMessage()));
         }
         processingTaskRepository.updateTask(taskEntity);
@@ -226,17 +217,17 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public FundRefreshTaskResult handleStockQuoteCallback(AgentStockQuoteRefreshCallbackCommand command) {
+    public FundRefreshTaskResult handleAShareMarketCallback(AShareMarketRefreshCallbackCommand command) {
         if (command == null || isBlank(command.getServerTaskId())) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "回调缺少任务标识");
         }
 
         ProcessingTaskEntity taskEntity = processingTaskRepository.queryTask(command.getServerTaskId());
-        if (taskEntity == null || !ProcessingTaskEntity.STOCK_QUOTE_REFRESH.equals(taskEntity.getTaskType())) {
-            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "未知股票行情刷新任务");
+        if (taskEntity == null || !ProcessingTaskEntity.A_SHARE_MARKET_REFRESH.equals(taskEntity.getTaskType())) {
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "未知 A 股全量行情刷新任务");
         }
 
-        if (!STOCK_RESULT_SCHEMA_VERSION.equals(command.getSchemaVersion())) {
+        if (!A_SHARE_MARKET_RESULT_SCHEMA_VERSION.equals(command.getSchemaVersion())) {
             taskEntity.transitTo(ProcessingTaskStatusEnumVO.FAILED, "unsupported schema version");
             processingTaskRepository.updateTask(taskEntity);
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "不支持的回调契约版本");
@@ -261,8 +252,10 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         try {
             if (targetStatus == ProcessingTaskStatusEnumVO.SUCCEEDED
                     || targetStatus == ProcessingTaskStatusEnumVO.PARTIAL_FAILED) {
-                stockMarketRepository.upsertQuotes(toStockQuotes(command.getQuotes()));
-                processingTaskRepository.saveLogs(toStockWarnings(command.getServerTaskId(), command.getRefreshWarnings()));
+                List<ProcessingLogEntity> diagnostics = new ArrayList<>(toAShareMarketWarnings(command.getServerTaskId(), command.getRefreshWarnings()));
+                List<StockMarketEntity> markets = toStockMarkets(command, diagnostics);
+                upsertStockMarkets(markets);
+                processingTaskRepository.saveLogs(diagnostics);
             }
             taskEntity.transitTo(targetStatus, safeSummary(command.getErrorSummary()));
             processingTaskRepository.updateTask(taskEntity);
@@ -345,11 +338,11 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         return result;
     }
 
-    private List<StockQuoteEntity> toQuoteTargets(FundCurrentDataAggregate aggregate) {
+    private List<StockMarketEntity> toQuoteTargets(FundCurrentDataAggregate aggregate) {
         if (aggregate == null || aggregate.getFunds() == null) {
             return List.of();
         }
-        Map<String, StockQuoteEntity> dedup = new LinkedHashMap<>();
+        Map<String, StockMarketEntity> dedup = new LinkedHashMap<>();
         for (FundCurrentDataAggregate.FundDetail fund : aggregate.getFunds()) {
             if (fund == null || fund.getTopHoldings() == null) {
                 continue;
@@ -359,49 +352,13 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
                     continue;
                 }
                 String stockCode = topHolding.getStockCode().trim();
-                String market = normalizeNullable(topHolding.getMarket());
-                dedup.putIfAbsent(stockKey(stockCode, market), StockQuoteEntity.builder()
+                String market = StockMarketEntity.MARKET_A_SHARE;
+                dedup.putIfAbsent(stockKey(stockCode, market), StockMarketEntity.builder()
                         .stockCode(stockCode)
                         .market(market)
                         .stockName(isBlank(topHolding.getStockName()) ? null : topHolding.getStockName().trim())
                         .build());
             }
-        }
-        return new ArrayList<>(dedup.values());
-    }
-
-    private List<StockQuoteTargetEntity> toDispatchableStockQuoteTargets(List<StockQuoteTargetEntity> quoteTargets) {
-        if (quoteTargets == null) {
-            return List.of();
-        }
-        List<StockQuoteTargetEntity> result = new ArrayList<>();
-        for (StockQuoteTargetEntity quoteTarget : quoteTargets) {
-            if (quoteTarget == null || isBlank(quoteTarget.getStockCode()) || isBlank(quoteTarget.getMarket())) {
-                continue;
-            }
-            result.add(StockQuoteTargetEntity.builder()
-                    .stockCode(quoteTarget.getStockCode().trim())
-                    .market(quoteTarget.getMarket().trim())
-                    .build());
-        }
-        return result;
-    }
-
-    private List<StockQuoteTargetEntity> normalizeStockQuoteTargets(List<StockQuoteRefreshCreateCommand.Stock> stocks) {
-        if (stocks == null) {
-            return List.of();
-        }
-        Map<String, StockQuoteTargetEntity> dedup = new LinkedHashMap<>();
-        for (StockQuoteRefreshCreateCommand.Stock stock : stocks) {
-            if (stock == null || isBlank(stock.getStockCode()) || isBlank(stock.getMarket())) {
-                continue;
-            }
-            String stockCode = stock.getStockCode().trim();
-            String market = stock.getMarket().trim();
-            dedup.putIfAbsent(stockKey(stockCode, market), StockQuoteTargetEntity.builder()
-                    .stockCode(stockCode)
-                    .market(market)
-                    .build());
         }
         return new ArrayList<>(dedup.values());
     }
@@ -422,29 +379,60 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
                 .toList();
     }
 
-    private List<StockQuoteEntity> toStockQuotes(List<AgentStockQuoteRefreshCallbackCommand.StockQuote> quotes) {
-        if (quotes == null) {
+    private List<StockMarketEntity> toStockMarkets(AShareMarketRefreshCallbackCommand command, List<ProcessingLogEntity> diagnostics) {
+        if (!StockMarketEntity.MARKET_A_SHARE.equals(command.getMarket())) {
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "A 股全量行情回调 market 必须为 A_SHARE");
+        }
+        if (command.getStocks() == null) {
             return List.of();
         }
-        List<StockQuoteEntity> result = new ArrayList<>();
-        for (AgentStockQuoteRefreshCallbackCommand.StockQuote quote : quotes) {
-            if (quote == null || isBlank(quote.getStockCode())) {
+        List<StockMarketEntity> result = new ArrayList<>();
+        for (AShareMarketRefreshCallbackCommand.StockMarket stock : command.getStocks()) {
+            if (stock == null || isBlank(stock.getStockCode())) {
+                diagnostics.add(stockMarketDiagnostic(command.getServerTaskId(), "stock_code_missing", "跳过缺少股票代码的 A 股行情记录", "warning"));
                 continue;
             }
-            result.add(StockQuoteEntity.builder()
-                    .stockCode(quote.getStockCode().trim())
-                    .market(normalizeNullable(quote.getMarket()))
-                    .stockName(quote.getStockName())
-                    .tradeDate(parseLocalDate(quote.getTradeDate()))
-                    .dailyReturn(quote.getDailyReturn())
-                    .quoteTime(DateTimeUtils.parseOffsetDateTimeOrNull(quote.getQuoteTime()))
+            if (!StockMarketEntity.MARKET_A_SHARE.equals(stock.getMarket())) {
+                diagnostics.add(stockMarketDiagnostic(command.getServerTaskId(), "stock_market_unsupported",
+                        "跳过非 A_SHARE 股票行情记录: " + stock.getStockCode().trim(), "warning"));
+                continue;
+            }
+            LocalDateTime fallbackRefreshedAt = DateTimeUtils.parseOffsetDateTimeOrNow(command.getGeneratedAt());
+            result.add(StockMarketEntity.builder()
+                    .stockCode(stock.getStockCode().trim())
+                    .market(StockMarketEntity.MARKET_A_SHARE)
+                    .exchangeCode(normalizeNullable(stock.getExchangeCode()))
+                    .providerMarketCode(normalizeNullable(stock.getProviderMarketCode()))
+                    .stockName(normalizeNullable(stock.getStockName()))
+                    .latestPrice(parseDecimal(stock.getLatestPrice(), command.getServerTaskId(), stock.getStockCode(), "latest_price", diagnostics))
+                    .changePercent(parseDecimal(stock.getChangePercent(), command.getServerTaskId(), stock.getStockCode(), "change_percent", diagnostics))
+                    .changeAmount(parseDecimal(stock.getChangeAmount(), command.getServerTaskId(), stock.getStockCode(), "change_amount", diagnostics))
+                    .volume(parseLong(stock.getVolume(), command.getServerTaskId(), stock.getStockCode(), "volume", diagnostics))
+                    .turnoverAmount(parseDecimal(stock.getTurnoverAmount(), command.getServerTaskId(), stock.getStockCode(), "turnover_amount", diagnostics))
+                    .amplitude(parseDecimal(stock.getAmplitude(), command.getServerTaskId(), stock.getStockCode(), "amplitude", diagnostics))
+                    .highPrice(parseDecimal(stock.getHighPrice(), command.getServerTaskId(), stock.getStockCode(), "high_price", diagnostics))
+                    .lowPrice(parseDecimal(stock.getLowPrice(), command.getServerTaskId(), stock.getStockCode(), "low_price", diagnostics))
+                    .openPrice(parseDecimal(stock.getOpenPrice(), command.getServerTaskId(), stock.getStockCode(), "open_price", diagnostics))
+                    .previousClose(parseDecimal(stock.getPreviousClose(), command.getServerTaskId(), stock.getStockCode(), "previous_close", diagnostics))
+                    .volumeRatio(parseDecimal(stock.getVolumeRatio(), command.getServerTaskId(), stock.getStockCode(), "volume_ratio", diagnostics))
+                    .turnoverRate(parseDecimal(stock.getTurnoverRate(), command.getServerTaskId(), stock.getStockCode(), "turnover_rate", diagnostics))
+                    .peDynamic(parseDecimal(stock.getPeDynamic(), command.getServerTaskId(), stock.getStockCode(), "pe_dynamic", diagnostics))
+                    .pbRatio(parseDecimal(stock.getPbRatio(), command.getServerTaskId(), stock.getStockCode(), "pb_ratio", diagnostics))
+                    .totalMarketValue(parseDecimal(stock.getTotalMarketValue(), command.getServerTaskId(), stock.getStockCode(), "total_market_value", diagnostics))
+                    .circulatingMarketValue(parseDecimal(stock.getCirculatingMarketValue(), command.getServerTaskId(), stock.getStockCode(), "circulating_market_value", diagnostics))
+                    .speed(parseDecimal(stock.getSpeed(), command.getServerTaskId(), stock.getStockCode(), "speed", diagnostics))
+                    .fiveMinuteChange(parseDecimal(stock.getFiveMinuteChange(), command.getServerTaskId(), stock.getStockCode(), "five_minute_change", diagnostics))
+                    .sixtyDayChangePercent(parseDecimal(stock.getSixtyDayChangePercent(), command.getServerTaskId(), stock.getStockCode(), "sixty_day_change_percent", diagnostics))
+                    .yearToDateChangePercent(parseDecimal(stock.getYearToDateChangePercent(), command.getServerTaskId(), stock.getStockCode(), "year_to_date_change_percent", diagnostics))
+                    .status(StockMarketEntity.STATUS_ACTIVE)
+                    .refreshedAt(firstNonNull(DateTimeUtils.parseOffsetDateTimeOrNull(stock.getRefreshedAt()), fallbackRefreshedAt))
                     .build());
         }
         return result;
     }
 
-    private List<ProcessingLogEntity> toStockWarnings(String serverTaskId,
-                                                      List<AgentStockQuoteRefreshCallbackCommand.RefreshWarning> warnings) {
+    private List<ProcessingLogEntity> toAShareMarketWarnings(String serverTaskId,
+                                                             List<AShareMarketRefreshCallbackCommand.RefreshWarning> warnings) {
         if (warnings == null) {
             return List.of();
         }
@@ -459,6 +447,16 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
                         .severity(defaultString(warning.getSeverity(), "warning"))
                         .build())
                 .toList();
+    }
+
+    private void upsertStockMarkets(List<StockMarketEntity> markets) {
+        if (markets == null || markets.isEmpty()) {
+            return;
+        }
+        for (int start = 0; start < markets.size(); start += STOCK_MARKET_UPSERT_BATCH_SIZE) {
+            int end = Math.min(start + STOCK_MARKET_UPSERT_BATCH_SIZE, markets.size());
+            stockMarketRepository.upsertMarkets(markets.subList(start, end));
+        }
     }
 
     private ProcessingTaskStatusEnumVO toTaskStatus(String callbackStatus) {
@@ -505,8 +503,8 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         return "fund_refresh_" + UUID.randomUUID().toString().replace("-", "");
     }
 
-    private String newStockServerTaskId() {
-        return "stock_quote_refresh_" + UUID.randomUUID().toString().replace("-", "");
+    private String newAShareMarketServerTaskId() {
+        return "a_share_market_refresh_" + UUID.randomUUID().toString().replace("-", "");
     }
 
     private String buildTaskParamsJson(int fundCodeCount, String trigger) {
@@ -516,11 +514,54 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         return JSON.toJSONString(params);
     }
 
-    private String buildStockTaskParamsJson(int stockCount, String trigger) {
+    private String buildAShareMarketTaskParamsJson(String trigger) {
         Map<String, Object> params = new LinkedHashMap<>();
-        params.put("stockCount", stockCount);
+        params.put("market", StockMarketEntity.MARKET_A_SHARE);
         params.put("trigger", defaultString(trigger, "system"));
         return JSON.toJSONString(params);
+    }
+
+    private BigDecimal parseDecimal(String value, String serverTaskId, String stockCode, String fieldName, List<ProcessingLogEntity> diagnostics) {
+        if (isBlank(value) || "-".equals(value.trim())) {
+            return null;
+        }
+        try {
+            return new BigDecimal(value.trim());
+        } catch (NumberFormatException e) {
+            diagnostics.add(parseDiagnostic(serverTaskId, stockCode, fieldName));
+            return null;
+        }
+    }
+
+    private Long parseLong(String value, String serverTaskId, String stockCode, String fieldName, List<ProcessingLogEntity> diagnostics) {
+        if (isBlank(value) || "-".equals(value.trim())) {
+            return null;
+        }
+        try {
+            return new BigDecimal(value.trim()).longValueExact();
+        } catch (ArithmeticException | NumberFormatException e) {
+            diagnostics.add(parseDiagnostic(serverTaskId, stockCode, fieldName));
+            return null;
+        }
+    }
+
+    private ProcessingLogEntity parseDiagnostic(String serverTaskId, String stockCode, String fieldName) {
+        return stockMarketDiagnostic(serverTaskId, "numeric_parse_failed",
+                "股票 " + safeSummary(stockCode) + " 字段 " + fieldName + " 解析失败，已按 NULL 入库", "warning");
+    }
+
+    private ProcessingLogEntity stockMarketDiagnostic(String serverTaskId, String event, String message, String severity) {
+        return ProcessingLogEntity.builder()
+                .sourceRefId(serverTaskId)
+                .module("a_share_market_refresh")
+                .event(event)
+                .message(safeSummary(message))
+                .severity(severity)
+                .build();
+    }
+
+    private <T> T firstNonNull(T first, T second) {
+        return first != null ? first : second;
     }
 
     private FundRefreshTaskResult toTaskDTO(ProcessingTaskEntity taskEntity) {

@@ -16,28 +16,30 @@ public class AppException extends RuntimeException {
     private String info;
 
     public AppException(String code) {
+        super();
         this.code = code;
     }
 
     public AppException(String code, Throwable cause) {
+        super(cause);
         this.code = code;
-        super.initCause(cause);
     }
 
     public AppException(String code, String message) {
+        super(message);
         this.code = code;
         this.info = message;
     }
 
     public AppException(String code, String message, Throwable cause) {
+        super(message, cause);
         this.code = code;
         this.info = message;
-        super.initCause(cause);
     }
 
     @Override
     public String toString() {
-        return "com.echoamoy.holdlens.server.x.api.types.exception.XApiException{" +
+        return "com.echoamoy.holdlens.server.types.exception.AppException{" +
                 "code='" + code + '\'' +
                 ", info='" + info + '\'' +
                 '}';

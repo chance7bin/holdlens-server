@@ -44,14 +44,11 @@ logging:
 holdlens:
   agent:
     fund-refresh-url: http://127.0.0.1:8765/tasks/fund-detail-refresh
-    stock-refresh-url: http://127.0.0.1:8765/tasks/stock-quote-refresh
+    a-share-market-refresh-url: http://127.0.0.1:8765/tasks/a-share-market-refresh
     callback-url: http://127.0.0.1:8091/internal/agent/fund-detail-refresh/callback
+    a-share-market-callback-url: http://127.0.0.1:8091/internal/agent/a-share-market-refresh/callback
     callback-header-value: internal
     fund-refresh-schedule:
       enabled: true
       batch-size: 20
       cron: "0 20 2 * * ?"
-    stock-refresh-schedule:
-      enabled: true
-      batch-size: 50
-      cron: "0 40 2 * * ?"

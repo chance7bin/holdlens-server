@@ -1,8 +1,8 @@
 package com.echoamoy.holdlens.server.infrastructure.adapter.repository;
 
-import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteEntity;
-import com.echoamoy.holdlens.server.infrastructure.dao.IStockMarketCurrentDao;
-import com.echoamoy.holdlens.server.infrastructure.dao.po.StockMarketCurrentPO;
+import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockMarketEntity;
+import com.echoamoy.holdlens.server.infrastructure.dao.IStockMarketDao;
+import com.echoamoy.holdlens.server.infrastructure.dao.po.StockMarketPO;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -11,93 +11,89 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
 import java.util.List;
 
 public class StockMarketRepositoryTest {
 
     @Test
-	    public void registerQuoteTargetsUsesTargetUpsertWithoutQuoteFields() throws Exception {
-	        StockMarketRepository repository = new StockMarketRepository();
-	        FakeStockMarketCurrentDao stockMarketCurrentDao = new FakeStockMarketCurrentDao();
-	        setField(repository, "stockMarketCurrentDao", stockMarketCurrentDao);
+    public void registerQuoteTargetsUsesTargetUpsertWithoutMarketFields() throws Exception {
+        StockMarketRepository repository = new StockMarketRepository();
+        FakeStockMarketDao stockMarketDao = new FakeStockMarketDao();
+        setField(repository, "stockMarketDao", stockMarketDao);
 
-	        repository.registerQuoteTargets(List.of(StockQuoteEntity.builder()
-	                .stockCode("600000")
-                .market(null)
-                .stockName(null)
-                .tradeDate(new Date())
-                .dailyReturn(new BigDecimal("0.50"))
-                .quoteTime(LocalDateTime.of(2026, 6, 18, 10, 4, 30))
+        repository.registerQuoteTargets(List.of(StockMarketEntity.builder()
+                .stockCode("600000")
+                .market(StockMarketEntity.MARKET_A_SHARE)
+                .stockName("测试股份")
+                .latestPrice(new BigDecimal("10.23"))
                 .build()));
 
-        Assert.assertEquals(1, stockMarketCurrentDao.targetUpserts.size());
-        Assert.assertEquals(0, stockMarketCurrentDao.quoteUpserts.size());
-	        StockMarketCurrentPO target = stockMarketCurrentDao.targetUpserts.get(0);
-	        Assert.assertEquals("600000", target.getStockCode());
-	        Assert.assertNull(target.getMarket());
-	        Assert.assertNull(target.getStockName());
-	        Assert.assertNull(target.getTradeDate());
-	        Assert.assertNull(target.getDailyReturn());
-	        Assert.assertNull(target.getQuoteTime());
-	    }
-
-	    @Test
-	    public void queryAllQuoteTargetsIncludesNullMarketTargets() throws Exception {
-	        StockMarketRepository repository = new StockMarketRepository();
-	        FakeStockMarketCurrentDao stockMarketCurrentDao = new FakeStockMarketCurrentDao();
-	        stockMarketCurrentDao.targets = List.of(StockMarketCurrentPO.builder()
-	                .stockCode("000001")
-	                .market(null)
-	                .build());
-	        setField(repository, "stockMarketCurrentDao", stockMarketCurrentDao);
-
-	        Assert.assertEquals(1, repository.queryAllQuoteTargets().size());
-	        Assert.assertEquals("000001", repository.queryAllQuoteTargets().get(0).getStockCode());
-	        Assert.assertNull(repository.queryAllQuoteTargets().get(0).getMarket());
-	    }
-
-	    @Test
-    public void queryByStockKeysUsesEmptyMarketKeyForNullMarket() throws Exception {
-	        StockMarketRepository repository = new StockMarketRepository();
-	        FakeStockMarketCurrentDao stockMarketCurrentDao = new FakeStockMarketCurrentDao();
-	        stockMarketCurrentDao.stockQuotes = List.of(StockMarketCurrentPO.builder()
-	                .stockCode("000001")
-	                .market(null)
-	                .dailyReturn(new BigDecimal("0.10"))
-	                .build());
-	        setField(repository, "stockMarketCurrentDao", stockMarketCurrentDao);
-
-        Assert.assertTrue(repository.queryByStockKeys(List.of("000001#")).containsKey("000001#"));
+        Assert.assertEquals(1, stockMarketDao.targetUpserts.size());
+        Assert.assertEquals(0, stockMarketDao.marketUpserts.size());
+        StockMarketPO target = stockMarketDao.targetUpserts.get(0);
+        Assert.assertEquals("600000", target.getStockCode());
+        Assert.assertEquals(StockMarketEntity.MARKET_A_SHARE, target.getMarket());
+        Assert.assertEquals("测试股份", target.getStockName());
+        Assert.assertEquals(StockMarketEntity.STATUS_ACTIVE, target.getStatus());
+        Assert.assertNull(target.getLatestPrice());
     }
 
     @Test
-    public void queryExistingStockKeysReturnsEmptyMarketKeyForNullMarket() throws Exception {
+    public void upsertMarketsMapsAllCurrentMarketFields() throws Exception {
         StockMarketRepository repository = new StockMarketRepository();
-        FakeStockMarketCurrentDao stockMarketCurrentDao = new FakeStockMarketCurrentDao();
-        stockMarketCurrentDao.stockQuotes = List.of(StockMarketCurrentPO.builder()
-                .stockCode("000001")
-                .market(null)
+        FakeStockMarketDao stockMarketDao = new FakeStockMarketDao();
+        setField(repository, "stockMarketDao", stockMarketDao);
+
+        repository.upsertMarkets(List.of(StockMarketEntity.builder()
+                .stockCode("600000")
+                .market(StockMarketEntity.MARKET_A_SHARE)
+                .exchangeCode("SH")
+                .providerMarketCode("1")
+                .stockName("测试股份")
+                .latestPrice(new BigDecimal("10.23"))
+                .changePercent(new BigDecimal("1.25"))
+                .volume(1234567L)
+                .status(StockMarketEntity.STATUS_ACTIVE)
+                .refreshedAt(LocalDateTime.of(2026, 6, 18, 10, 4, 30))
+                .build()));
+
+        Assert.assertEquals(1, stockMarketDao.marketUpserts.size());
+        StockMarketPO market = stockMarketDao.marketUpserts.get(0);
+        Assert.assertEquals("SH", market.getExchangeCode());
+        Assert.assertEquals("1", market.getProviderMarketCode());
+        Assert.assertEquals(new BigDecimal("10.23"), market.getLatestPrice());
+        Assert.assertEquals(new BigDecimal("1.25"), market.getChangePercent());
+        Assert.assertEquals(Long.valueOf(1234567L), market.getVolume());
+        Assert.assertEquals(LocalDateTime.of(2026, 6, 18, 10, 4, 30), market.getRefreshedAt());
+    }
+
+    @Test
+    public void queryByStockKeysUsesStockCodeAndBusinessMarketKey() throws Exception {
+        StockMarketRepository repository = new StockMarketRepository();
+        FakeStockMarketDao stockMarketDao = new FakeStockMarketDao();
+        stockMarketDao.stockMarkets = List.of(StockMarketPO.builder()
+                .stockCode("600000")
+                .market(StockMarketEntity.MARKET_A_SHARE)
+                .changePercent(new BigDecimal("0.10"))
                 .build());
-        setField(repository, "stockMarketCurrentDao", stockMarketCurrentDao);
+        setField(repository, "stockMarketDao", stockMarketDao);
 
-        Assert.assertTrue(repository.queryExistingStockKeys(List.of("000001#")).contains("000001#"));
+        Assert.assertTrue(repository.queryByStockKeys(List.of("600000#A_SHARE")).containsKey("600000#A_SHARE"));
+        Assert.assertEquals(new BigDecimal("0.10"),
+                repository.queryByStockKeys(List.of("600000#A_SHARE")).get("600000#A_SHARE").getChangePercent());
     }
 
     @Test
-    public void queryRefreshTargetsAfterIdMapsStockTargets() throws Exception {
+    public void queryExistingStockKeysReturnsBusinessMarketKeys() throws Exception {
         StockMarketRepository repository = new StockMarketRepository();
-        FakeStockMarketCurrentDao stockMarketCurrentDao = new FakeStockMarketCurrentDao();
-        stockMarketCurrentDao.refreshTargets = List.of(
-                StockMarketCurrentPO.builder().id(7L).stockCode("600000").market("1").build(),
-                StockMarketCurrentPO.builder().id(8L).stockCode("000001").market("0").build());
-        setField(repository, "stockMarketCurrentDao", stockMarketCurrentDao);
+        FakeStockMarketDao stockMarketDao = new FakeStockMarketDao();
+        stockMarketDao.stockMarkets = List.of(StockMarketPO.builder()
+                .stockCode("600000")
+                .market(StockMarketEntity.MARKET_A_SHARE)
+                .build());
+        setField(repository, "stockMarketDao", stockMarketDao);
 
-        Assert.assertEquals(2, repository.queryRefreshTargetsAfterId(6L, 50).size());
-        Assert.assertEquals(Long.valueOf(7L), repository.queryRefreshTargetsAfterId(6L, 50).get(0).getId());
-        Assert.assertEquals("600000", repository.queryRefreshTargetsAfterId(6L, 50).get(0).getStockCode());
-        Assert.assertEquals(Long.valueOf(6L), stockMarketCurrentDao.lastId);
-        Assert.assertEquals(50, stockMarketCurrentDao.limit);
+        Assert.assertTrue(repository.queryExistingStockKeys(List.of("600000#A_SHARE")).contains("600000#A_SHARE"));
     }
 
     private void setField(Object target, String name, Object value) throws Exception {
@@ -106,40 +102,24 @@ public class StockMarketRepositoryTest {
         field.set(target, value);
     }
 
-    private static class FakeStockMarketCurrentDao implements IStockMarketCurrentDao {
-	        private final List<StockMarketCurrentPO> quoteUpserts = new ArrayList<>();
-	        private final List<StockMarketCurrentPO> targetUpserts = new ArrayList<>();
-	        private List<StockMarketCurrentPO> targets = List.of();
-	        private List<StockMarketCurrentPO> stockQuotes = List.of();
-            private List<StockMarketCurrentPO> refreshTargets = List.of();
-            private Long lastId;
-            private int limit;
+    private static class FakeStockMarketDao implements IStockMarketDao {
+        private final List<StockMarketPO> marketUpserts = new ArrayList<>();
+        private final List<StockMarketPO> targetUpserts = new ArrayList<>();
+        private List<StockMarketPO> stockMarkets = List.of();
 
         @Override
-        public void upsert(StockMarketCurrentPO stockMarketCurrentPO) {
-            quoteUpserts.add(stockMarketCurrentPO);
+        public void upsert(StockMarketPO stockMarketPO) {
+            marketUpserts.add(stockMarketPO);
         }
 
         @Override
-        public void upsertTarget(StockMarketCurrentPO stockMarketCurrentPO) {
-            targetUpserts.add(stockMarketCurrentPO);
+        public void upsertTarget(StockMarketPO stockMarketPO) {
+            targetUpserts.add(stockMarketPO);
         }
 
         @Override
-	        public List<StockMarketCurrentPO> selectAllTargets() {
-		            return targets;
-		        }
-
-            @Override
-            public List<StockMarketCurrentPO> selectRefreshTargetsAfterId(Long lastId, int limit) {
-                this.lastId = lastId;
-                this.limit = limit;
-                return refreshTargets;
-            }
-
-		        @Override
-		        public List<StockMarketCurrentPO> selectByStockKeys(Collection<String> stockKeys) {
-	            return stockQuotes;
-	        }
+        public List<StockMarketPO> selectByStockKeys(Collection<String> stockKeys) {
+            return stockMarkets;
+        }
     }
 }

@@ -7,7 +7,7 @@ import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentD
 import com.echoamoy.holdlens.server.domain.portfolio.adapter.repository.IPortfolioRepository;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.PortfolioHoldingEntity;
 import com.echoamoy.holdlens.server.domain.stockdata.adapter.repository.IStockMarketRepository;
-import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteEntity;
+import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockMarketEntity;
 import com.echoamoy.holdlens.server.types.common.DateTimeUtils;
 import com.echoamoy.holdlens.server.types.enums.ResponseCode;
 import com.echoamoy.holdlens.server.types.exception.AppException;
@@ -55,18 +55,18 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
             }
         }
         Map<String, FundCurrentDataAggregate.FundDetail> currentDetails = fundDataRepository.queryCurrentDetails(fundCodes);
-        Map<String, StockQuoteEntity> stockQuotes = stockMarketRepository.queryByStockKeys(collectStockKeys(currentDetails));
+        Map<String, StockMarketEntity> stockMarkets = stockMarketRepository.queryByStockKeys(collectStockKeys(currentDetails));
         return PortfolioFundDetailResult.builder()
                 .userId(userId)
                 .holdings(holdings.stream()
-                        .map(holding -> toHoldingDetail(holding, currentDetails.get(holding.fundCodeOrNull()), stockQuotes))
+                        .map(holding -> toHoldingDetail(holding, currentDetails.get(holding.fundCodeOrNull()), stockMarkets))
                         .toList())
                 .build();
     }
 
     private PortfolioFundDetailResult.HoldingDetail toHoldingDetail(PortfolioHoldingEntity holding,
                                                                     FundCurrentDataAggregate.FundDetail fundDetail,
-                                                                    Map<String, StockQuoteEntity> stockQuotes) {
+                                                                    Map<String, StockMarketEntity> stockMarkets) {
         return PortfolioFundDetailResult.HoldingDetail.builder()
                 .holdingId(holding.getHoldingId())
                 .accountId(holding.getAccountId())
@@ -84,13 +84,13 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                 .amountDisplay(holding.getAmountDisplay())
                 .amountMissingReason(holding.getAmountMissingReason())
                 .status(holding.getStatus())
-                .fundDetail(toFundDetail(holding.fundCodeOrNull(), fundDetail, stockQuotes))
+                .fundDetail(toFundDetail(holding.fundCodeOrNull(), fundDetail, stockMarkets))
                 .build();
     }
 
     private PortfolioFundDetailResult.FundDetail toFundDetail(String fundCode,
                                                              FundCurrentDataAggregate.FundDetail detail,
-                                                             Map<String, StockQuoteEntity> stockQuotes) {
+                                                             Map<String, StockMarketEntity> stockMarkets) {
         if (fundCode == null) {
             return PortfolioFundDetailResult.FundDetail.builder().detailStatus("unavailable").build();
         }
@@ -116,22 +116,21 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                 .threeYearsReturn(detail.getThreeYearsReturn())
                 .topHoldings(detail.getTopHoldings() == null ? List.of() : detail.getTopHoldings().stream()
                         .map(topHolding -> toTopHolding(topHolding,
-                                stockQuotes.get(stockKey(topHolding.getStockCode(), normalizeNullable(topHolding.getMarket())))))
+                                stockMarkets.get(stockKey(topHolding.getStockCode(), normalizeNullable(topHolding.getMarket())))))
                         .toList())
                 .build();
     }
 
     private PortfolioFundDetailResult.TopHolding toTopHolding(FundCurrentDataAggregate.TopHolding topHolding,
-                                                              StockQuoteEntity stockQuote) {
+                                                              StockMarketEntity stockMarket) {
         return PortfolioFundDetailResult.TopHolding.builder()
                 .rankNo(topHolding.getRankNo())
                 .stockName(topHolding.getStockName())
                 .stockCode(topHolding.getStockCode())
                 .market(topHolding.getMarket())
-                .dailyReturn(stockQuote == null ? null : stockQuote.getDailyReturn())
-                .quoteTradeDate(stockQuote == null ? null : stockQuote.getTradeDate())
-                .quoteTime(stockQuote == null ? null : DateTimeUtils.toBusinessDate(stockQuote.getQuoteTime()))
-                .quoteStatus(stockQuote == null ? "missing" : "available")
+                .changePercent(stockMarket == null ? null : stockMarket.getChangePercent())
+                .refreshedAt(stockMarket == null ? null : DateTimeUtils.toBusinessDate(stockMarket.getRefreshedAt()))
+                .quoteStatus(stockMarket == null ? "missing" : "available")
                 .holdingRatio(topHolding.getHoldingRatio())
                 .quarterChangeType(topHolding.getQuarterChangeType())
                 .quarterChangeValue(topHolding.getQuarterChangeValue())

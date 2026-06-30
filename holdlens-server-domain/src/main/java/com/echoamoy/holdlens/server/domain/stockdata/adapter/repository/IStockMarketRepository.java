@@ -1,7 +1,6 @@
 package com.echoamoy.holdlens.server.domain.stockdata.adapter.repository;
 
-import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteEntity;
-import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteTargetEntity;
+import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockMarketEntity;
 
 import java.util.Collection;
 import java.util.List;
@@ -10,15 +9,11 @@ import java.util.Set;
 
 public interface IStockMarketRepository {
 
-    List<StockQuoteTargetEntity> queryAllQuoteTargets();
+    void registerQuoteTargets(List<StockMarketEntity> quoteTargets);
 
-    List<StockQuoteTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit);
+    void upsertMarkets(List<StockMarketEntity> markets);
 
-    void registerQuoteTargets(List<StockQuoteEntity> quoteTargets);
-
-    void upsertQuotes(List<StockQuoteEntity> quotes);
-
-    Map<String, StockQuoteEntity> queryByStockKeys(Collection<String> stockKeys);
+    Map<String, StockMarketEntity> queryByStockKeys(Collection<String> stockKeys);
 
     Set<String> queryExistingStockKeys(Collection<String> stockKeys);
 

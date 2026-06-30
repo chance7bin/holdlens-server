@@ -12,9 +12,4 @@ public interface IAgentRefreshScheduleService {
      */
     Response<Void> runFundRefreshSchedule();
 
-    /**
-     * 手动触发股票行情刷新调度，执行规则与 cron 定时触发保持一致。
-     */
-    Response<Void> runStockRefreshSchedule();
-
 }

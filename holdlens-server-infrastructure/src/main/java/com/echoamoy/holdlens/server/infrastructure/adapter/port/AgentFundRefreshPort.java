@@ -1,11 +1,10 @@
 package com.echoamoy.holdlens.server.infrastructure.adapter.port;
 
+import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentAShareMarketRefreshPort;
 import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentFundRefreshPort;
-import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentStockQuoteRefreshPort;
+import com.echoamoy.holdlens.server.domain.processing.model.entity.AShareMarketRefreshDispatchCommandEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.FundRefreshDispatchCommandEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.FundRefreshDispatchResultEntity;
-import com.echoamoy.holdlens.server.domain.processing.model.entity.StockQuoteRefreshDispatchCommandEntity;
-import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteTargetEntity;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -13,20 +12,19 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 @Slf4j
 @Component
-public class AgentFundRefreshPort implements IAgentFundRefreshPort, IAgentStockQuoteRefreshPort {
+public class AgentFundRefreshPort implements IAgentFundRefreshPort, IAgentAShareMarketRefreshPort {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Value("${holdlens.agent.fund-refresh-url}")
     private String fundRefreshUrl;
 
-    @Value("${holdlens.agent.stock-refresh-url}")
-    private String stockRefreshUrl;
+    @Value("${holdlens.agent.a-share-market-refresh-url:http://127.0.0.1:8765/tasks/a-share-market-refresh}")
+    private String aShareMarketRefreshUrl;
 
     @Override
     public FundRefreshDispatchResultEntity dispatch(FundRefreshDispatchCommandEntity commandEntity) {
@@ -42,31 +40,15 @@ public class AgentFundRefreshPort implements IAgentFundRefreshPort, IAgentStockQ
     }
 
     @Override
-    public FundRefreshDispatchResultEntity dispatch(StockQuoteRefreshDispatchCommandEntity commandEntity) {
+    public FundRefreshDispatchResultEntity dispatch(AShareMarketRefreshDispatchCommandEntity commandEntity) {
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("schema_version", commandEntity.getSchemaVersion());
         request.put("server_task_id", commandEntity.getServerTaskId());
-        request.put("stocks", toStockQuoteRequestItems(commandEntity.getStocks()));
         request.put("allow_network", commandEntity.getAllowNetwork());
         request.put("callback_url", commandEntity.getCallbackUrl());
 
-        ResponseEntity<Map> response = restTemplate.postForEntity(stockRefreshUrl, request, Map.class);
+        ResponseEntity<Map> response = restTemplate.postForEntity(aShareMarketRefreshUrl, request, Map.class);
         return toDispatchResult(response);
-    }
-
-    private List<Map<String, Object>> toStockQuoteRequestItems(List<StockQuoteTargetEntity> stocks) {
-        if (stocks == null) {
-            return List.of();
-        }
-        return stocks.stream()
-                .filter(stock -> stock != null && !isBlank(stock.getStockCode()) && !isBlank(stock.getMarket()))
-                .map(stock -> {
-                    Map<String, Object> item = new LinkedHashMap<>();
-                    item.put("stock_code", stock.getStockCode().trim());
-                    item.put("market", stock.getMarket().trim());
-                    return item;
-                })
-                .toList();
     }
 
     private FundRefreshDispatchResultEntity toDispatchResult(ResponseEntity<Map> response) {
@@ -89,10 +71,6 @@ public class AgentFundRefreshPort implements IAgentFundRefreshPort, IAgentStockQ
 
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
-    }
-
-    private boolean isBlank(String value) {
-        return value == null || value.trim().isEmpty();
     }
 
 }

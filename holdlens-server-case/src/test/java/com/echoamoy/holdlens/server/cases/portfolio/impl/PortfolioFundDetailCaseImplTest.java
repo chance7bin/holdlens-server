@@ -8,8 +8,7 @@ import com.echoamoy.holdlens.server.domain.portfolio.adapter.repository.IPortfol
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.PortfolioHoldingEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.WatchlistAssetEntity;
 import com.echoamoy.holdlens.server.domain.stockdata.adapter.repository.IStockMarketRepository;
-import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteEntity;
-import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteTargetEntity;
+import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockMarketEntity;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -36,10 +35,10 @@ public class PortfolioFundDetailCaseImplTest {
         Assert.assertEquals("available", result.getHoldings().get(0).getFundDetail().getDetailStatus());
         Assert.assertEquals("missing", result.getHoldings().get(1).getFundDetail().getDetailStatus());
 	        Assert.assertEquals("available", result.getHoldings().get(0).getFundDetail().getTopHoldings().get(0).getQuoteStatus());
-	        Assert.assertEquals(new BigDecimal("0.50"), result.getHoldings().get(0).getFundDetail().getTopHoldings().get(0).getDailyReturn());
-	        Assert.assertEquals("available", result.getHoldings().get(0).getFundDetail().getTopHoldings().get(1).getQuoteStatus());
-	        Assert.assertEquals(new BigDecimal("0.10"), result.getHoldings().get(0).getFundDetail().getTopHoldings().get(1).getDailyReturn());
-	        Assert.assertEquals(new BigDecimal("123.45"), result.getHoldings().get(0).getAmount());
+        Assert.assertEquals(new BigDecimal("0.50"), result.getHoldings().get(0).getFundDetail().getTopHoldings().get(0).getChangePercent());
+        Assert.assertEquals("available", result.getHoldings().get(0).getFundDetail().getTopHoldings().get(1).getQuoteStatus());
+        Assert.assertEquals(new BigDecimal("0.10"), result.getHoldings().get(0).getFundDetail().getTopHoldings().get(1).getChangePercent());
+        Assert.assertEquals(new BigDecimal("123.45"), result.getHoldings().get(0).getAmount());
     }
 
     private void setField(Object target, String name, Object value) throws Exception {
@@ -97,7 +96,7 @@ public class PortfolioFundDetailCaseImplTest {
 	                                    FundCurrentDataAggregate.TopHolding.builder()
 	                                            .rankNo(1)
 	                                            .stockCode("600000")
-	                                            .market("1")
+                                            .market(StockMarketEntity.MARKET_A_SHARE)
 	                                            .build(),
 	                                    FundCurrentDataAggregate.TopHolding.builder()
 	                                            .rankNo(2)
@@ -129,39 +128,29 @@ public class PortfolioFundDetailCaseImplTest {
 
     private static class FakeStockMarketRepository implements IStockMarketRepository {
         @Override
-        public List<StockQuoteTargetEntity> queryAllQuoteTargets() {
-            return List.of();
+        public void registerQuoteTargets(List<StockMarketEntity> quoteTargets) {
         }
 
         @Override
-        public List<StockQuoteTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit) {
-            return List.of();
+        public void upsertMarkets(List<StockMarketEntity> markets) {
         }
 
         @Override
-        public void registerQuoteTargets(List<StockQuoteEntity> quoteTargets) {
+        public Map<String, StockMarketEntity> queryByStockKeys(java.util.Collection<String> stockKeys) {
+            Assert.assertTrue(stockKeys.contains("600000#A_SHARE"));
+            Assert.assertTrue(stockKeys.contains("000001#"));
+            return Map.of(
+                    "600000#A_SHARE", StockMarketEntity.builder()
+                            .stockCode("600000")
+                            .market(StockMarketEntity.MARKET_A_SHARE)
+                            .changePercent(new BigDecimal("0.50"))
+                            .build(),
+                    "000001#", StockMarketEntity.builder()
+                            .stockCode("000001")
+                            .market(null)
+                            .changePercent(new BigDecimal("0.10"))
+                            .build());
         }
-
-        @Override
-        public void upsertQuotes(List<StockQuoteEntity> quotes) {
-        }
-
-        @Override
-	        public Map<String, StockQuoteEntity> queryByStockKeys(java.util.Collection<String> stockKeys) {
-	            Assert.assertTrue(stockKeys.contains("600000#1"));
-	            Assert.assertTrue(stockKeys.contains("000001#"));
-	            return Map.of(
-	                    "600000#1", StockQuoteEntity.builder()
-	                            .stockCode("600000")
-	                            .market("1")
-	                            .dailyReturn(new BigDecimal("0.50"))
-	                            .build(),
-	                    "000001#", StockQuoteEntity.builder()
-	                            .stockCode("000001")
-	                            .market(null)
-	                            .dailyReturn(new BigDecimal("0.10"))
-	                            .build());
-		        }
 
         @Override
         public Set<String> queryExistingStockKeys(java.util.Collection<String> stockKeys) {

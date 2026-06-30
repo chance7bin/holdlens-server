@@ -78,9 +78,8 @@ public class PortfolioFundDetailResult {
         private String stockName;
         private String stockCode;
         private String market;
-        private BigDecimal dailyReturn;
-        private Date quoteTradeDate;
-        private Date quoteTime;
+        private BigDecimal changePercent;
+        private Date refreshedAt;
         private String quoteStatus;
         private BigDecimal holdingRatio;
         private String quarterChangeType;

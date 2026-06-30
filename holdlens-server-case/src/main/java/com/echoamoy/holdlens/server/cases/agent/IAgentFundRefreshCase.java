@@ -1,10 +1,10 @@
 package com.echoamoy.holdlens.server.cases.agent;
 
 import com.echoamoy.holdlens.server.cases.agent.model.AgentFundRefreshCallbackCommand;
-import com.echoamoy.holdlens.server.cases.agent.model.AgentStockQuoteRefreshCallbackCommand;
+import com.echoamoy.holdlens.server.cases.agent.model.AShareMarketRefreshCallbackCommand;
+import com.echoamoy.holdlens.server.cases.agent.model.AShareMarketRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
-import com.echoamoy.holdlens.server.cases.agent.model.StockQuoteRefreshCreateCommand;
 
 public interface IAgentFundRefreshCase {
 
@@ -14,12 +14,10 @@ public interface IAgentFundRefreshCase {
 
     FundRefreshTaskResult queryTask(String serverTaskId);
 
-    FundRefreshTaskResult createAndDispatchStockQuotes();
-
-    FundRefreshTaskResult createAndDispatchStockQuotes(StockQuoteRefreshCreateCommand command);
+    FundRefreshTaskResult createAndDispatchAShareMarket(AShareMarketRefreshCreateCommand command);
 
     boolean hasNonTerminalTask(String taskType);
 
-    FundRefreshTaskResult handleStockQuoteCallback(AgentStockQuoteRefreshCallbackCommand command);
+    FundRefreshTaskResult handleAShareMarketCallback(AShareMarketRefreshCallbackCommand command);
 
 }

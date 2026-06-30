@@ -58,21 +58,6 @@ public class FundCurrentDataAggregate {
         private BigDecimal holdingRatio;
         private String quarterChangeType;
         private BigDecimal quarterChangeValue;
-        private StockQuote stockQuote;
-    }
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class StockQuote {
-        private String stockCode;
-        private String market;
-        private String stockName;
-        private Date tradeDate;
-        private BigDecimal dailyReturn;
-        private LocalDateTime quoteTime;
-        private Date updateTime;
     }
 
     @Data

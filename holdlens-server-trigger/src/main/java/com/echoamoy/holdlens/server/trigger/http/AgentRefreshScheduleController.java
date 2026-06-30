@@ -27,12 +27,4 @@ public class AgentRefreshScheduleController implements IAgentRefreshScheduleServ
         return Response.ok(null);
     }
 
-    @PostMapping("/api/agent/stock-quote-refresh/schedule-runs")
-    @Override
-    public Response<Void> runStockRefreshSchedule() {
-        log.info("手动触发股票行情刷新调度");
-        agentRefreshScheduleJob.runStockRefreshSchedule();
-        return Response.ok(null);
-    }
-
 }

@@ -17,7 +17,7 @@ import java.util.Date;
 public class ProcessingTaskEntity {
 
     public static final String FUND_DETAIL_REFRESH = "fund_detail_refresh";
-    public static final String STOCK_QUOTE_REFRESH = "stock_quote_refresh";
+    public static final String A_SHARE_MARKET_REFRESH = "a_share_market_refresh";
 
     private Long id;
     private String serverTaskId;

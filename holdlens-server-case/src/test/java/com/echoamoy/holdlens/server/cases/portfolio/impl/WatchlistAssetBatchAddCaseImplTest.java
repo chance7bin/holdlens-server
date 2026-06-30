@@ -9,8 +9,7 @@ import com.echoamoy.holdlens.server.domain.portfolio.adapter.repository.IPortfol
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.PortfolioHoldingEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.WatchlistAssetEntity;
 import com.echoamoy.holdlens.server.domain.stockdata.adapter.repository.IStockMarketRepository;
-import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteEntity;
-import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteTargetEntity;
+import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockMarketEntity;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -186,38 +185,28 @@ public class WatchlistAssetBatchAddCaseImplTest {
 
     private static class FakeStockMarketRepository implements IStockMarketRepository {
         private final Set<String> existingStockKeys;
-        private final List<StockQuoteEntity> registeredQuoteTargets = new ArrayList<>();
+        private final List<StockMarketEntity> registeredQuoteTargets = new ArrayList<>();
 
         private FakeStockMarketRepository(Set<String> existingStockKeys) {
             this.existingStockKeys = existingStockKeys;
         }
 
         @Override
-        public List<StockQuoteTargetEntity> queryAllQuoteTargets() {
-            return List.of();
-        }
-
-        @Override
-        public List<StockQuoteTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit) {
-            return List.of();
-        }
-
-        @Override
-        public void registerQuoteTargets(List<StockQuoteEntity> quoteTargets) {
+        public void registerQuoteTargets(List<StockMarketEntity> quoteTargets) {
             registeredQuoteTargets.addAll(quoteTargets);
         }
 
         @Override
-        public void upsertQuotes(List<StockQuoteEntity> quotes) {
+        public void upsertMarkets(List<StockMarketEntity> markets) {
         }
 
         @Override
-        public Map<String, StockQuoteEntity> queryByStockKeys(Collection<String> stockKeys) {
-            java.util.Map<String, StockQuoteEntity> result = new java.util.LinkedHashMap<>();
+        public Map<String, StockMarketEntity> queryByStockKeys(Collection<String> stockKeys) {
+            java.util.Map<String, StockMarketEntity> result = new java.util.LinkedHashMap<>();
             for (String stockKey : stockKeys) {
                 if (existingStockKeys.contains(stockKey)) {
                     String[] parts = stockKey.split("#", -1);
-                    result.put(stockKey, StockQuoteEntity.builder()
+                    result.put(stockKey, StockMarketEntity.builder()
                             .stockCode(parts[0])
                             .market(parts.length > 1 && !parts[1].isEmpty() ? parts[1] : null)
                             .stockName("公开股票" + parts[0])

@@ -1,10 +1,9 @@
 package com.echoamoy.holdlens.server.infrastructure.adapter.repository;
 
 import com.echoamoy.holdlens.server.domain.stockdata.adapter.repository.IStockMarketRepository;
-import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteEntity;
-import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteTargetEntity;
-import com.echoamoy.holdlens.server.infrastructure.dao.IStockMarketCurrentDao;
-import com.echoamoy.holdlens.server.infrastructure.dao.po.StockMarketCurrentPO;
+import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockMarketEntity;
+import com.echoamoy.holdlens.server.infrastructure.dao.IStockMarketDao;
+import com.echoamoy.holdlens.server.infrastructure.dao.po.StockMarketPO;
 import org.springframework.stereotype.Repository;
 
 import jakarta.annotation.Resource;
@@ -19,61 +18,36 @@ import java.util.Set;
 public class StockMarketRepository implements IStockMarketRepository {
 
     @Resource
-    private IStockMarketCurrentDao stockMarketCurrentDao;
+    private IStockMarketDao stockMarketDao;
 
     @Override
-    public List<StockQuoteTargetEntity> queryAllQuoteTargets() {
-        return stockMarketCurrentDao.selectAllTargets().stream()
-                .map(po -> StockQuoteTargetEntity.builder()
-                        .id(po.getId())
-                        .stockCode(po.getStockCode())
-                        .market(po.getMarket())
-                        .build())
-                .toList();
-    }
-
-    @Override
-    public List<StockQuoteTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit) {
-        if (limit <= 0) {
-            return List.of();
-        }
-        return stockMarketCurrentDao.selectRefreshTargetsAfterId(lastId == null ? 0L : lastId, limit).stream()
-                .map(po -> StockQuoteTargetEntity.builder()
-                        .id(po.getId())
-                        .stockCode(po.getStockCode())
-                        .market(po.getMarket())
-                        .build())
-                .toList();
-    }
-
-    @Override
-    public void registerQuoteTargets(List<StockQuoteEntity> quoteTargets) {
+    public void registerQuoteTargets(List<StockMarketEntity> quoteTargets) {
         if (quoteTargets == null || quoteTargets.isEmpty()) {
             return;
         }
-        for (StockQuoteEntity quoteTarget : quoteTargets) {
-            stockMarketCurrentDao.upsertTarget(toTargetPO(quoteTarget));
+        for (StockMarketEntity quoteTarget : quoteTargets) {
+            stockMarketDao.upsertTarget(toTargetPO(quoteTarget));
         }
     }
 
     @Override
-    public void upsertQuotes(List<StockQuoteEntity> quotes) {
-        if (quotes == null || quotes.isEmpty()) {
+    public void upsertMarkets(List<StockMarketEntity> markets) {
+        if (markets == null || markets.isEmpty()) {
             return;
         }
-        for (StockQuoteEntity quote : quotes) {
-            stockMarketCurrentDao.upsert(toPO(quote));
+        for (StockMarketEntity market : markets) {
+            stockMarketDao.upsert(toPO(market));
         }
     }
 
     @Override
-    public Map<String, StockQuoteEntity> queryByStockKeys(Collection<String> stockKeys) {
+    public Map<String, StockMarketEntity> queryByStockKeys(Collection<String> stockKeys) {
         if (stockKeys == null || stockKeys.isEmpty()) {
             return Map.of();
         }
-        List<StockMarketCurrentPO> poList = stockMarketCurrentDao.selectByStockKeys(stockKeys);
-        Map<String, StockQuoteEntity> result = new LinkedHashMap<>();
-        for (StockMarketCurrentPO po : poList) {
+        List<StockMarketPO> poList = stockMarketDao.selectByStockKeys(stockKeys);
+        Map<String, StockMarketEntity> result = new LinkedHashMap<>();
+        for (StockMarketPO po : poList) {
             result.put(stockKey(po.getStockCode(), po.getMarket()), toEntity(po));
         }
         return result;
@@ -85,39 +59,86 @@ public class StockMarketRepository implements IStockMarketRepository {
             return Set.of();
         }
         Set<String> result = new LinkedHashSet<>();
-        for (StockMarketCurrentPO po : stockMarketCurrentDao.selectByStockKeys(stockKeys)) {
+        for (StockMarketPO po : stockMarketDao.selectByStockKeys(stockKeys)) {
             result.add(stockKey(po.getStockCode(), po.getMarket()));
         }
         return result;
     }
 
-    private StockMarketCurrentPO toPO(StockQuoteEntity quote) {
-        return StockMarketCurrentPO.builder()
-                .stockCode(quote.getStockCode())
-                .market(quote.getMarket())
-                .stockName(quote.getStockName())
-                .tradeDate(quote.getTradeDate())
-                .dailyReturn(quote.getDailyReturn())
-                .quoteTime(quote.getQuoteTime())
+    private StockMarketPO toPO(StockMarketEntity market) {
+        return StockMarketPO.builder()
+                .id(market.getId())
+                .stockCode(market.getStockCode())
+                .market(market.getMarket())
+                .exchangeCode(market.getExchangeCode())
+                .providerMarketCode(market.getProviderMarketCode())
+                .stockName(market.getStockName())
+                .latestPrice(market.getLatestPrice())
+                .changePercent(market.getChangePercent())
+                .changeAmount(market.getChangeAmount())
+                .volume(market.getVolume())
+                .turnoverAmount(market.getTurnoverAmount())
+                .amplitude(market.getAmplitude())
+                .highPrice(market.getHighPrice())
+                .lowPrice(market.getLowPrice())
+                .openPrice(market.getOpenPrice())
+                .previousClose(market.getPreviousClose())
+                .volumeRatio(market.getVolumeRatio())
+                .turnoverRate(market.getTurnoverRate())
+                .peDynamic(market.getPeDynamic())
+                .pbRatio(market.getPbRatio())
+                .totalMarketValue(market.getTotalMarketValue())
+                .circulatingMarketValue(market.getCirculatingMarketValue())
+                .speed(market.getSpeed())
+                .fiveMinuteChange(market.getFiveMinuteChange())
+                .sixtyDayChangePercent(market.getSixtyDayChangePercent())
+                .yearToDateChangePercent(market.getYearToDateChangePercent())
+                .status(market.getStatus())
+                .refreshedAt(market.getRefreshedAt())
                 .build();
     }
 
-    private StockMarketCurrentPO toTargetPO(StockQuoteEntity quoteTarget) {
-        return StockMarketCurrentPO.builder()
+    private StockMarketPO toTargetPO(StockMarketEntity quoteTarget) {
+        return StockMarketPO.builder()
                 .stockCode(quoteTarget.getStockCode())
                 .market(quoteTarget.getMarket())
+                .exchangeCode(quoteTarget.getExchangeCode())
+                .providerMarketCode(quoteTarget.getProviderMarketCode())
                 .stockName(quoteTarget.getStockName())
+                .status(StockMarketEntity.STATUS_ACTIVE)
                 .build();
     }
 
-    private StockQuoteEntity toEntity(StockMarketCurrentPO po) {
-        return StockQuoteEntity.builder()
+    private StockMarketEntity toEntity(StockMarketPO po) {
+        return StockMarketEntity.builder()
+                .id(po.getId())
                 .stockCode(po.getStockCode())
                 .market(po.getMarket())
+                .exchangeCode(po.getExchangeCode())
+                .providerMarketCode(po.getProviderMarketCode())
                 .stockName(po.getStockName())
-                .tradeDate(po.getTradeDate())
-                .dailyReturn(po.getDailyReturn())
-                .quoteTime(po.getQuoteTime())
+                .latestPrice(po.getLatestPrice())
+                .changePercent(po.getChangePercent())
+                .changeAmount(po.getChangeAmount())
+                .volume(po.getVolume())
+                .turnoverAmount(po.getTurnoverAmount())
+                .amplitude(po.getAmplitude())
+                .highPrice(po.getHighPrice())
+                .lowPrice(po.getLowPrice())
+                .openPrice(po.getOpenPrice())
+                .previousClose(po.getPreviousClose())
+                .volumeRatio(po.getVolumeRatio())
+                .turnoverRate(po.getTurnoverRate())
+                .peDynamic(po.getPeDynamic())
+                .pbRatio(po.getPbRatio())
+                .totalMarketValue(po.getTotalMarketValue())
+                .circulatingMarketValue(po.getCirculatingMarketValue())
+                .speed(po.getSpeed())
+                .fiveMinuteChange(po.getFiveMinuteChange())
+                .sixtyDayChangePercent(po.getSixtyDayChangePercent())
+                .yearToDateChangePercent(po.getYearToDateChangePercent())
+                .status(po.getStatus())
+                .refreshedAt(po.getRefreshedAt())
                 .build();
     }
 

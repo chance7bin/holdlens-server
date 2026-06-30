@@ -3,12 +3,9 @@ package com.echoamoy.holdlens.server.trigger.job;
 import com.echoamoy.holdlens.server.cases.agent.IAgentFundRefreshCase;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
-import com.echoamoy.holdlens.server.cases.agent.model.StockQuoteRefreshCreateCommand;
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
 import com.echoamoy.holdlens.server.domain.funddata.model.entity.FundRefreshTargetEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingTaskEntity;
-import com.echoamoy.holdlens.server.domain.stockdata.adapter.repository.IStockMarketRepository;
-import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteTargetEntity;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -31,20 +28,11 @@ public class AgentRefreshScheduleJob {
     @Resource
     private IFundDataRepository fundDataRepository;
 
-    @Resource
-    private IStockMarketRepository stockMarketRepository;
-
     @Value("${holdlens.agent.fund-refresh-schedule.enabled}")
     private boolean fundRefreshScheduleEnabled;
 
     @Value("${holdlens.agent.fund-refresh-schedule.batch-size}")
     private int fundRefreshBatchSize;
-
-    @Value("${holdlens.agent.stock-refresh-schedule.enabled}")
-    private boolean stockRefreshScheduleEnabled;
-
-    @Value("${holdlens.agent.stock-refresh-schedule.batch-size}")
-    private int stockRefreshBatchSize;
 
     @Scheduled(cron = "${holdlens.agent.fund-refresh-schedule.cron}")
     public void runFundRefreshSchedule() {
@@ -74,46 +62,6 @@ public class AgentRefreshScheduleJob {
                     .build());
             if (!isContinuable(result)) {
                 log.warn("基金详情定时刷新批次异常，停止本轮 batchNo={} targetCount={} serverTaskId={} status={} error={}",
-                        batchNo, targets.size(), safeTaskId(result), safeStatus(result), safeError(result));
-                return;
-            }
-            lastId = targets.get(targets.size() - 1).getId();
-        }
-    }
-
-    @Scheduled(cron = "${holdlens.agent.stock-refresh-schedule.cron}")
-    public void runStockRefreshSchedule() {
-        if (!stockRefreshScheduleEnabled) {
-            return;
-        }
-        if (!isValidBatchSize(stockRefreshBatchSize, ProcessingTaskEntity.STOCK_QUOTE_REFRESH)) {
-            return;
-        }
-        if (agentFundRefreshCase.hasNonTerminalTask(ProcessingTaskEntity.STOCK_QUOTE_REFRESH)) {
-            log.info("跳过股票行情定时刷新，本轮开始前已有非终态任务");
-            return;
-        }
-
-        Long lastId = 0L;
-        int batchNo = 0;
-        while (true) {
-            List<StockQuoteTargetEntity> targets = stockMarketRepository.queryRefreshTargetsAfterId(lastId, stockRefreshBatchSize);
-            if (targets.isEmpty()) {
-                log.info("股票行情定时刷新扫描完成 batchCount={}", batchNo);
-                return;
-            }
-            batchNo++;
-            FundRefreshTaskResult result = agentFundRefreshCase.createAndDispatchStockQuotes(StockQuoteRefreshCreateCommand.builder()
-                    .stocks(targets.stream()
-                            .map(target -> StockQuoteRefreshCreateCommand.Stock.builder()
-                                    .stockCode(target.getStockCode())
-                                    .market(target.getMarket())
-                                    .build())
-                            .toList())
-                    .trigger(SCHEDULE_TRIGGER)
-                    .build());
-            if (!isContinuable(result)) {
-                log.warn("股票行情定时刷新批次异常，停止本轮 batchNo={} targetCount={} serverTaskId={} status={} error={}",
                         batchNo, targets.size(), safeTaskId(result), safeStatus(result), safeError(result));
                 return;
             }

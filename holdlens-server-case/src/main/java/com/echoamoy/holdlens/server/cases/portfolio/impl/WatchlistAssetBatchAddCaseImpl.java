@@ -8,7 +8,7 @@ import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentD
 import com.echoamoy.holdlens.server.domain.portfolio.adapter.repository.IPortfolioRepository;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.WatchlistAssetEntity;
 import com.echoamoy.holdlens.server.domain.stockdata.adapter.repository.IStockMarketRepository;
-import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockQuoteEntity;
+import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockMarketEntity;
 import com.echoamoy.holdlens.server.types.enums.ResponseCode;
 import com.echoamoy.holdlens.server.types.exception.AppException;
 import lombok.AllArgsConstructor;
@@ -79,7 +79,7 @@ public class WatchlistAssetBatchAddCaseImpl implements IWatchlistAssetBatchAddCa
         }
 
         Map<String, FundCurrentDataAggregate.FundDetail> fundDetails = fundDataRepository.queryCurrentDetails(collectFundCodes(dedup.values()));
-        Map<String, StockQuoteEntity> stockQuotes = stockMarketRepository.queryByStockKeys(collectStockKeys(dedup.values()));
+        Map<String, StockMarketEntity> stockMarkets = stockMarketRepository.queryByStockKeys(collectStockKeys(dedup.values()));
 
         for (NormalizedItem item : dedup.values()) {
             if (ASSET_KIND_FUND.equals(item.getAssetKind())) {
@@ -92,12 +92,12 @@ public class WatchlistAssetBatchAddCaseImpl implements IWatchlistAssetBatchAddCa
                 continue;
             }
             if (ASSET_KIND_STOCK.equals(item.getAssetKind())) {
-                StockQuoteEntity stockQuote = stockQuotes.get(stockKey(item.getAssetCode(), item.getMarket()));
-                if (stockQuote == null) {
+                StockMarketEntity stockMarket = stockMarkets.get(stockKey(item.getAssetCode(), item.getMarket()));
+                if (stockMarket == null) {
                     plan.getInvalidItems().add(toInvalidItem(item, "STOCK_NOT_FOUND", "股票不存在"));
                     continue;
                 }
-                plan.getWatchlistAssets().add(toWatchlistAsset(item, stockQuote.getStockName()));
+                plan.getWatchlistAssets().add(toWatchlistAsset(item, stockMarket.getStockName()));
                 continue;
             }
         }

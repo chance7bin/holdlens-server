@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.echoamoy.holdlens.server.infrastructure.dao.IStockMarketDao">
+
+    <resultMap id="BaseResultMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.StockMarketPO">
+        <id column="id" property="id"/>
+        <result column="stock_code" property="stockCode"/>
+        <result column="market" property="market"/>
+        <result column="exchange_code" property="exchangeCode"/>
+        <result column="provider_market_code" property="providerMarketCode"/>
+        <result column="stock_name" property="stockName"/>
+        <result column="latest_price" property="latestPrice"/>
+        <result column="change_percent" property="changePercent"/>
+        <result column="change_amount" property="changeAmount"/>
+        <result column="volume" property="volume"/>
+        <result column="turnover_amount" property="turnoverAmount"/>
+        <result column="amplitude" property="amplitude"/>
+        <result column="high_price" property="highPrice"/>
+        <result column="low_price" property="lowPrice"/>
+        <result column="open_price" property="openPrice"/>
+        <result column="previous_close" property="previousClose"/>
+        <result column="volume_ratio" property="volumeRatio"/>
+        <result column="turnover_rate" property="turnoverRate"/>
+        <result column="pe_dynamic" property="peDynamic"/>
+        <result column="pb_ratio" property="pbRatio"/>
+        <result column="total_market_value" property="totalMarketValue"/>
+        <result column="circulating_market_value" property="circulatingMarketValue"/>
+        <result column="speed" property="speed"/>
+        <result column="five_minute_change" property="fiveMinuteChange"/>
+        <result column="sixty_day_change_percent" property="sixtyDayChangePercent"/>
+        <result column="year_to_date_change_percent" property="yearToDateChangePercent"/>
+        <result column="status" property="status"/>
+        <result column="refreshed_at" property="refreshedAt"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, stock_code, market, exchange_code, provider_market_code, stock_name,
+        latest_price, change_percent, change_amount, volume, turnover_amount,
+        amplitude, high_price, low_price, open_price, previous_close, volume_ratio,
+        turnover_rate, pe_dynamic, pb_ratio, total_market_value, circulating_market_value,
+        speed, five_minute_change, sixty_day_change_percent, year_to_date_change_percent,
+        status, refreshed_at, create_time, update_time
+    </sql>
+
+    <insert id="upsert" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.StockMarketPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO stock_market (
+            stock_code, market, exchange_code, provider_market_code, stock_name,
+            latest_price, change_percent, change_amount, volume, turnover_amount,
+            amplitude, high_price, low_price, open_price, previous_close, volume_ratio,
+            turnover_rate, pe_dynamic, pb_ratio, total_market_value, circulating_market_value,
+            speed, five_minute_change, sixty_day_change_percent, year_to_date_change_percent,
+            status, refreshed_at
+        ) VALUES (
+            #{stockCode}, #{market}, #{exchangeCode}, #{providerMarketCode}, #{stockName},
+            #{latestPrice}, #{changePercent}, #{changeAmount}, #{volume}, #{turnoverAmount},
+            #{amplitude}, #{highPrice}, #{lowPrice}, #{openPrice}, #{previousClose}, #{volumeRatio},
+            #{turnoverRate}, #{peDynamic}, #{pbRatio}, #{totalMarketValue}, #{circulatingMarketValue},
+            #{speed}, #{fiveMinuteChange}, #{sixtyDayChangePercent}, #{yearToDateChangePercent},
+            #{status}, #{refreshedAt}
+        )
+        ON DUPLICATE KEY UPDATE
+            id = LAST_INSERT_ID(id),
+            exchange_code = #{exchangeCode},
+            provider_market_code = #{providerMarketCode},
+            stock_name = #{stockName},
+            latest_price = #{latestPrice},
+            change_percent = #{changePercent},
+            change_amount = #{changeAmount},
+            volume = #{volume},
+            turnover_amount = #{turnoverAmount},
+            amplitude = #{amplitude},
+            high_price = #{highPrice},
+            low_price = #{lowPrice},
+            open_price = #{openPrice},
+            previous_close = #{previousClose},
+            volume_ratio = #{volumeRatio},
+            turnover_rate = #{turnoverRate},
+            pe_dynamic = #{peDynamic},
+            pb_ratio = #{pbRatio},
+            total_market_value = #{totalMarketValue},
+            circulating_market_value = #{circulatingMarketValue},
+            speed = #{speed},
+            five_minute_change = #{fiveMinuteChange},
+            sixty_day_change_percent = #{sixtyDayChangePercent},
+            year_to_date_change_percent = #{yearToDateChangePercent},
+            status = #{status},
+            refreshed_at = #{refreshedAt},
+            update_time = CURRENT_TIMESTAMP
+    </insert>
+
+    <insert id="upsertTarget" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.StockMarketPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO stock_market (
+            stock_code, market, exchange_code, provider_market_code, stock_name, status
+        ) VALUES (
+            #{stockCode}, #{market}, #{exchangeCode}, #{providerMarketCode}, #{stockName}, #{status}
+        )
+        ON DUPLICATE KEY UPDATE
+            id = LAST_INSERT_ID(id),
+            stock_name = COALESCE(stock_name, VALUES(stock_name)),
+            exchange_code = COALESCE(exchange_code, VALUES(exchange_code)),
+            provider_market_code = COALESCE(provider_market_code, VALUES(provider_market_code))
+    </insert>
+
+    <select id="selectByStockKeys" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM stock_market
+        WHERE CONCAT(stock_code, '#', market) IN
+        <foreach collection="stockKeys" item="stockKey" open="(" separator="," close=")">
+            #{stockKey}
+        </foreach>
+    </select>
+
+</mapper>

@@ -111,7 +111,7 @@ DROP TABLE IF EXISTS `processing_task`;
 CREATE TABLE `processing_task` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '处理任务ID',
     `server_task_id` VARCHAR(100) NOT NULL COMMENT 'server任务标识',
-    `task_type` VARCHAR(50) NOT NULL COMMENT '任务类型：fund_detail_refresh/stock_quote_refresh',
+    `task_type` VARCHAR(50) NOT NULL COMMENT '任务类型：fund_detail_refresh/a_share_market_refresh',
     `task_params_json` TEXT DEFAULT NULL COMMENT '安全任务参数摘要JSON',
     `status` VARCHAR(30) NOT NULL DEFAULT 'created' COMMENT '状态：created/dispatched/running/succeeded/partial_failed/failed/dispatch_failed/callback_failed',
     `error_summary` VARCHAR(1000) DEFAULT NULL COMMENT '安全错误摘要',
@@ -190,22 +190,43 @@ CREATE TABLE `fund_top_holding` (
 -- ----------------------------
 -- 股票当前行情表
 -- ----------------------------
-DROP TABLE IF EXISTS `stock_market_current`;
-CREATE TABLE `stock_market_current` (
+DROP TABLE IF EXISTS `stock_market`;
+CREATE TABLE `stock_market` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '股票行情ID',
     `stock_code` VARCHAR(50) NOT NULL COMMENT '股票代码',
-    `market` VARCHAR(20) DEFAULT NULL COMMENT '市场标识，可为空',
-    `market_key` VARCHAR(20) GENERATED ALWAYS AS (COALESCE(`market`, '')) STORED COMMENT '市场标识归一化键，仅用于唯一约束',
+    `market` VARCHAR(20) NOT NULL COMMENT '业务市场：A_SHARE',
+    `exchange_code` VARCHAR(20) DEFAULT NULL COMMENT '交易所归属代码：SH/SZ/BJ 等',
+    `provider_market_code` VARCHAR(20) DEFAULT NULL COMMENT '数据源市场编码',
     `stock_name` VARCHAR(100) DEFAULT NULL COMMENT '股票简称',
-    `trade_date` DATE DEFAULT NULL COMMENT '交易日期',
-    `daily_return` DECIMAL(12, 4) DEFAULT NULL COMMENT '当日涨跌幅',
-    `quote_time` DATETIME DEFAULT NULL COMMENT '行情时间',
+    `latest_price` DECIMAL(20, 4) DEFAULT NULL COMMENT '最新价',
+    `change_percent` DECIMAL(12, 4) DEFAULT NULL COMMENT '涨跌幅，单位为百分点',
+    `change_amount` DECIMAL(20, 4) DEFAULT NULL COMMENT '涨跌额',
+    `volume` BIGINT DEFAULT NULL COMMENT '成交量',
+    `turnover_amount` DECIMAL(24, 4) DEFAULT NULL COMMENT '成交额',
+    `amplitude` DECIMAL(12, 4) DEFAULT NULL COMMENT '振幅，单位为百分点',
+    `high_price` DECIMAL(20, 4) DEFAULT NULL COMMENT '最高价',
+    `low_price` DECIMAL(20, 4) DEFAULT NULL COMMENT '最低价',
+    `open_price` DECIMAL(20, 4) DEFAULT NULL COMMENT '今开',
+    `previous_close` DECIMAL(20, 4) DEFAULT NULL COMMENT '昨收',
+    `volume_ratio` DECIMAL(12, 4) DEFAULT NULL COMMENT '量比',
+    `turnover_rate` DECIMAL(12, 4) DEFAULT NULL COMMENT '换手率，单位为百分点',
+    `pe_dynamic` DECIMAL(12, 4) DEFAULT NULL COMMENT '市盈率-动态',
+    `pb_ratio` DECIMAL(12, 4) DEFAULT NULL COMMENT '市净率',
+    `total_market_value` DECIMAL(24, 4) DEFAULT NULL COMMENT '总市值',
+    `circulating_market_value` DECIMAL(24, 4) DEFAULT NULL COMMENT '流通市值',
+    `speed` DECIMAL(12, 4) DEFAULT NULL COMMENT '涨速，单位为百分点',
+    `five_minute_change` DECIMAL(12, 4) DEFAULT NULL COMMENT '5分钟涨跌，单位为百分点',
+    `sixty_day_change_percent` DECIMAL(12, 4) DEFAULT NULL COMMENT '60日涨跌幅，单位为百分点',
+    `year_to_date_change_percent` DECIMAL(12, 4) DEFAULT NULL COMMENT '年初至今涨跌幅，单位为百分点',
+    `status` VARCHAR(30) NOT NULL DEFAULT 'active' COMMENT '状态：active/missing_from_refresh',
+    `refreshed_at` DATETIME DEFAULT NULL COMMENT '本批行情刷新时间',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_stock_market_current_code_market_key` (`stock_code`, `market_key`),
-    KEY `idx_stock_market_current_trade_date` (`trade_date`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='股票当前行情表';
+    UNIQUE KEY `uk_stock_market_code_market` (`stock_code`, `market`),
+    KEY `idx_stock_market_market_status` (`market`, `status`),
+    KEY `idx_stock_market_refreshed_at` (`refreshed_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='股票市场当前行情表';
 
 -- ----------------------------
 -- 处理日志表

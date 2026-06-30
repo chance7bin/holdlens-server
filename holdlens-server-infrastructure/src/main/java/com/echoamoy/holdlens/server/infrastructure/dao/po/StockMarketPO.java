@@ -1,0 +1,52 @@
+package com.echoamoy.holdlens.server.infrastructure.dao.po;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.Date;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class StockMarketPO implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
+    private Long id;
+    private String stockCode;
+    private String market;
+    private String exchangeCode;
+    private String providerMarketCode;
+    private String stockName;
+    private BigDecimal latestPrice;
+    private BigDecimal changePercent;
+    private BigDecimal changeAmount;
+    private Long volume;
+    private BigDecimal turnoverAmount;
+    private BigDecimal amplitude;
+    private BigDecimal highPrice;
+    private BigDecimal lowPrice;
+    private BigDecimal openPrice;
+    private BigDecimal previousClose;
+    private BigDecimal volumeRatio;
+    private BigDecimal turnoverRate;
+    private BigDecimal peDynamic;
+    private BigDecimal pbRatio;
+    private BigDecimal totalMarketValue;
+    private BigDecimal circulatingMarketValue;
+    private BigDecimal speed;
+    private BigDecimal fiveMinuteChange;
+    private BigDecimal sixtyDayChangePercent;
+    private BigDecimal yearToDateChangePercent;
+    private String status;
+    private LocalDateTime refreshedAt;
+    private Date createTime;
+    private Date updateTime;
+
+}
