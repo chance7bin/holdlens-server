@@ -1,0 +1,9 @@
+- [x] 1.1 梳理三类 agent 回调当前事务边界和失败状态语义，确认 `callback_failed` 只用于 server 回调处理失败。
+- [x] 2.1 调整回调处理事务边界，使业务结果落库失败可回滚，同时任务 `callback_failed` 终态可独立持久化。
+- [x] 2.2 确保不支持 schema version 的已识别任务会可靠标记为 `failed`。
+- [x] 2.3 保持重复回调和终态任务幂等，不重复写入业务结果。
+- [x] 2.4 将业务无关的事务执行模板抽到 Case 层支持组件，避免回调用例重复持有 TransactionTemplate 细节。
+- [x] 3.1 补充美股回调落库异常后任务变为 `callback_failed` 的回归测试。
+- [x] 3.2 覆盖 A 股或基金详情同类失败路径，防止三类回调行为分叉。
+- [x] 4.1 运行相关后端测试。
+- [x] 4.2 运行 `openspec validate --strict mark-callback-processing-failures-terminal`。

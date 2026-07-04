@@ -7,6 +7,7 @@ import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
 import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCallbackCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCreateCommand;
+import com.echoamoy.holdlens.server.cases.support.TransactionExecutor;
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
 import com.echoamoy.holdlens.server.domain.funddata.model.entity.FundRefreshTargetEntity;
@@ -36,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 public class AgentFundRefreshCaseImplTest {
 
@@ -103,6 +105,40 @@ public class AgentFundRefreshCaseImplTest {
         Assert.assertEquals("600000", stockMarketRepository.registeredTargets.get(0).getStockCode());
         Assert.assertEquals(StockMarketEntity.MARKET_A_SHARE, stockMarketRepository.registeredTargets.get(0).getMarket());
         Assert.assertEquals("测试股份", stockMarketRepository.registeredTargets.get(0).getStockName());
+    }
+
+    @Test
+    public void handleCallbackMarksCallbackFailedWhenFundPersistenceFails() throws Exception {
+        FakeProcessingRepository processingRepository = new FakeProcessingRepository();
+        FakeFundDataRepository fundDataRepository = new FakeFundDataRepository();
+        fundDataRepository.failSave = true;
+        AgentFundRefreshCaseImpl refreshCase = newCase(processingRepository, new FakeAgentPort(true, "running"),
+                fundDataRepository, new FakeStockMarketRepository());
+        processingRepository.saveTask(ProcessingTaskEntity.builder()
+                .serverTaskId("fund_callback_failure")
+                .taskType(ProcessingTaskEntity.FUND_DETAIL_REFRESH)
+                .status(ProcessingTaskStatusEnumVO.RUNNING)
+                .build());
+
+        try {
+            refreshCase.handleCallback(AgentFundRefreshCallbackCommand.builder()
+                    .schemaVersion("fund-detail-refresh-result/v2")
+                    .serverTaskId("fund_callback_failure")
+                    .idempotencyKey("fund_callback_failure:result:1")
+                    .status("succeeded")
+                    .generatedAt("2026-06-16T10:00:00Z")
+                    .funds(List.of(AgentFundRefreshCallbackCommand.FundDetail.builder()
+                            .fundCode("000001")
+                            .fundName("测试基金")
+                            .build()))
+                    .build());
+            Assert.fail("should propagate callback processing failure");
+        } catch (RuntimeException e) {
+            ProcessingTaskEntity task = processingRepository.queryTask("fund_callback_failure");
+            Assert.assertEquals("callback_failed", task.getStatus().getCode());
+            Assert.assertTrue(task.getErrorSummary().contains("fund persistence failed"));
+            Assert.assertEquals("failed", processingRepository.callbackProcessStatuses.get("fund_callback_failure:fund_callback_failure:result:1"));
+        }
     }
 
     @Test
@@ -329,6 +365,43 @@ public class AgentFundRefreshCaseImplTest {
         Assert.assertEquals("numeric_parse_failed", processingRepository.logs.get(1).getEvent());
     }
 
+    @Test
+    public void handleUSStockMarketCallbackMarksCallbackFailedWhenMarketPersistenceFails() throws Exception {
+        FakeProcessingRepository processingRepository = new FakeProcessingRepository();
+        FakeStockMarketRepository stockMarketRepository = new FakeStockMarketRepository();
+        stockMarketRepository.failUpsert = true;
+        AgentFundRefreshCaseImpl refreshCase = newCase(processingRepository, new FakeAgentPort(true, "running"),
+                new FakeFundDataRepository(), stockMarketRepository);
+        processingRepository.saveTask(ProcessingTaskEntity.builder()
+                .serverTaskId("us_stock_callback_failure")
+                .taskType(ProcessingTaskEntity.US_STOCK_MARKET_REFRESH)
+                .status(ProcessingTaskStatusEnumVO.RUNNING)
+                .build());
+
+        try {
+            refreshCase.handleUSStockMarketCallback(USStockMarketRefreshCallbackCommand.builder()
+                    .schemaVersion("us-stock-market-refresh-result/v1")
+                    .serverTaskId("us_stock_callback_failure")
+                    .idempotencyKey("us_stock_callback_failure:result:1")
+                    .status("succeeded")
+                    .market(StockMarketEntity.MARKET_US_STOCK)
+                    .stocks(List.of(USStockMarketRefreshCallbackCommand.StockMarket.builder()
+                            .stockCode("NVDA")
+                            .stockName("NVIDIA")
+                            .market(StockMarketEntity.MARKET_US_STOCK)
+                            .latestPrice("172.41")
+                            .build()))
+                    .build());
+            Assert.fail("should propagate callback processing failure");
+        } catch (RuntimeException e) {
+            ProcessingTaskEntity task = processingRepository.queryTask("us_stock_callback_failure");
+            Assert.assertEquals("callback_failed", task.getStatus().getCode());
+            Assert.assertTrue(task.getErrorSummary().contains("stock market persistence failed"));
+            Assert.assertFalse(processingRepository.existsNonTerminalTask(ProcessingTaskEntity.US_STOCK_MARKET_REFRESH));
+            Assert.assertEquals("failed", processingRepository.callbackProcessStatuses.get("us_stock_callback_failure:us_stock_callback_failure:result:1"));
+        }
+    }
+
     private AgentFundRefreshCaseImpl newCase(FakeProcessingRepository processingRepository,
                                              FakeAgentPort agentPort,
                                              FakeFundDataRepository fundDataRepository) throws Exception {
@@ -346,6 +419,7 @@ public class AgentFundRefreshCaseImplTest {
         setField(refreshCase, "agentUSStockMarketRefreshPort", agentPort);
         setField(refreshCase, "fundDataRepository", fundDataRepository);
         setField(refreshCase, "stockMarketRepository", stockMarketRepository);
+        setField(refreshCase, "transactionExecutor", new ImmediateTransactionExecutor());
         setField(refreshCase, "callbackUrl", "http://server/internal/agent/fund-detail-refresh/callback");
         setField(refreshCase, "aShareMarketCallbackUrl", "http://server/internal/agent/a-share-market-refresh/callback");
         setField(refreshCase, "usStockMarketCallbackUrl", "http://server/internal/agent/us-stock-market-refresh/callback");
@@ -356,6 +430,19 @@ public class AgentFundRefreshCaseImplTest {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
         field.set(target, value);
+    }
+
+    private static class ImmediateTransactionExecutor extends TransactionExecutor {
+
+        @Override
+        public <T> T required(Supplier<T> action) {
+            return action.get();
+        }
+
+        @Override
+        public <T> T requiresNew(Supplier<T> action) {
+            return action.get();
+        }
     }
 
     private static class FakeAgentPort implements IAgentFundRefreshPort, IAgentAShareMarketRefreshPort, IAgentUSStockMarketRefreshPort {
@@ -400,6 +487,7 @@ public class AgentFundRefreshCaseImplTest {
     private static class FakeProcessingRepository implements IProcessingTaskRepository {
         private final Map<String, ProcessingTaskEntity> tasks = new HashMap<>();
         private final Set<String> callbacks = new java.util.HashSet<>();
+        private final Map<String, String> callbackProcessStatuses = new HashMap<>();
         private final List<ProcessingLogEntity> logs = new java.util.ArrayList<>();
 
         @Override
@@ -419,11 +507,17 @@ public class AgentFundRefreshCaseImplTest {
 
         @Override
         public boolean saveCallbackIfAbsent(ProcessingCallbackEntity callbackEntity) {
-            return callbacks.add(callbackEntity.getServerTaskId() + ":" + callbackEntity.getIdempotencyKey());
+            String key = callbackEntity.getServerTaskId() + ":" + callbackEntity.getIdempotencyKey();
+            boolean added = callbacks.add(key);
+            if (added) {
+                callbackProcessStatuses.put(key, callbackEntity.getProcessStatus());
+            }
+            return added;
         }
 
         @Override
         public void markCallbackProcessed(String serverTaskId, String idempotencyKey, String processStatus, String errorSummary) {
+            callbackProcessStatuses.put(serverTaskId + ":" + idempotencyKey, processStatus);
         }
 
         @Override
@@ -456,9 +550,13 @@ public class AgentFundRefreshCaseImplTest {
 
     private static class FakeFundDataRepository implements IFundDataRepository {
         private int saveCount;
+        private boolean failSave;
 
         @Override
         public void saveCurrentData(FundCurrentDataAggregate aggregate) {
+            if (failSave) {
+                throw new RuntimeException("fund persistence failed");
+            }
             saveCount++;
             Assert.assertEquals("000001", aggregate.getFunds().get(0).getFundCode());
             Assert.assertEquals(LocalDateTime.of(2026, 6, 16, 18, 0), aggregate.getGeneratedAt());
@@ -487,6 +585,7 @@ public class AgentFundRefreshCaseImplTest {
     private static class FakeStockMarketRepository implements IStockMarketRepository {
         private int upsertCount;
         private int registerCount;
+        private boolean failUpsert;
         private final List<StockMarketEntity> registeredTargets = new java.util.ArrayList<>();
         private final List<StockMarketEntity> upsertedMarkets = new java.util.ArrayList<>();
 
@@ -498,6 +597,9 @@ public class AgentFundRefreshCaseImplTest {
 
         @Override
         public void upsertMarkets(List<StockMarketEntity> markets) {
+            if (failUpsert) {
+                throw new RuntimeException("stock market persistence failed");
+            }
             upsertCount += markets.size();
             upsertedMarkets.addAll(markets);
         }

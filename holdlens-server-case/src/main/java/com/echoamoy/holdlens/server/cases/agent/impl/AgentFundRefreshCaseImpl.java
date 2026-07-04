@@ -9,6 +9,7 @@ import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
 import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCallbackCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCreateCommand;
+import com.echoamoy.holdlens.server.cases.support.TransactionExecutor;
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
 import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentAShareMarketRefreshPort;
@@ -79,6 +80,9 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
 
     @Resource
     private IStockMarketRepository stockMarketRepository;
+
+    @Resource
+    private TransactionExecutor transactionExecutor;
 
     @Value("${holdlens.agent.callback-url:http://127.0.0.1:8091/internal/agent/fund-detail-refresh/callback}")
     private String callbackUrl;
@@ -218,7 +222,6 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public FundRefreshTaskResult handleCallback(AgentFundRefreshCallbackCommand command) {
         if (command == null || isBlank(command.getServerTaskId())) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "回调缺少任务标识");
@@ -230,13 +233,26 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         }
 
         if (!RESULT_SCHEMA_VERSION.equals(command.getSchemaVersion())) {
-            taskEntity.transitTo(ProcessingTaskStatusEnumVO.FAILED, "unsupported schema version");
-            processingTaskRepository.updateTask(taskEntity);
+            markTaskFailed(command.getServerTaskId(), "unsupported schema version");
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "不支持的回调契约版本");
         }
 
         if (isBlank(command.getIdempotencyKey())) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "回调缺少幂等键");
+        }
+
+        try {
+            return transactionExecutor.required(() -> processFundDetailCallback(command));
+        } catch (RuntimeException e) {
+            recordCallbackProcessingFailure(command.getServerTaskId(), command.getIdempotencyKey(), command.getStatus(), e);
+            throw e;
+        }
+    }
+
+    private FundRefreshTaskResult processFundDetailCallback(AgentFundRefreshCallbackCommand command) {
+        ProcessingTaskEntity taskEntity = processingTaskRepository.queryTask(command.getServerTaskId());
+        if (taskEntity == null || !ProcessingTaskEntity.FUND_DETAIL_REFRESH.equals(taskEntity.getTaskType())) {
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "未知基金刷新任务");
         }
 
         boolean firstCallback = processingTaskRepository.saveCallbackIfAbsent(ProcessingCallbackEntity.builder()
@@ -251,25 +267,19 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         }
 
         ProcessingTaskStatusEnumVO targetStatus = toTaskStatus(command.getStatus());
-        try {
-            if (targetStatus == ProcessingTaskStatusEnumVO.SUCCEEDED
-                    || targetStatus == ProcessingTaskStatusEnumVO.PARTIAL_FAILED) {
-                FundCurrentDataAggregate aggregate = toAggregate(command);
-                fundDataRepository.saveCurrentData(aggregate);
-                stockMarketRepository.registerQuoteTargets(toQuoteTargets(aggregate));
-            }
-            taskEntity.transitTo(targetStatus, safeSummary(command.getErrorSummary()));
-            processingTaskRepository.updateTask(taskEntity);
-            processingTaskRepository.markCallbackProcessed(command.getServerTaskId(), command.getIdempotencyKey(), "processed", null);
-            return toTaskDTO(taskEntity);
-        } catch (Exception e) {
-            processingTaskRepository.markCallbackProcessed(command.getServerTaskId(), command.getIdempotencyKey(), "failed", safeSummary(e.getMessage()));
-            throw e;
+        if (targetStatus == ProcessingTaskStatusEnumVO.SUCCEEDED
+                || targetStatus == ProcessingTaskStatusEnumVO.PARTIAL_FAILED) {
+            FundCurrentDataAggregate aggregate = toAggregate(command);
+            fundDataRepository.saveCurrentData(aggregate);
+            stockMarketRepository.registerQuoteTargets(toQuoteTargets(aggregate));
         }
+        taskEntity.transitTo(targetStatus, safeSummary(command.getErrorSummary()));
+        processingTaskRepository.updateTask(taskEntity);
+        processingTaskRepository.markCallbackProcessed(command.getServerTaskId(), command.getIdempotencyKey(), "processed", null);
+        return toTaskDTO(taskEntity);
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public FundRefreshTaskResult handleAShareMarketCallback(AShareMarketRefreshCallbackCommand command) {
         if (command == null || isBlank(command.getServerTaskId())) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "回调缺少任务标识");
@@ -281,13 +291,26 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         }
 
         if (!A_SHARE_MARKET_RESULT_SCHEMA_VERSION.equals(command.getSchemaVersion())) {
-            taskEntity.transitTo(ProcessingTaskStatusEnumVO.FAILED, "unsupported schema version");
-            processingTaskRepository.updateTask(taskEntity);
+            markTaskFailed(command.getServerTaskId(), "unsupported schema version");
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "不支持的回调契约版本");
         }
 
         if (isBlank(command.getIdempotencyKey())) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "回调缺少幂等键");
+        }
+
+        try {
+            return transactionExecutor.required(() -> processAShareMarketCallback(command));
+        } catch (RuntimeException e) {
+            recordCallbackProcessingFailure(command.getServerTaskId(), command.getIdempotencyKey(), command.getStatus(), e);
+            throw e;
+        }
+    }
+
+    private FundRefreshTaskResult processAShareMarketCallback(AShareMarketRefreshCallbackCommand command) {
+        ProcessingTaskEntity taskEntity = processingTaskRepository.queryTask(command.getServerTaskId());
+        if (taskEntity == null || !ProcessingTaskEntity.A_SHARE_MARKET_REFRESH.equals(taskEntity.getTaskType())) {
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "未知 A 股全量行情刷新任务");
         }
 
         boolean firstCallback = processingTaskRepository.saveCallbackIfAbsent(ProcessingCallbackEntity.builder()
@@ -302,26 +325,20 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         }
 
         ProcessingTaskStatusEnumVO targetStatus = toTaskStatus(command.getStatus());
-        try {
-            if (targetStatus == ProcessingTaskStatusEnumVO.SUCCEEDED
-                    || targetStatus == ProcessingTaskStatusEnumVO.PARTIAL_FAILED) {
-                List<ProcessingLogEntity> diagnostics = new ArrayList<>(toAShareMarketWarnings(command.getServerTaskId(), command.getRefreshWarnings()));
-                List<StockMarketEntity> markets = toStockMarkets(command, diagnostics);
-                upsertStockMarkets(markets);
-                processingTaskRepository.saveLogs(diagnostics);
-            }
-            taskEntity.transitTo(targetStatus, safeSummary(command.getErrorSummary()));
-            processingTaskRepository.updateTask(taskEntity);
-            processingTaskRepository.markCallbackProcessed(command.getServerTaskId(), command.getIdempotencyKey(), "processed", null);
-            return toTaskDTO(taskEntity);
-        } catch (Exception e) {
-            processingTaskRepository.markCallbackProcessed(command.getServerTaskId(), command.getIdempotencyKey(), "failed", safeSummary(e.getMessage()));
-            throw e;
+        if (targetStatus == ProcessingTaskStatusEnumVO.SUCCEEDED
+                || targetStatus == ProcessingTaskStatusEnumVO.PARTIAL_FAILED) {
+            List<ProcessingLogEntity> diagnostics = new ArrayList<>(toAShareMarketWarnings(command.getServerTaskId(), command.getRefreshWarnings()));
+            List<StockMarketEntity> markets = toStockMarkets(command, diagnostics);
+            upsertStockMarkets(markets);
+            processingTaskRepository.saveLogs(diagnostics);
         }
+        taskEntity.transitTo(targetStatus, safeSummary(command.getErrorSummary()));
+        processingTaskRepository.updateTask(taskEntity);
+        processingTaskRepository.markCallbackProcessed(command.getServerTaskId(), command.getIdempotencyKey(), "processed", null);
+        return toTaskDTO(taskEntity);
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public FundRefreshTaskResult handleUSStockMarketCallback(USStockMarketRefreshCallbackCommand command) {
         if (command == null || isBlank(command.getServerTaskId())) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "回调缺少任务标识");
@@ -333,13 +350,26 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         }
 
         if (!US_STOCK_MARKET_RESULT_SCHEMA_VERSION.equals(command.getSchemaVersion())) {
-            taskEntity.transitTo(ProcessingTaskStatusEnumVO.FAILED, "unsupported schema version");
-            processingTaskRepository.updateTask(taskEntity);
+            markTaskFailed(command.getServerTaskId(), "unsupported schema version");
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "不支持的回调契约版本");
         }
 
         if (isBlank(command.getIdempotencyKey())) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "回调缺少幂等键");
+        }
+
+        try {
+            return transactionExecutor.required(() -> processUSStockMarketCallback(command));
+        } catch (RuntimeException e) {
+            recordCallbackProcessingFailure(command.getServerTaskId(), command.getIdempotencyKey(), command.getStatus(), e);
+            throw e;
+        }
+    }
+
+    private FundRefreshTaskResult processUSStockMarketCallback(USStockMarketRefreshCallbackCommand command) {
+        ProcessingTaskEntity taskEntity = processingTaskRepository.queryTask(command.getServerTaskId());
+        if (taskEntity == null || !ProcessingTaskEntity.US_STOCK_MARKET_REFRESH.equals(taskEntity.getTaskType())) {
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "未知美股全量行情刷新任务");
         }
 
         boolean firstCallback = processingTaskRepository.saveCallbackIfAbsent(ProcessingCallbackEntity.builder()
@@ -354,22 +384,17 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
         }
 
         ProcessingTaskStatusEnumVO targetStatus = toTaskStatus(command.getStatus());
-        try {
-            if (targetStatus == ProcessingTaskStatusEnumVO.SUCCEEDED
-                    || targetStatus == ProcessingTaskStatusEnumVO.PARTIAL_FAILED) {
-                List<ProcessingLogEntity> diagnostics = new ArrayList<>(toUSStockMarketWarnings(command.getServerTaskId(), command.getRefreshWarnings()));
-                List<StockMarketEntity> markets = toUSStockMarkets(command, diagnostics);
-                upsertStockMarkets(markets);
-                processingTaskRepository.saveLogs(diagnostics);
-            }
-            taskEntity.transitTo(targetStatus, safeSummary(command.getErrorSummary()));
-            processingTaskRepository.updateTask(taskEntity);
-            processingTaskRepository.markCallbackProcessed(command.getServerTaskId(), command.getIdempotencyKey(), "processed", null);
-            return toTaskDTO(taskEntity);
-        } catch (Exception e) {
-            processingTaskRepository.markCallbackProcessed(command.getServerTaskId(), command.getIdempotencyKey(), "failed", safeSummary(e.getMessage()));
-            throw e;
+        if (targetStatus == ProcessingTaskStatusEnumVO.SUCCEEDED
+                || targetStatus == ProcessingTaskStatusEnumVO.PARTIAL_FAILED) {
+            List<ProcessingLogEntity> diagnostics = new ArrayList<>(toUSStockMarketWarnings(command.getServerTaskId(), command.getRefreshWarnings()));
+            List<StockMarketEntity> markets = toUSStockMarkets(command, diagnostics);
+            upsertStockMarkets(markets);
+            processingTaskRepository.saveLogs(diagnostics);
         }
+        taskEntity.transitTo(targetStatus, safeSummary(command.getErrorSummary()));
+        processingTaskRepository.updateTask(taskEntity);
+        processingTaskRepository.markCallbackProcessed(command.getServerTaskId(), command.getIdempotencyKey(), "processed", null);
+        return toTaskDTO(taskEntity);
     }
 
     @Override
@@ -379,6 +404,57 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "任务不存在");
         }
         return toTaskDTO(taskEntity);
+    }
+
+    private void markTaskFailed(String serverTaskId, String errorSummary) {
+        try {
+            transactionExecutor.requiresNew(() -> {
+                ProcessingTaskEntity latestTask = processingTaskRepository.queryTask(serverTaskId);
+                if (latestTask != null && !latestTask.isTerminal()) {
+                    latestTask.transitTo(ProcessingTaskStatusEnumVO.FAILED, safeSummary(errorSummary));
+                    processingTaskRepository.updateTask(latestTask);
+                }
+                return null;
+            });
+        } catch (RuntimeException e) {
+            log.warn("agent 回调任务失败状态记录失败 taskId={}", serverTaskId);
+        }
+    }
+
+    private void recordCallbackProcessingFailure(String serverTaskId, String idempotencyKey, String callbackStatus, RuntimeException cause) {
+        try {
+            transactionExecutor.requiresNew(() -> {
+                String errorSummary = safeSummary(cause.getMessage());
+                ProcessingTaskEntity latestTask = processingTaskRepository.queryTask(serverTaskId);
+                if (latestTask != null && !latestTask.isTerminal()) {
+                    latestTask.transitTo(ProcessingTaskStatusEnumVO.CALLBACK_FAILED, errorSummary);
+                    processingTaskRepository.updateTask(latestTask);
+                }
+                recordFailedCallback(serverTaskId, idempotencyKey, callbackStatus, errorSummary);
+                return null;
+            });
+        } catch (RuntimeException e) {
+            log.warn("agent 回调处理失败状态记录失败 taskId={}", serverTaskId);
+        }
+    }
+
+    private void recordFailedCallback(String serverTaskId, String idempotencyKey, String callbackStatus, String errorSummary) {
+        if (isBlank(idempotencyKey)) {
+            return;
+        }
+        try {
+            processingTaskRepository.saveCallbackIfAbsent(ProcessingCallbackEntity.builder()
+                    .serverTaskId(serverTaskId)
+                    .idempotencyKey(idempotencyKey)
+                    .callbackStatus(defaultString(callbackStatus, "callback_failed"))
+                    .processStatus("failed")
+                    .errorSummary(errorSummary)
+                    .build());
+            processingTaskRepository.markCallbackProcessed(serverTaskId, idempotencyKey, "failed", errorSummary);
+        } catch (RuntimeException e) {
+            // 任务终态优先保证；callback 表异常不应回滚 callback_failed 状态。
+            log.warn("agent 回调处理记录失败 taskId={} idempotencyKey={}", serverTaskId, idempotencyKey);
+        }
     }
 
     private FundCurrentDataAggregate toAggregate(AgentFundRefreshCallbackCommand request) {
