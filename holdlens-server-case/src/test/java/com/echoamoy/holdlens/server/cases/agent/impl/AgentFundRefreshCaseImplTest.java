@@ -5,11 +5,14 @@ import com.echoamoy.holdlens.server.cases.agent.model.AShareMarketRefreshCreateC
 import com.echoamoy.holdlens.server.cases.agent.model.AgentFundRefreshCallbackCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
+import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCallbackCommand;
+import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCreateCommand;
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
 import com.echoamoy.holdlens.server.domain.funddata.model.entity.FundRefreshTargetEntity;
 import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentAShareMarketRefreshPort;
 import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentFundRefreshPort;
+import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentUSStockMarketRefreshPort;
 import com.echoamoy.holdlens.server.domain.processing.adapter.repository.IProcessingTaskRepository;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.AShareMarketRefreshDispatchCommandEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.FundRefreshDispatchCommandEntity;
@@ -17,6 +20,7 @@ import com.echoamoy.holdlens.server.domain.processing.model.entity.FundRefreshDi
 import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingCallbackEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingLogEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingTaskEntity;
+import com.echoamoy.holdlens.server.domain.processing.model.entity.USStockMarketRefreshDispatchCommandEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.valobj.ProcessingTaskStatusEnumVO;
 import com.echoamoy.holdlens.server.domain.stockdata.adapter.repository.IStockMarketRepository;
 import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockMarketEntity;
@@ -26,6 +30,7 @@ import org.junit.Test;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -221,6 +226,105 @@ public class AgentFundRefreshCaseImplTest {
         }
     }
 
+    @Test
+    public void createUSStockMarketTaskDispatchesFullMarketRequest() throws Exception {
+        FakeProcessingRepository processingRepository = new FakeProcessingRepository();
+        FakeAgentPort agentPort = new FakeAgentPort(true, "accepted");
+        AgentFundRefreshCaseImpl refreshCase = newCase(processingRepository, agentPort, new FakeFundDataRepository());
+
+        FundRefreshTaskResult result = refreshCase.createAndDispatchUSStockMarket(USStockMarketRefreshCreateCommand.builder()
+                .trigger("manual")
+                .build());
+
+        Assert.assertEquals("dispatched", result.getStatus());
+        Assert.assertEquals(ProcessingTaskEntity.US_STOCK_MARKET_REFRESH, result.getTaskType());
+        Assert.assertEquals("us-stock-market-refresh-task/v1", agentPort.lastUSStockCommand.getSchemaVersion());
+        Assert.assertEquals(Boolean.TRUE, agentPort.lastUSStockCommand.getAllowNetwork());
+        Assert.assertEquals("http://server/internal/agent/us-stock-market-refresh/callback", agentPort.lastUSStockCommand.getCallbackUrl());
+        Assert.assertTrue(processingRepository.queryTask(result.getServerTaskId()).getTaskParamsJson().contains("\"market\":\"US_STOCK\""));
+    }
+
+    @Test
+    public void createUSStockMarketTaskRejectsConcurrentNonTerminalTask() throws Exception {
+        FakeProcessingRepository processingRepository = new FakeProcessingRepository();
+        processingRepository.saveTask(ProcessingTaskEntity.builder()
+                .serverTaskId("us_stock_market_refresh_running")
+                .taskType(ProcessingTaskEntity.US_STOCK_MARKET_REFRESH)
+                .status(ProcessingTaskStatusEnumVO.RUNNING)
+                .build());
+        FakeAgentPort agentPort = new FakeAgentPort(true, "running");
+        AgentFundRefreshCaseImpl refreshCase = newCase(processingRepository, agentPort, new FakeFundDataRepository());
+
+        try {
+            refreshCase.createAndDispatchUSStockMarket(USStockMarketRefreshCreateCommand.builder().build());
+            Assert.fail("should reject concurrent task");
+        } catch (AppException e) {
+            Assert.assertTrue(e.getInfo().contains("正在运行"));
+            Assert.assertNull(agentPort.lastUSStockCommand);
+        }
+    }
+
+    @Test
+    public void handleUSStockMarketCallbackPersistsStocksWarningsAndUSFieldsOnce() throws Exception {
+        FakeProcessingRepository processingRepository = new FakeProcessingRepository();
+        FakeStockMarketRepository stockMarketRepository = new FakeStockMarketRepository();
+        AgentFundRefreshCaseImpl refreshCase = newCase(processingRepository, new FakeAgentPort(true, "running"),
+                new FakeFundDataRepository(), stockMarketRepository);
+        processingRepository.saveTask(ProcessingTaskEntity.builder()
+                .serverTaskId("us_stock_task_1")
+                .taskType(ProcessingTaskEntity.US_STOCK_MARKET_REFRESH)
+                .status(ProcessingTaskStatusEnumVO.RUNNING)
+                .build());
+
+        USStockMarketRefreshCallbackCommand callback = USStockMarketRefreshCallbackCommand.builder()
+                .schemaVersion("us-stock-market-refresh-result/v1")
+                .serverTaskId("us_stock_task_1")
+                .idempotencyKey("us_stock_task_1:result:1")
+                .status("partial_failed")
+                .generatedAt("2026-07-04T02:05:30Z")
+                .market(StockMarketEntity.MARKET_US_STOCK)
+                .stocks(List.of(USStockMarketRefreshCallbackCommand.StockMarket.builder()
+                        .stockCode("NVDA")
+                        .stockName("NVIDIA")
+                        .market(StockMarketEntity.MARKET_US_STOCK)
+                        .providerMarketCode("105")
+                        .latestPrice("172.41")
+                        .changePercent("1.25")
+                        .volume("1234567")
+                        .turnoverAmount("bad-number")
+                        .peRatio("56.789")
+                        .listingDate("1999-01-22")
+                        .refreshedAt("2026-07-04T10:04:30+08:00")
+                        .build()))
+                .refreshWarnings(List.of(USStockMarketRefreshCallbackCommand.RefreshWarning.builder()
+                        .module("us_stock_market_refresh")
+                        .event("provider_failed")
+                        .message("provider failed for one page")
+                        .severity("warning")
+                        .build()))
+                .build();
+
+        FundRefreshTaskResult first = refreshCase.handleUSStockMarketCallback(callback);
+        FundRefreshTaskResult duplicate = refreshCase.handleUSStockMarketCallback(callback);
+
+        Assert.assertEquals("partial_failed", first.getStatus());
+        Assert.assertEquals("partial_failed", duplicate.getStatus());
+        Assert.assertEquals(1, stockMarketRepository.upsertCount);
+        StockMarketEntity stock = stockMarketRepository.upsertedMarkets.get(0);
+        Assert.assertEquals(StockMarketEntity.MARKET_US_STOCK, stock.getMarket());
+        Assert.assertEquals("105", stock.getProviderMarketCode());
+        Assert.assertEquals(new BigDecimal("172.41"), stock.getLatestPrice());
+        Assert.assertEquals(new BigDecimal("56.789"), stock.getPeRatio());
+        Assert.assertNull(stock.getPeDynamic());
+        Assert.assertNull(stock.getTurnoverAmount());
+        Assert.assertEquals(LocalDate.of(1999, 1, 22), stock.getListingDate());
+        Assert.assertEquals(LocalDateTime.of(2026, 7, 4, 10, 4, 30), stock.getRefreshedAt());
+        Assert.assertEquals(2, processingRepository.logs.size());
+        Assert.assertEquals("us_stock_market_refresh", processingRepository.logs.get(0).getModule());
+        Assert.assertEquals("us_stock_market_refresh", processingRepository.logs.get(1).getModule());
+        Assert.assertEquals("numeric_parse_failed", processingRepository.logs.get(1).getEvent());
+    }
+
     private AgentFundRefreshCaseImpl newCase(FakeProcessingRepository processingRepository,
                                              FakeAgentPort agentPort,
                                              FakeFundDataRepository fundDataRepository) throws Exception {
@@ -235,10 +339,12 @@ public class AgentFundRefreshCaseImplTest {
         setField(refreshCase, "processingTaskRepository", processingRepository);
         setField(refreshCase, "agentFundRefreshPort", agentPort);
         setField(refreshCase, "agentAShareMarketRefreshPort", agentPort);
+        setField(refreshCase, "agentUSStockMarketRefreshPort", agentPort);
         setField(refreshCase, "fundDataRepository", fundDataRepository);
         setField(refreshCase, "stockMarketRepository", stockMarketRepository);
         setField(refreshCase, "callbackUrl", "http://server/internal/agent/fund-detail-refresh/callback");
         setField(refreshCase, "aShareMarketCallbackUrl", "http://server/internal/agent/a-share-market-refresh/callback");
+        setField(refreshCase, "usStockMarketCallbackUrl", "http://server/internal/agent/us-stock-market-refresh/callback");
         return refreshCase;
     }
 
@@ -248,11 +354,12 @@ public class AgentFundRefreshCaseImplTest {
         field.set(target, value);
     }
 
-    private static class FakeAgentPort implements IAgentFundRefreshPort, IAgentAShareMarketRefreshPort {
+    private static class FakeAgentPort implements IAgentFundRefreshPort, IAgentAShareMarketRefreshPort, IAgentUSStockMarketRefreshPort {
         private final boolean accepted;
         private final String status;
         private FundRefreshDispatchCommandEntity lastFundCommand;
         private AShareMarketRefreshDispatchCommandEntity lastAShareCommand;
+        private USStockMarketRefreshDispatchCommandEntity lastUSStockCommand;
 
         private FakeAgentPort(boolean accepted, String status) {
             this.accepted = accepted;
@@ -268,6 +375,12 @@ public class AgentFundRefreshCaseImplTest {
         @Override
         public FundRefreshDispatchResultEntity dispatch(AShareMarketRefreshDispatchCommandEntity commandEntity) {
             lastAShareCommand = commandEntity;
+            return dispatchResult();
+        }
+
+        @Override
+        public FundRefreshDispatchResultEntity dispatch(USStockMarketRefreshDispatchCommandEntity commandEntity) {
+            lastUSStockCommand = commandEntity;
             return dispatchResult();
         }
 

@@ -2,9 +2,11 @@ package com.echoamoy.holdlens.server.infrastructure.adapter.port;
 
 import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentAShareMarketRefreshPort;
 import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentFundRefreshPort;
+import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentUSStockMarketRefreshPort;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.AShareMarketRefreshDispatchCommandEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.FundRefreshDispatchCommandEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.FundRefreshDispatchResultEntity;
+import com.echoamoy.holdlens.server.domain.processing.model.entity.USStockMarketRefreshDispatchCommandEntity;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -16,7 +18,7 @@ import java.util.Map;
 
 @Slf4j
 @Component
-public class AgentFundRefreshPort implements IAgentFundRefreshPort, IAgentAShareMarketRefreshPort {
+public class AgentFundRefreshPort implements IAgentFundRefreshPort, IAgentAShareMarketRefreshPort, IAgentUSStockMarketRefreshPort {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -25,6 +27,9 @@ public class AgentFundRefreshPort implements IAgentFundRefreshPort, IAgentAShare
 
     @Value("${holdlens.agent.a-share-market-refresh-url:http://127.0.0.1:8765/tasks/a-share-market-refresh}")
     private String aShareMarketRefreshUrl;
+
+    @Value("${holdlens.agent.us-stock-market-refresh-url:http://127.0.0.1:8765/tasks/us-stock-market-refresh}")
+    private String usStockMarketRefreshUrl;
 
     @Override
     public FundRefreshDispatchResultEntity dispatch(FundRefreshDispatchCommandEntity commandEntity) {
@@ -48,6 +53,18 @@ public class AgentFundRefreshPort implements IAgentFundRefreshPort, IAgentAShare
         request.put("callback_url", commandEntity.getCallbackUrl());
 
         ResponseEntity<Map> response = restTemplate.postForEntity(aShareMarketRefreshUrl, request, Map.class);
+        return toDispatchResult(response);
+    }
+
+    @Override
+    public FundRefreshDispatchResultEntity dispatch(USStockMarketRefreshDispatchCommandEntity commandEntity) {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("schema_version", commandEntity.getSchemaVersion());
+        request.put("server_task_id", commandEntity.getServerTaskId());
+        request.put("allow_network", commandEntity.getAllowNetwork());
+        request.put("callback_url", commandEntity.getCallbackUrl());
+
+        ResponseEntity<Map> response = restTemplate.postForEntity(usStockMarketRefreshUrl, request, Map.class);
         return toDispatchResult(response);
     }
 

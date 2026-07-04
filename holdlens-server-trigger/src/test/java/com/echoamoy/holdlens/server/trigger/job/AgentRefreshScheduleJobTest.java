@@ -6,6 +6,8 @@ import com.echoamoy.holdlens.server.cases.agent.model.AShareMarketRefreshCreateC
 import com.echoamoy.holdlens.server.cases.agent.model.AgentFundRefreshCallbackCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
+import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCallbackCommand;
+import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCreateCommand;
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
 import com.echoamoy.holdlens.server.domain.funddata.model.entity.FundRefreshTargetEntity;
@@ -118,6 +120,16 @@ public class AgentRefreshScheduleJobTest {
 
         @Override
         public FundRefreshTaskResult handleAShareMarketCallback(AShareMarketRefreshCallbackCommand command) {
+            return null;
+        }
+
+        @Override
+        public FundRefreshTaskResult createAndDispatchUSStockMarket(USStockMarketRefreshCreateCommand command) {
+            return null;
+        }
+
+        @Override
+        public FundRefreshTaskResult handleUSStockMarketCallback(USStockMarketRefreshCallbackCommand command) {
             return null;
         }
 

@@ -8,6 +8,7 @@ import org.junit.Test;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -53,6 +54,8 @@ public class StockMarketRepositoryTest {
                 .latestPrice(new BigDecimal("10.23"))
                 .changePercent(new BigDecimal("1.25"))
                 .volume(1234567L)
+                .peRatio(new BigDecimal("56.7890"))
+                .listingDate(LocalDate.of(1999, 1, 22))
                 .status(StockMarketEntity.STATUS_ACTIVE)
                 .refreshedAt(LocalDateTime.of(2026, 6, 18, 10, 4, 30))
                 .build()));
@@ -64,6 +67,8 @@ public class StockMarketRepositoryTest {
         Assert.assertEquals(new BigDecimal("10.23"), market.getLatestPrice());
         Assert.assertEquals(new BigDecimal("1.25"), market.getChangePercent());
         Assert.assertEquals(Long.valueOf(1234567L), market.getVolume());
+        Assert.assertEquals(new BigDecimal("56.7890"), market.getPeRatio());
+        Assert.assertEquals(LocalDate.of(1999, 1, 22), market.getListingDate());
         Assert.assertEquals(LocalDateTime.of(2026, 6, 18, 10, 4, 30), market.getRefreshedAt());
     }
 
@@ -73,14 +78,18 @@ public class StockMarketRepositoryTest {
         FakeStockMarketDao stockMarketDao = new FakeStockMarketDao();
         stockMarketDao.stockMarkets = List.of(StockMarketPO.builder()
                 .stockCode("600000")
-                .market(StockMarketEntity.MARKET_A_SHARE)
+                .market(StockMarketEntity.MARKET_US_STOCK)
                 .changePercent(new BigDecimal("0.10"))
+                .peRatio(new BigDecimal("56.7890"))
+                .listingDate(LocalDate.of(1999, 1, 22))
                 .build());
         setField(repository, "stockMarketDao", stockMarketDao);
 
-        Assert.assertTrue(repository.queryByStockKeys(List.of("600000#A_SHARE")).containsKey("600000#A_SHARE"));
+        Assert.assertTrue(repository.queryByStockKeys(List.of("600000#US_STOCK")).containsKey("600000#US_STOCK"));
         Assert.assertEquals(new BigDecimal("0.10"),
-                repository.queryByStockKeys(List.of("600000#A_SHARE")).get("600000#A_SHARE").getChangePercent());
+                repository.queryByStockKeys(List.of("600000#US_STOCK")).get("600000#US_STOCK").getChangePercent());
+        Assert.assertEquals(LocalDate.of(1999, 1, 22),
+                repository.queryByStockKeys(List.of("600000#US_STOCK")).get("600000#US_STOCK").getListingDate());
     }
 
     @Test

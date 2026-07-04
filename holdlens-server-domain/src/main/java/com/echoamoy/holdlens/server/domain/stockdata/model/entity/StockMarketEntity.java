@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
@@ -15,6 +16,7 @@ import java.time.LocalDateTime;
 public class StockMarketEntity {
 
     public static final String MARKET_A_SHARE = "A_SHARE";
+    public static final String MARKET_US_STOCK = "US_STOCK";
     public static final String STATUS_ACTIVE = "active";
     public static final String STATUS_MISSING_FROM_REFRESH = "missing_from_refresh";
 
@@ -37,6 +39,7 @@ public class StockMarketEntity {
     private BigDecimal volumeRatio;
     private BigDecimal turnoverRate;
     private BigDecimal peDynamic;
+    private BigDecimal peRatio;
     private BigDecimal pbRatio;
     private BigDecimal totalMarketValue;
     private BigDecimal circulatingMarketValue;
@@ -44,6 +47,7 @@ public class StockMarketEntity {
     private BigDecimal fiveMinuteChange;
     private BigDecimal sixtyDayChangePercent;
     private BigDecimal yearToDateChangePercent;
+    private LocalDate listingDate;
     private String status;
     private LocalDateTime refreshedAt;
 

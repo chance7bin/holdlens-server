@@ -5,6 +5,8 @@ import com.echoamoy.holdlens.server.cases.agent.model.AShareMarketRefreshCallbac
 import com.echoamoy.holdlens.server.cases.agent.model.AShareMarketRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
+import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCallbackCommand;
+import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCreateCommand;
 
 public interface IAgentFundRefreshCase {
 
@@ -19,5 +21,9 @@ public interface IAgentFundRefreshCase {
     boolean hasNonTerminalTask(String taskType);
 
     FundRefreshTaskResult handleAShareMarketCallback(AShareMarketRefreshCallbackCommand command);
+
+    FundRefreshTaskResult createAndDispatchUSStockMarket(USStockMarketRefreshCreateCommand command);
+
+    FundRefreshTaskResult handleUSStockMarketCallback(USStockMarketRefreshCallbackCommand command);
 
 }

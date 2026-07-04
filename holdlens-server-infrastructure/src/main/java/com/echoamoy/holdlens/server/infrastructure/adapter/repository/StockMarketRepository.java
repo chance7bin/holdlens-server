@@ -86,6 +86,7 @@ public class StockMarketRepository implements IStockMarketRepository {
                 .volumeRatio(market.getVolumeRatio())
                 .turnoverRate(market.getTurnoverRate())
                 .peDynamic(market.getPeDynamic())
+                .peRatio(market.getPeRatio())
                 .pbRatio(market.getPbRatio())
                 .totalMarketValue(market.getTotalMarketValue())
                 .circulatingMarketValue(market.getCirculatingMarketValue())
@@ -93,6 +94,7 @@ public class StockMarketRepository implements IStockMarketRepository {
                 .fiveMinuteChange(market.getFiveMinuteChange())
                 .sixtyDayChangePercent(market.getSixtyDayChangePercent())
                 .yearToDateChangePercent(market.getYearToDateChangePercent())
+                .listingDate(market.getListingDate())
                 .status(market.getStatus())
                 .refreshedAt(market.getRefreshedAt())
                 .build();
@@ -130,6 +132,7 @@ public class StockMarketRepository implements IStockMarketRepository {
                 .volumeRatio(po.getVolumeRatio())
                 .turnoverRate(po.getTurnoverRate())
                 .peDynamic(po.getPeDynamic())
+                .peRatio(po.getPeRatio())
                 .pbRatio(po.getPbRatio())
                 .totalMarketValue(po.getTotalMarketValue())
                 .circulatingMarketValue(po.getCirculatingMarketValue())
@@ -137,6 +140,7 @@ public class StockMarketRepository implements IStockMarketRepository {
                 .fiveMinuteChange(po.getFiveMinuteChange())
                 .sixtyDayChangePercent(po.getSixtyDayChangePercent())
                 .yearToDateChangePercent(po.getYearToDateChangePercent())
+                .listingDate(po.getListingDate())
                 .status(po.getStatus())
                 .refreshedAt(po.getRefreshedAt())
                 .build();

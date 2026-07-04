@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Date;
 
@@ -37,6 +38,7 @@ public class StockMarketPO implements Serializable {
     private BigDecimal volumeRatio;
     private BigDecimal turnoverRate;
     private BigDecimal peDynamic;
+    private BigDecimal peRatio;
     private BigDecimal pbRatio;
     private BigDecimal totalMarketValue;
     private BigDecimal circulatingMarketValue;
@@ -44,6 +46,7 @@ public class StockMarketPO implements Serializable {
     private BigDecimal fiveMinuteChange;
     private BigDecimal sixtyDayChangePercent;
     private BigDecimal yearToDateChangePercent;
+    private LocalDate listingDate;
     private String status;
     private LocalDateTime refreshedAt;
     private Date createTime;

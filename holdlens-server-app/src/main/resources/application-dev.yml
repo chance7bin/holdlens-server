@@ -45,8 +45,10 @@ holdlens:
   agent:
     fund-refresh-url: http://127.0.0.1:8765/tasks/fund-detail-refresh
     a-share-market-refresh-url: http://127.0.0.1:8765/tasks/a-share-market-refresh
+    us-stock-market-refresh-url: http://127.0.0.1:8765/tasks/us-stock-market-refresh
     callback-url: http://127.0.0.1:8091/internal/agent/fund-detail-refresh/callback
     a-share-market-callback-url: http://127.0.0.1:8091/internal/agent/a-share-market-refresh/callback
+    us-stock-market-callback-url: http://127.0.0.1:8091/internal/agent/us-stock-market-refresh/callback
     callback-header-value: internal
     fund-refresh-schedule:
       enabled: true

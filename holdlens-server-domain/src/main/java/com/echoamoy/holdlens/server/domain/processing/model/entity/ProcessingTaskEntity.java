@@ -18,6 +18,7 @@ public class ProcessingTaskEntity {
 
     public static final String FUND_DETAIL_REFRESH = "fund_detail_refresh";
     public static final String A_SHARE_MARKET_REFRESH = "a_share_market_refresh";
+    public static final String US_STOCK_MARKET_REFRESH = "us_stock_market_refresh";
 
     private Long id;
     private String serverTaskId;

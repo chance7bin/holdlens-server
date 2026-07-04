@@ -3,6 +3,8 @@ package com.echoamoy.holdlens.server.trigger.http;
 import com.echoamoy.holdlens.server.api.dto.FundRefreshTaskDTO;
 import com.echoamoy.holdlens.server.api.request.AShareMarketRefreshCallbackRequest;
 import com.echoamoy.holdlens.server.api.request.AShareMarketRefreshCreateRequest;
+import com.echoamoy.holdlens.server.api.request.USStockMarketRefreshCallbackRequest;
+import com.echoamoy.holdlens.server.api.request.USStockMarketRefreshCreateRequest;
 import com.echoamoy.holdlens.server.api.response.Response;
 import com.echoamoy.holdlens.server.cases.agent.IAgentFundRefreshCase;
 import com.echoamoy.holdlens.server.cases.agent.model.AShareMarketRefreshCallbackCommand;
@@ -10,6 +12,8 @@ import com.echoamoy.holdlens.server.cases.agent.model.AShareMarketRefreshCreateC
 import com.echoamoy.holdlens.server.cases.agent.model.AgentFundRefreshCallbackCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
+import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCallbackCommand;
+import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCreateCommand;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingTaskEntity;
 import org.junit.Assert;
 import org.junit.Test;
@@ -74,6 +78,51 @@ public class AgentFundRefreshControllerTest {
         Assert.assertEquals("0002", response.getCode());
     }
 
+    @Test
+    public void createUSStockMarketTaskDelegatesToCase() throws Exception {
+        FakeAgentFundRefreshCase refreshCase = new FakeAgentFundRefreshCase();
+        AgentFundRefreshController controller = newController(refreshCase);
+
+        Response<FundRefreshTaskDTO> response = controller.createUSStockMarketTask(USStockMarketRefreshCreateRequest.builder()
+                .trigger("manual")
+                .build());
+
+        Assert.assertEquals("0000", response.getCode());
+        Assert.assertEquals(ProcessingTaskEntity.US_STOCK_MARKET_REFRESH, response.getData().getTaskType());
+        Assert.assertEquals("manual", refreshCase.lastUSCreateCommand.getTrigger());
+    }
+
+    @Test
+    public void usStockMarketCallbackMapsUSFields() throws Exception {
+        FakeAgentFundRefreshCase refreshCase = new FakeAgentFundRefreshCase();
+        AgentFundRefreshController controller = newController(refreshCase);
+
+        Response<FundRefreshTaskDTO> response = controller.usStockMarketCallback("internal", USStockMarketRefreshCallbackRequest.builder()
+                .schemaVersion("us-stock-market-refresh-result/v1")
+                .serverTaskId("us_stock_market_refresh_1")
+                .idempotencyKey("us_stock_market_refresh_1:result:1")
+                .status("succeeded")
+                .generatedAt("2026-07-04T10:00:00+08:00")
+                .market("US_STOCK")
+                .stocks(List.of(USStockMarketRefreshCallbackRequest.StockMarket.builder()
+                        .stockCode("NVDA")
+                        .stockName("NVIDIA")
+                        .market("US_STOCK")
+                        .providerMarketCode("105")
+                        .latestPrice("172.41")
+                        .peRatio("56.789")
+                        .listingDate("1999-01-22")
+                        .refreshedAt("2026-07-04T10:00:00+08:00")
+                        .build()))
+                .build());
+
+        Assert.assertEquals("0000", response.getCode());
+        Assert.assertEquals("us_stock_market_refresh_1", refreshCase.lastUSCallbackCommand.getServerTaskId());
+        Assert.assertEquals("172.41", refreshCase.lastUSCallbackCommand.getStocks().get(0).getLatestPrice());
+        Assert.assertEquals("56.789", refreshCase.lastUSCallbackCommand.getStocks().get(0).getPeRatio());
+        Assert.assertEquals("1999-01-22", refreshCase.lastUSCallbackCommand.getStocks().get(0).getListingDate());
+    }
+
     private AgentFundRefreshController newController(FakeAgentFundRefreshCase refreshCase) throws Exception {
         AgentFundRefreshController controller = new AgentFundRefreshController();
         setField(controller, "agentFundRefreshCase", refreshCase);
@@ -90,6 +139,8 @@ public class AgentFundRefreshControllerTest {
     private static class FakeAgentFundRefreshCase implements IAgentFundRefreshCase {
         private AShareMarketRefreshCreateCommand lastCreateCommand;
         private AShareMarketRefreshCallbackCommand lastCallbackCommand;
+        private USStockMarketRefreshCreateCommand lastUSCreateCommand;
+        private USStockMarketRefreshCallbackCommand lastUSCallbackCommand;
 
         @Override
         public FundRefreshTaskResult createAndDispatch(FundRefreshCreateCommand command) {
@@ -127,6 +178,26 @@ public class AgentFundRefreshControllerTest {
             return FundRefreshTaskResult.builder()
                     .serverTaskId(command.getServerTaskId())
                     .taskType(ProcessingTaskEntity.A_SHARE_MARKET_REFRESH)
+                    .status(command.getStatus())
+                    .build();
+        }
+
+        @Override
+        public FundRefreshTaskResult createAndDispatchUSStockMarket(USStockMarketRefreshCreateCommand command) {
+            lastUSCreateCommand = command;
+            return FundRefreshTaskResult.builder()
+                    .serverTaskId("us_stock_market_refresh_1")
+                    .taskType(ProcessingTaskEntity.US_STOCK_MARKET_REFRESH)
+                    .status("dispatched")
+                    .build();
+        }
+
+        @Override
+        public FundRefreshTaskResult handleUSStockMarketCallback(USStockMarketRefreshCallbackCommand command) {
+            lastUSCallbackCommand = command;
+            return FundRefreshTaskResult.builder()
+                    .serverTaskId(command.getServerTaskId())
+                    .taskType(ProcessingTaskEntity.US_STOCK_MARKET_REFRESH)
                     .status(command.getStatus())
                     .build();
         }

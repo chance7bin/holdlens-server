@@ -6,6 +6,8 @@ import com.echoamoy.holdlens.server.api.request.AgentFundRefreshCallbackRequest;
 import com.echoamoy.holdlens.server.api.request.AShareMarketRefreshCallbackRequest;
 import com.echoamoy.holdlens.server.api.request.AShareMarketRefreshCreateRequest;
 import com.echoamoy.holdlens.server.api.request.FundRefreshCreateRequest;
+import com.echoamoy.holdlens.server.api.request.USStockMarketRefreshCallbackRequest;
+import com.echoamoy.holdlens.server.api.request.USStockMarketRefreshCreateRequest;
 import com.echoamoy.holdlens.server.api.response.Response;
 import com.echoamoy.holdlens.server.cases.agent.IAgentFundRefreshCase;
 import com.echoamoy.holdlens.server.cases.agent.model.AgentFundRefreshCallbackCommand;
@@ -13,6 +15,8 @@ import com.echoamoy.holdlens.server.cases.agent.model.AShareMarketRefreshCallbac
 import com.echoamoy.holdlens.server.cases.agent.model.AShareMarketRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
+import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCallbackCommand;
+import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCreateCommand;
 import com.echoamoy.holdlens.server.types.enums.ResponseCode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -55,6 +59,12 @@ public class AgentFundRefreshController implements IAgentFundRefreshService {
         return Response.ok(toTaskDTO(agentFundRefreshCase.createAndDispatchAShareMarket(toAShareMarketCreateCommand(request))));
     }
 
+    @PostMapping("/api/agent/us-stock-market-refresh/tasks")
+    @Override
+    public Response<FundRefreshTaskDTO> createUSStockMarketTask(@RequestBody(required = false) USStockMarketRefreshCreateRequest request) {
+        return Response.ok(toTaskDTO(agentFundRefreshCase.createAndDispatchUSStockMarket(toUSStockMarketCreateCommand(request))));
+    }
+
     @PostMapping("/internal/agent/fund-detail-refresh/callback")
     @Override
     public Response<FundRefreshTaskDTO> callback(@RequestHeader(value = "X-HoldLens-Agent-Callback", required = false) String callbackHeader,
@@ -75,6 +85,16 @@ public class AgentFundRefreshController implements IAgentFundRefreshService {
         return Response.ok(toTaskDTO(agentFundRefreshCase.handleAShareMarketCallback(toAShareMarketCallbackCommand(request))));
     }
 
+    @PostMapping("/internal/agent/us-stock-market-refresh/callback")
+    @Override
+    public Response<FundRefreshTaskDTO> usStockMarketCallback(@RequestHeader(value = "X-HoldLens-Agent-Callback", required = false) String callbackHeader,
+                                                              @RequestBody USStockMarketRefreshCallbackRequest request) {
+        if (!callbackHeaderValue.equals(callbackHeader)) {
+            return Response.fail(ResponseCode.ILLEGAL_PARAMETER.getCode(), "未授权 agent 回调");
+        }
+        return Response.ok(toTaskDTO(agentFundRefreshCase.handleUSStockMarketCallback(toUSStockMarketCallbackCommand(request))));
+    }
+
     private FundRefreshCreateCommand toCreateCommand(FundRefreshCreateRequest request) {
         if (request == null) {
             return null;
@@ -89,6 +109,15 @@ public class AgentFundRefreshController implements IAgentFundRefreshService {
             return null;
         }
         return AShareMarketRefreshCreateCommand.builder()
+                .trigger(request.getTrigger())
+                .build();
+    }
+
+    private USStockMarketRefreshCreateCommand toUSStockMarketCreateCommand(USStockMarketRefreshCreateRequest request) {
+        if (request == null) {
+            return null;
+        }
+        return USStockMarketRefreshCreateCommand.builder()
                 .trigger(request.getTrigger())
                 .build();
     }
@@ -223,6 +252,76 @@ public class AgentFundRefreshController implements IAgentFundRefreshService {
         }
         return warnings.stream()
                 .map(warning -> warning == null ? null : AShareMarketRefreshCallbackCommand.RefreshWarning.builder()
+                        .module(warning.getModule())
+                        .event(warning.getEvent())
+                        .message(warning.getMessage())
+                        .severity(warning.getSeverity())
+                        .build())
+                .toList();
+    }
+
+    private USStockMarketRefreshCallbackCommand toUSStockMarketCallbackCommand(USStockMarketRefreshCallbackRequest request) {
+        if (request == null) {
+            return null;
+        }
+        return USStockMarketRefreshCallbackCommand.builder()
+                .schemaVersion(request.getSchemaVersion())
+                .serverTaskId(request.getServerTaskId())
+                .idempotencyKey(request.getIdempotencyKey())
+                .status(request.getStatus())
+                .generatedAt(request.getGeneratedAt())
+                .market(request.getMarket())
+                .stocks(toUSStockMarkets(request.getStocks()))
+                .refreshWarnings(toUSStockMarketWarnings(request.getRefreshWarnings()))
+                .errorSummary(request.getErrorSummary())
+                .build();
+    }
+
+    private List<USStockMarketRefreshCallbackCommand.StockMarket> toUSStockMarkets(List<USStockMarketRefreshCallbackRequest.StockMarket> stocks) {
+        if (stocks == null) {
+            return null;
+        }
+        return stocks.stream()
+                .map(stock -> stock == null ? null : USStockMarketRefreshCallbackCommand.StockMarket.builder()
+                        .stockCode(stock.getStockCode())
+                        .stockName(stock.getStockName())
+                        .market(stock.getMarket())
+                        .status(stock.getStatus())
+                        .exchangeCode(stock.getExchangeCode())
+                        .providerMarketCode(stock.getProviderMarketCode())
+                        .secid(stock.getSecid())
+                        .latestPrice(stock.getLatestPrice())
+                        .changePercent(stock.getChangePercent())
+                        .changeAmount(stock.getChangeAmount())
+                        .volume(stock.getVolume())
+                        .turnoverAmount(stock.getTurnoverAmount())
+                        .amplitude(stock.getAmplitude())
+                        .highPrice(stock.getHighPrice())
+                        .lowPrice(stock.getLowPrice())
+                        .openPrice(stock.getOpenPrice())
+                        .previousClose(stock.getPreviousClose())
+                        .volumeRatio(stock.getVolumeRatio())
+                        .turnoverRate(stock.getTurnoverRate())
+                        .peRatio(stock.getPeRatio())
+                        .pbRatio(stock.getPbRatio())
+                        .totalMarketValue(stock.getTotalMarketValue())
+                        .circulatingMarketValue(stock.getCirculatingMarketValue())
+                        .speed(stock.getSpeed())
+                        .fiveMinuteChange(stock.getFiveMinuteChange())
+                        .sixtyDayChangePercent(stock.getSixtyDayChangePercent())
+                        .yearToDateChangePercent(stock.getYearToDateChangePercent())
+                        .listingDate(stock.getListingDate())
+                        .refreshedAt(stock.getRefreshedAt())
+                        .build())
+                .toList();
+    }
+
+    private List<USStockMarketRefreshCallbackCommand.RefreshWarning> toUSStockMarketWarnings(List<USStockMarketRefreshCallbackRequest.RefreshWarning> warnings) {
+        if (warnings == null) {
+            return null;
+        }
+        return warnings.stream()
+                .map(warning -> warning == null ? null : USStockMarketRefreshCallbackCommand.RefreshWarning.builder()
                         .module(warning.getModule())
                         .event(warning.getEvent())
                         .message(warning.getMessage())
