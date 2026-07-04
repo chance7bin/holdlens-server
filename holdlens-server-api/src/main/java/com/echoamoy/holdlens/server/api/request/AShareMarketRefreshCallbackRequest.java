@@ -59,6 +59,11 @@ public class AShareMarketRefreshCallbackRequest implements Serializable {
 
         private String status;
 
+        private String currency;
+
+        @JsonProperty("volume_unit")
+        private String volumeUnit;
+
         @JsonProperty("exchange_code")
         private String exchangeCode;
 

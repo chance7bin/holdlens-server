@@ -54,6 +54,8 @@ public class AgentFundRefreshControllerTest {
                         .stockName("测试股份")
                         .market("A_SHARE")
                         .status("active")
+                        .currency("CNY")
+                        .volumeUnit("LOT")
                         .latestPrice("10.23")
                         .changePercent("1.25")
                         .volume("1234567")
@@ -66,6 +68,8 @@ public class AgentFundRefreshControllerTest {
         Assert.assertEquals("10.23", refreshCase.lastCallbackCommand.getStocks().get(0).getLatestPrice());
         Assert.assertEquals("1.25", refreshCase.lastCallbackCommand.getStocks().get(0).getChangePercent());
         Assert.assertEquals("1234567", refreshCase.lastCallbackCommand.getStocks().get(0).getVolume());
+        Assert.assertEquals("CNY", refreshCase.lastCallbackCommand.getStocks().get(0).getCurrency());
+        Assert.assertEquals("LOT", refreshCase.lastCallbackCommand.getStocks().get(0).getVolumeUnit());
         Assert.assertEquals("active", refreshCase.lastCallbackCommand.getStocks().get(0).getStatus());
     }
 
@@ -109,6 +113,8 @@ public class AgentFundRefreshControllerTest {
                         .stockName("NVIDIA")
                         .market("US_STOCK")
                         .providerMarketCode("105")
+                        .currency("USD")
+                        .volumeUnit("SHARE")
                         .latestPrice("172.41")
                         .peRatio("56.789")
                         .listingDate("1999-01-22")
@@ -119,6 +125,8 @@ public class AgentFundRefreshControllerTest {
         Assert.assertEquals("0000", response.getCode());
         Assert.assertEquals("us_stock_market_refresh_1", refreshCase.lastUSCallbackCommand.getServerTaskId());
         Assert.assertEquals("172.41", refreshCase.lastUSCallbackCommand.getStocks().get(0).getLatestPrice());
+        Assert.assertEquals("USD", refreshCase.lastUSCallbackCommand.getStocks().get(0).getCurrency());
+        Assert.assertEquals("SHARE", refreshCase.lastUSCallbackCommand.getStocks().get(0).getVolumeUnit());
         Assert.assertEquals("56.789", refreshCase.lastUSCallbackCommand.getStocks().get(0).getPeRatio());
         Assert.assertEquals("1999-01-22", refreshCase.lastUSCallbackCommand.getStocks().get(0).getListingDate());
     }

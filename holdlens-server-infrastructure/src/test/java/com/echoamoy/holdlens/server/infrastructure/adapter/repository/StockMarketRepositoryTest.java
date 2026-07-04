@@ -36,6 +36,8 @@ public class StockMarketRepositoryTest {
         Assert.assertEquals(StockMarketEntity.MARKET_A_SHARE, target.getMarket());
         Assert.assertEquals("测试股份", target.getStockName());
         Assert.assertEquals(StockMarketEntity.STATUS_ACTIVE, target.getStatus());
+        Assert.assertEquals(StockMarketEntity.CURRENCY_CNY, target.getCurrency());
+        Assert.assertEquals(StockMarketEntity.VOLUME_UNIT_LOT, target.getVolumeUnit());
         Assert.assertNull(target.getLatestPrice());
     }
 
@@ -46,11 +48,13 @@ public class StockMarketRepositoryTest {
         setField(repository, "stockMarketDao", stockMarketDao);
 
         repository.upsertMarkets(List.of(StockMarketEntity.builder()
-                .stockCode("600000")
-                .market(StockMarketEntity.MARKET_A_SHARE)
-                .exchangeCode("SH")
-                .providerMarketCode("1")
-                .stockName("测试股份")
+                .stockCode("NVDA")
+                .market(StockMarketEntity.MARKET_US_STOCK)
+                .exchangeCode("NASDAQ")
+                .providerMarketCode("105")
+                .stockName("英伟达")
+                .currency(StockMarketEntity.CURRENCY_USD)
+                .volumeUnit(StockMarketEntity.VOLUME_UNIT_SHARE)
                 .latestPrice(new BigDecimal("10.23"))
                 .changePercent(new BigDecimal("1.25"))
                 .volume(1234567L)
@@ -62,8 +66,10 @@ public class StockMarketRepositoryTest {
 
         Assert.assertEquals(1, stockMarketDao.marketUpserts.size());
         StockMarketPO market = stockMarketDao.marketUpserts.get(0);
-        Assert.assertEquals("SH", market.getExchangeCode());
-        Assert.assertEquals("1", market.getProviderMarketCode());
+        Assert.assertEquals("NASDAQ", market.getExchangeCode());
+        Assert.assertEquals("105", market.getProviderMarketCode());
+        Assert.assertEquals(StockMarketEntity.CURRENCY_USD, market.getCurrency());
+        Assert.assertEquals(StockMarketEntity.VOLUME_UNIT_SHARE, market.getVolumeUnit());
         Assert.assertEquals(new BigDecimal("10.23"), market.getLatestPrice());
         Assert.assertEquals(new BigDecimal("1.25"), market.getChangePercent());
         Assert.assertEquals(Long.valueOf(1234567L), market.getVolume());
@@ -79,6 +85,8 @@ public class StockMarketRepositoryTest {
         stockMarketDao.stockMarkets = List.of(StockMarketPO.builder()
                 .stockCode("600000")
                 .market(StockMarketEntity.MARKET_US_STOCK)
+                .currency(StockMarketEntity.CURRENCY_USD)
+                .volumeUnit(StockMarketEntity.VOLUME_UNIT_SHARE)
                 .changePercent(new BigDecimal("0.10"))
                 .peRatio(new BigDecimal("56.7890"))
                 .listingDate(LocalDate.of(1999, 1, 22))
@@ -90,6 +98,10 @@ public class StockMarketRepositoryTest {
                 repository.queryByStockKeys(List.of("600000#US_STOCK")).get("600000#US_STOCK").getChangePercent());
         Assert.assertEquals(LocalDate.of(1999, 1, 22),
                 repository.queryByStockKeys(List.of("600000#US_STOCK")).get("600000#US_STOCK").getListingDate());
+        Assert.assertEquals(StockMarketEntity.CURRENCY_USD,
+                repository.queryByStockKeys(List.of("600000#US_STOCK")).get("600000#US_STOCK").getCurrency());
+        Assert.assertEquals(StockMarketEntity.VOLUME_UNIT_SHARE,
+                repository.queryByStockKeys(List.of("600000#US_STOCK")).get("600000#US_STOCK").getVolumeUnit());
     }
 
     @Test

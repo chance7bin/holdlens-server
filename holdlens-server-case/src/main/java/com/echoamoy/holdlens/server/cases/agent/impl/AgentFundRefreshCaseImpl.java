@@ -462,6 +462,8 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
                         .stockCode(stockCode)
                         .market(market)
                         .stockName(isBlank(topHolding.getStockName()) ? null : topHolding.getStockName().trim())
+                        .currency(StockMarketEntity.CURRENCY_CNY)
+                        .volumeUnit(StockMarketEntity.VOLUME_UNIT_LOT)
                         .build());
             }
         }
@@ -510,6 +512,8 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
                     .exchangeCode(normalizeNullable(stock.getExchangeCode()))
                     .providerMarketCode(normalizeNullable(stock.getProviderMarketCode()))
                     .stockName(normalizeNullable(stock.getStockName()))
+                    .currency(StockMarketEntity.CURRENCY_CNY)
+                    .volumeUnit(StockMarketEntity.VOLUME_UNIT_LOT)
                     .latestPrice(parseDecimal(stock.getLatestPrice(), command.getServerTaskId(), stock.getStockCode(), "latest_price", diagnostics))
                     .changePercent(parseDecimal(stock.getChangePercent(), command.getServerTaskId(), stock.getStockCode(), "change_percent", diagnostics))
                     .changeAmount(parseDecimal(stock.getChangeAmount(), command.getServerTaskId(), stock.getStockCode(), "change_amount", diagnostics))
@@ -563,6 +567,8 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
                     .exchangeCode(normalizeNullable(stock.getExchangeCode()))
                     .providerMarketCode(normalizeNullable(stock.getProviderMarketCode()))
                     .stockName(normalizeNullable(stock.getStockName()))
+                    .currency(StockMarketEntity.CURRENCY_USD)
+                    .volumeUnit(StockMarketEntity.VOLUME_UNIT_SHARE)
                     .latestPrice(parseDecimal(stock.getLatestPrice(), command.getServerTaskId(), stock.getStockCode(), "latest_price", US_STOCK_MARKET_MODULE, diagnostics))
                     .changePercent(parseDecimal(stock.getChangePercent(), command.getServerTaskId(), stock.getStockCode(), "change_percent", US_STOCK_MARKET_MODULE, diagnostics))
                     .changeAmount(parseDecimal(stock.getChangeAmount(), command.getServerTaskId(), stock.getStockCode(), "change_amount", US_STOCK_MARKET_MODULE, diagnostics))

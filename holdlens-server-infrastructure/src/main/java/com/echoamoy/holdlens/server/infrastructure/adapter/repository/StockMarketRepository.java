@@ -73,6 +73,8 @@ public class StockMarketRepository implements IStockMarketRepository {
                 .exchangeCode(market.getExchangeCode())
                 .providerMarketCode(market.getProviderMarketCode())
                 .stockName(market.getStockName())
+                .currency(currencyOrDefault(market.getCurrency(), market.getMarket()))
+                .volumeUnit(volumeUnitOrDefault(market.getVolumeUnit(), market.getMarket()))
                 .latestPrice(market.getLatestPrice())
                 .changePercent(market.getChangePercent())
                 .changeAmount(market.getChangeAmount())
@@ -107,6 +109,8 @@ public class StockMarketRepository implements IStockMarketRepository {
                 .exchangeCode(quoteTarget.getExchangeCode())
                 .providerMarketCode(quoteTarget.getProviderMarketCode())
                 .stockName(quoteTarget.getStockName())
+                .currency(currencyOrDefault(quoteTarget.getCurrency(), quoteTarget.getMarket()))
+                .volumeUnit(volumeUnitOrDefault(quoteTarget.getVolumeUnit(), quoteTarget.getMarket()))
                 .status(StockMarketEntity.STATUS_ACTIVE)
                 .build();
     }
@@ -119,6 +123,8 @@ public class StockMarketRepository implements IStockMarketRepository {
                 .exchangeCode(po.getExchangeCode())
                 .providerMarketCode(po.getProviderMarketCode())
                 .stockName(po.getStockName())
+                .currency(po.getCurrency())
+                .volumeUnit(po.getVolumeUnit())
                 .latestPrice(po.getLatestPrice())
                 .changePercent(po.getChangePercent())
                 .changeAmount(po.getChangeAmount())
@@ -148,6 +154,26 @@ public class StockMarketRepository implements IStockMarketRepository {
 
     private String stockKey(String stockCode, String market) {
         return stockCode + "#" + (market == null ? "" : market);
+    }
+
+    private String currencyOrDefault(String currency, String market) {
+        if (currency != null && !currency.isBlank()) {
+            return currency;
+        }
+        if (StockMarketEntity.MARKET_US_STOCK.equals(market)) {
+            return StockMarketEntity.CURRENCY_USD;
+        }
+        return StockMarketEntity.CURRENCY_CNY;
+    }
+
+    private String volumeUnitOrDefault(String volumeUnit, String market) {
+        if (volumeUnit != null && !volumeUnit.isBlank()) {
+            return volumeUnit;
+        }
+        if (StockMarketEntity.MARKET_US_STOCK.equals(market)) {
+            return StockMarketEntity.VOLUME_UNIT_SHARE;
+        }
+        return StockMarketEntity.VOLUME_UNIT_LOT;
     }
 
 }

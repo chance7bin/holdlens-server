@@ -192,6 +192,8 @@ public class AgentFundRefreshCaseImplTest {
         StockMarketEntity stock = stockMarketRepository.upsertedMarkets.get(0);
         Assert.assertEquals(StockMarketEntity.MARKET_A_SHARE, stock.getMarket());
         Assert.assertEquals("SH", stock.getExchangeCode());
+        Assert.assertEquals(StockMarketEntity.CURRENCY_CNY, stock.getCurrency());
+        Assert.assertEquals(StockMarketEntity.VOLUME_UNIT_LOT, stock.getVolumeUnit());
         Assert.assertEquals(new BigDecimal("10.23"), stock.getLatestPrice());
         Assert.assertEquals(new BigDecimal("1.25"), stock.getChangePercent());
         Assert.assertEquals(Long.valueOf(1234567L), stock.getVolume());
@@ -313,6 +315,8 @@ public class AgentFundRefreshCaseImplTest {
         StockMarketEntity stock = stockMarketRepository.upsertedMarkets.get(0);
         Assert.assertEquals(StockMarketEntity.MARKET_US_STOCK, stock.getMarket());
         Assert.assertEquals("105", stock.getProviderMarketCode());
+        Assert.assertEquals(StockMarketEntity.CURRENCY_USD, stock.getCurrency());
+        Assert.assertEquals(StockMarketEntity.VOLUME_UNIT_SHARE, stock.getVolumeUnit());
         Assert.assertEquals(new BigDecimal("172.41"), stock.getLatestPrice());
         Assert.assertEquals(new BigDecimal("56.789"), stock.getPeRatio());
         Assert.assertNull(stock.getPeDynamic());

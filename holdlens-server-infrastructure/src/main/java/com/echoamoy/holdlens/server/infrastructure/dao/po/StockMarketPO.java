@@ -25,6 +25,8 @@ public class StockMarketPO implements Serializable {
     private String exchangeCode;
     private String providerMarketCode;
     private String stockName;
+    private String currency;
+    private String volumeUnit;
     private BigDecimal latestPrice;
     private BigDecimal changePercent;
     private BigDecimal changeAmount;

@@ -34,6 +34,8 @@ public class AShareMarketRefreshCallbackCommand {
         private String status;
         private String exchangeCode;
         private String providerMarketCode;
+        private String currency;
+        private String volumeUnit;
         private String latestPrice;
         private String changePercent;
         private String changeAmount;

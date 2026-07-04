@@ -35,6 +35,8 @@ public class USStockMarketRefreshCallbackCommand {
         private String exchangeCode;
         private String providerMarketCode;
         private String secid;
+        private String currency;
+        private String volumeUnit;
         private String latestPrice;
         private String changePercent;
         private String changeAmount;

@@ -67,6 +67,11 @@ public class USStockMarketRefreshCallbackRequest implements Serializable {
 
         private String secid;
 
+        private String currency;
+
+        @JsonProperty("volume_unit")
+        private String volumeUnit;
+
         @JsonProperty("latest_price")
         private String latestPrice;
 

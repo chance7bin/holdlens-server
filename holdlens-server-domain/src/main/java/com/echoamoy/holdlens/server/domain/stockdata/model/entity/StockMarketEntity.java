@@ -17,6 +17,10 @@ public class StockMarketEntity {
 
     public static final String MARKET_A_SHARE = "A_SHARE";
     public static final String MARKET_US_STOCK = "US_STOCK";
+    public static final String CURRENCY_CNY = "CNY";
+    public static final String CURRENCY_USD = "USD";
+    public static final String VOLUME_UNIT_LOT = "LOT";
+    public static final String VOLUME_UNIT_SHARE = "SHARE";
     public static final String STATUS_ACTIVE = "active";
     public static final String STATUS_MISSING_FROM_REFRESH = "missing_from_refresh";
 
@@ -26,6 +30,8 @@ public class StockMarketEntity {
     private String exchangeCode;
     private String providerMarketCode;
     private String stockName;
+    private String currency;
+    private String volumeUnit;
     private BigDecimal latestPrice;
     private BigDecimal changePercent;
     private BigDecimal changeAmount;

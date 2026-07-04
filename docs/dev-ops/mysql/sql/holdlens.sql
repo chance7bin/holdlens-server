@@ -198,6 +198,8 @@ CREATE TABLE `stock_market` (
     `exchange_code` VARCHAR(20) DEFAULT NULL COMMENT '交易所归属代码：SH/SZ/BJ 等',
     `provider_market_code` VARCHAR(20) DEFAULT NULL COMMENT '数据源市场编码',
     `stock_name` VARCHAR(100) DEFAULT NULL COMMENT '股票简称',
+    `currency` VARCHAR(3) NOT NULL DEFAULT 'CNY' COMMENT '价格、成交额和市值币种：CNY/USD',
+    `volume_unit` VARCHAR(20) NOT NULL DEFAULT 'LOT' COMMENT '成交量单位：LOT/SHARE',
     `latest_price` DECIMAL(20, 4) DEFAULT NULL COMMENT '最新价',
     `change_percent` DECIMAL(12, 4) DEFAULT NULL COMMENT '涨跌幅，单位为百分点',
     `change_amount` DECIMAL(20, 4) DEFAULT NULL COMMENT '涨跌额',

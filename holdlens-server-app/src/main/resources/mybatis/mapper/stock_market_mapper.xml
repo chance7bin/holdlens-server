@@ -9,6 +9,8 @@
         <result column="exchange_code" property="exchangeCode"/>
         <result column="provider_market_code" property="providerMarketCode"/>
         <result column="stock_name" property="stockName"/>
+        <result column="currency" property="currency"/>
+        <result column="volume_unit" property="volumeUnit"/>
         <result column="latest_price" property="latestPrice"/>
         <result column="change_percent" property="changePercent"/>
         <result column="change_amount" property="changeAmount"/>
@@ -38,7 +40,7 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, stock_code, market, exchange_code, provider_market_code, stock_name,
+        id, stock_code, market, exchange_code, provider_market_code, stock_name, currency, volume_unit,
         latest_price, change_percent, change_amount, volume, turnover_amount,
         amplitude, high_price, low_price, open_price, previous_close, volume_ratio,
         turnover_rate, pe_dynamic, pe_ratio, pb_ratio, total_market_value, circulating_market_value,
@@ -48,14 +50,14 @@
 
     <insert id="upsert" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.StockMarketPO" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO stock_market (
-            stock_code, market, exchange_code, provider_market_code, stock_name,
+            stock_code, market, exchange_code, provider_market_code, stock_name, currency, volume_unit,
             latest_price, change_percent, change_amount, volume, turnover_amount,
             amplitude, high_price, low_price, open_price, previous_close, volume_ratio,
             turnover_rate, pe_dynamic, pe_ratio, pb_ratio, total_market_value, circulating_market_value,
             speed, five_minute_change, sixty_day_change_percent, year_to_date_change_percent,
             listing_date, status, refreshed_at
         ) VALUES (
-            #{stockCode}, #{market}, #{exchangeCode}, #{providerMarketCode}, #{stockName},
+            #{stockCode}, #{market}, #{exchangeCode}, #{providerMarketCode}, #{stockName}, #{currency}, #{volumeUnit},
             #{latestPrice}, #{changePercent}, #{changeAmount}, #{volume}, #{turnoverAmount},
             #{amplitude}, #{highPrice}, #{lowPrice}, #{openPrice}, #{previousClose}, #{volumeRatio},
             #{turnoverRate}, #{peDynamic}, #{peRatio}, #{pbRatio}, #{totalMarketValue}, #{circulatingMarketValue},
@@ -67,6 +69,8 @@
             exchange_code = #{exchangeCode},
             provider_market_code = #{providerMarketCode},
             stock_name = #{stockName},
+            currency = #{currency},
+            volume_unit = #{volumeUnit},
             latest_price = #{latestPrice},
             change_percent = #{changePercent},
             change_amount = #{changeAmount},
@@ -96,15 +100,17 @@
 
     <insert id="upsertTarget" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.StockMarketPO" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO stock_market (
-            stock_code, market, exchange_code, provider_market_code, stock_name, status
+            stock_code, market, exchange_code, provider_market_code, stock_name, currency, volume_unit, status
         ) VALUES (
-            #{stockCode}, #{market}, #{exchangeCode}, #{providerMarketCode}, #{stockName}, #{status}
+            #{stockCode}, #{market}, #{exchangeCode}, #{providerMarketCode}, #{stockName}, #{currency}, #{volumeUnit}, #{status}
         )
         ON DUPLICATE KEY UPDATE
             id = LAST_INSERT_ID(id),
             stock_name = COALESCE(stock_name, VALUES(stock_name)),
             exchange_code = COALESCE(exchange_code, VALUES(exchange_code)),
-            provider_market_code = COALESCE(provider_market_code, VALUES(provider_market_code))
+            provider_market_code = COALESCE(provider_market_code, VALUES(provider_market_code)),
+            currency = COALESCE(VALUES(currency), currency),
+            volume_unit = COALESCE(VALUES(volume_unit), volume_unit)
     </insert>
 
     <select id="selectByStockKeys" resultMap="BaseResultMap">
