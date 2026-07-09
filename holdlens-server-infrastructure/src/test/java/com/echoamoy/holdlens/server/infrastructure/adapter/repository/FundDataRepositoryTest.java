@@ -2,10 +2,10 @@ package com.echoamoy.holdlens.server.infrastructure.adapter.repository;
 
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
 import com.echoamoy.holdlens.server.domain.funddata.model.entity.FundRefreshTargetEntity;
-import com.echoamoy.holdlens.server.infrastructure.dao.IFundDetailItemDao;
+import com.echoamoy.holdlens.server.infrastructure.dao.IFundDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IFundTopHoldingDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IProcessingLogDao;
-import com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailItemPO;
+import com.echoamoy.holdlens.server.infrastructure.dao.po.FundPO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.FundTopHoldingPO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.ProcessingLogPO;
 import org.junit.Assert;
@@ -21,10 +21,10 @@ public class FundDataRepositoryTest {
     @Test
     public void saveCurrentDataUpsertsFundAndReplacesTopHoldingsAndLogsWarnings() throws Exception {
         FundDataRepository repository = new FundDataRepository();
-        FakeFundDetailItemDao fundDetailItemDao = new FakeFundDetailItemDao();
+        FakeFundDao fundDao = new FakeFundDao();
         FakeFundTopHoldingDao fundTopHoldingDao = new FakeFundTopHoldingDao();
         FakeProcessingLogDao processingLogDao = new FakeProcessingLogDao();
-        setField(repository, "fundDetailItemDao", fundDetailItemDao);
+        setField(repository, "fundDao", fundDao);
         setField(repository, "fundTopHoldingDao", fundTopHoldingDao);
         setField(repository, "processingLogDao", processingLogDao);
 
@@ -52,7 +52,7 @@ public class FundDataRepositoryTest {
                         .build()))
                 .build());
 
-        Assert.assertEquals("000001", fundDetailItemDao.upserted.getFundCode());
+        Assert.assertEquals("000001", fundDao.upserted.getFundCode());
         Assert.assertEquals("000001", fundTopHoldingDao.deletedFundCode);
         Assert.assertEquals("000001", fundTopHoldingDao.inserted.getFundCode());
         Assert.assertEquals("600000", fundTopHoldingDao.inserted.getStockCode());
@@ -66,41 +66,41 @@ public class FundDataRepositoryTest {
     @Test
     public void queryRefreshTargetsAfterIdMapsFundTargets() throws Exception {
         FundDataRepository repository = new FundDataRepository();
-        FakeFundDetailItemDao fundDetailItemDao = new FakeFundDetailItemDao();
-        fundDetailItemDao.refreshTargets = List.of(
-                FundDetailItemPO.builder().id(10L).fundCode("000001").build(),
-                FundDetailItemPO.builder().id(11L).fundCode("161725").build());
-        setField(repository, "fundDetailItemDao", fundDetailItemDao);
+        FakeFundDao fundDao = new FakeFundDao();
+        fundDao.refreshTargets = List.of(
+                FundPO.builder().id(10L).fundCode("000001").build(),
+                FundPO.builder().id(11L).fundCode("161725").build());
+        setField(repository, "fundDao", fundDao);
 
         Assert.assertEquals(2, repository.queryRefreshTargetsAfterId(9L, 20).size());
         Assert.assertEquals("000001", repository.queryRefreshTargetsAfterId(9L, 20).get(0).getFundCode());
-        Assert.assertEquals(Long.valueOf(9L), fundDetailItemDao.lastId);
-        Assert.assertEquals(20, fundDetailItemDao.limit);
+        Assert.assertEquals(Long.valueOf(9L), fundDao.lastId);
+        Assert.assertEquals(20, fundDao.limit);
     }
 
     @Test
     public void registerRefreshTargetsUsesTargetUpsertWithoutCodeNameFallback() throws Exception {
         FundDataRepository repository = new FundDataRepository();
-        FakeFundDetailItemDao fundDetailItemDao = new FakeFundDetailItemDao();
-        setField(repository, "fundDetailItemDao", fundDetailItemDao);
+        FakeFundDao fundDao = new FakeFundDao();
+        setField(repository, "fundDao", fundDao);
 
         repository.registerRefreshTargets(List.of(FundRefreshTargetEntity.builder()
                 .fundCode("000001")
                 .fundName(null)
                 .build()));
 
-        Assert.assertEquals("000001", fundDetailItemDao.targetUpserted.getFundCode());
-        Assert.assertNull(fundDetailItemDao.targetUpserted.getFundName());
+        Assert.assertEquals("000001", fundDao.targetUpserted.getFundCode());
+        Assert.assertNull(fundDao.targetUpserted.getFundName());
     }
 
     @Test
     public void queryExistingFundCodesReturnsOnlyExistingCodes() throws Exception {
         FundDataRepository repository = new FundDataRepository();
-        FakeFundDetailItemDao fundDetailItemDao = new FakeFundDetailItemDao();
-        fundDetailItemDao.fundItems = List.of(
-                FundDetailItemPO.builder().fundCode("000001").build(),
-                FundDetailItemPO.builder().fundCode("161725").build());
-        setField(repository, "fundDetailItemDao", fundDetailItemDao);
+        FakeFundDao fundDao = new FakeFundDao();
+        fundDao.fundItems = List.of(
+                FundPO.builder().fundCode("000001").build(),
+                FundPO.builder().fundCode("161725").build());
+        setField(repository, "fundDao", fundDao);
 
         Assert.assertTrue(repository.queryExistingFundCodes(List.of("000001", "999999")).contains("000001"));
         Assert.assertFalse(repository.queryExistingFundCodes(List.of("000001", "999999")).contains("999999"));
@@ -112,36 +112,36 @@ public class FundDataRepositoryTest {
         field.set(target, value);
     }
 
-    private static class FakeFundDetailItemDao implements IFundDetailItemDao {
-        private FundDetailItemPO upserted;
-        private FundDetailItemPO targetUpserted;
+    private static class FakeFundDao implements IFundDao {
+        private FundPO upserted;
+        private FundPO targetUpserted;
         private Long lastId;
         private int limit;
-        private List<FundDetailItemPO> refreshTargets = List.of();
-        private List<FundDetailItemPO> fundItems = List.of();
+        private List<FundPO> refreshTargets = List.of();
+        private List<FundPO> fundItems = List.of();
 
         @Override
-        public void upsert(FundDetailItemPO fundDetailItemPO) {
-            upserted = fundDetailItemPO;
+        public void upsert(FundPO fundPO) {
+            upserted = fundPO;
         }
 
         @Override
-        public void upsertTarget(FundDetailItemPO fundDetailItemPO) {
-            targetUpserted = fundDetailItemPO;
+        public void upsertTarget(FundPO fundPO) {
+            targetUpserted = fundPO;
         }
 
         @Override
-        public FundDetailItemPO selectById(Long id) {
+        public FundPO selectById(Long id) {
             return null;
         }
 
         @Override
-        public List<FundDetailItemPO> selectByFundCodes(Collection<String> fundCodes) {
+        public List<FundPO> selectByFundCodes(Collection<String> fundCodes) {
             return fundItems;
         }
 
         @Override
-        public List<FundDetailItemPO> selectRefreshTargetsAfterId(Long lastId, int limit) {
+        public List<FundPO> selectRefreshTargetsAfterId(Long lastId, int limit) {
             this.lastId = lastId;
             this.limit = limit;
             return refreshTargets;

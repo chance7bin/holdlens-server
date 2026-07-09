@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.echoamoy.holdlens.server.infrastructure.dao.IFundDetailItemDao">
+<mapper namespace="com.echoamoy.holdlens.server.infrastructure.dao.IFundDao">
 
-    <resultMap id="BaseResultMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailItemPO">
+    <resultMap id="BaseResultMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.FundPO">
         <id column="id" property="id"/>
-        <result column="fund_asset_id" property="fundAssetId"/>
         <result column="fund_code" property="fundCode"/>
         <result column="fund_name" property="fundName"/>
         <result column="buy_status" property="buyStatus"/>
@@ -22,27 +21,26 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, fund_asset_id, fund_code, fund_name, buy_status,
+        id, fund_code, fund_name, buy_status,
         daily_purchase_limit, returns_as_of, top_holdings_as_of, public_holdings_status,
         one_month_return, three_months_return, six_months_return, one_year_return,
         three_years_return, create_time, update_time
     </sql>
 
-    <insert id="upsert" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailItemPO" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO fund_detail_item (
-            fund_asset_id, fund_code, fund_name, buy_status,
+    <insert id="upsert" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO fund (
+            fund_code, fund_name, buy_status,
             daily_purchase_limit, returns_as_of, top_holdings_as_of, public_holdings_status,
             one_month_return, three_months_return, six_months_return, one_year_return,
             three_years_return
         ) VALUES (
-            #{fundAssetId}, #{fundCode}, #{fundName}, #{buyStatus},
+            #{fundCode}, #{fundName}, #{buyStatus},
             #{dailyPurchaseLimit}, #{returnsAsOf}, #{topHoldingsAsOf}, #{publicHoldingsStatus},
             #{oneMonthReturn}, #{threeMonthsReturn}, #{sixMonthsReturn}, #{oneYearReturn},
             #{threeYearsReturn}
         )
         ON DUPLICATE KEY UPDATE
             id = LAST_INSERT_ID(id),
-            fund_asset_id = VALUES(fund_asset_id),
             fund_name = COALESCE(VALUES(fund_name), fund_name),
             buy_status = VALUES(buy_status),
             daily_purchase_limit = VALUES(daily_purchase_limit),
@@ -57,8 +55,8 @@
             update_time = CURRENT_TIMESTAMP
     </insert>
 
-    <insert id="upsertTarget" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailItemPO" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO fund_detail_item (
+    <insert id="upsertTarget" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO fund (
             fund_code, fund_name
         ) VALUES (
             #{fundCode}, #{fundName}
@@ -70,13 +68,13 @@
 
     <select id="selectById" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
-        FROM fund_detail_item
+        FROM fund
         WHERE id = #{id}
     </select>
 
     <select id="selectByFundCodes" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
-        FROM fund_detail_item
+        FROM fund
         WHERE fund_code IN
         <foreach collection="fundCodes" item="fundCode" open="(" separator="," close=")">
             #{fundCode}
@@ -86,7 +84,7 @@
 
     <select id="selectRefreshTargetsAfterId" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
-        FROM fund_detail_item
+        FROM fund
         WHERE id &gt; #{lastId}
           AND fund_code IS NOT NULL
           AND fund_code != ''

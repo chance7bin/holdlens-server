@@ -6,20 +6,20 @@
 
 加入自选的输入只有资产代码、资产大类和可选市场，不包含账户、金额、币种、持仓来源或变更原因，因此不能形成可审计的当前持仓事实。
 
-公开基金详情和股票行情由 `fund_detail_item`、`stock_market_current` 及对应刷新任务维护。用户自选能力不负责发现新基金/股票，不负责注册公开数据刷新目标，也不负责触发刷新任务。
+公开基金信息和股票行情由 `fund`、`stock_market` 及对应刷新任务维护。用户自选能力不负责发现新基金/股票，不负责注册公开数据刷新目标，也不负责触发刷新任务。
 
 ## 2. 决策
 
 用户可以通过 `POST /api/watchlist/assets/batch-add` 将基金或股票批量加入自选。
 
-批量加入自选时只写入或保持 `asset_info`，表达用户维度的自选资产关系。该流程不写入 `fund_detail_item`，不写入 `stock_market_current`，也不创建或触发基金详情刷新、股票行情刷新任务。
+批量加入自选时只写入或保持 `asset_info`，表达用户维度的自选资产关系。该流程不写入 `fund`，不写入 `stock_market`，也不创建或触发基金详情刷新、股票行情刷新任务。
 
 加入自选前必须校验目标公开资产已经存在：
 
-- 基金：`fund_detail_item` 中必须已存在对应 `fund_code`。
-- 股票：`stock_market_current` 中必须已存在对应 `stock_code + market` 组合。
+- 基金：`fund` 中必须已存在对应 `fund_code`。
+- 股票：`stock_market` 中必须已存在对应 `stock_code + market` 组合。
 
-股票 `market` 暂时允许为空。为空时只匹配 `stock_market_current` 中同样为空 market 的股票记录；存在同代码非空 market 记录并不代表空 market 导入项有效。
+股票 `market` 暂时允许为空。为空时只匹配 `stock_market` 中同样为空 market 的股票记录；存在同代码非空 market 记录并不代表空 market 导入项有效。
 
 本次决策不调整 `asset_info` 表结构。`asset_info` 继续沿用现有 `asset_code`、`asset_name`、`asset_kind`、`asset_type` 和 `market` 等字段；唯一身份继续使用当前表结构支持的 `user_id + asset_code + asset_kind`。后续如果要把 `asset_info` 改成引用统一资产目录、公开数据表，或让 `market` 参与自选唯一身份，应通过单独 ADR/OpenSpec change 处理。
 
@@ -45,7 +45,7 @@
 
 - 新接口语义应统一为批量加入自选，路径为 `POST /api/watchlist/assets/batch-add`。
 - 相关命名应避免持仓导入或公开数据导入暗示，统一使用 `WatchlistAsset` 和 `BatchAdd` 语义。
-- Case 层需要在写入 `asset_info` 前查询 `fund_detail_item` 或 `stock_market_current`，不存在的输入项进入 `invalidItems`。
+- Case 层需要在写入 `asset_info` 前查询 `fund` 或 `stock_market`，不存在的输入项进入 `invalidItems`。
 - 批量加入自选不注册基金/股票刷新目标，不触发刷新任务，也不把刷新失败作为响应或日志语义。
 - `asset_info` 的用户隔离和现有唯一身份必须保留。
-- 股票市场为空时可以加入自选，但只匹配 `stock_market_current` 中空 market 的既有记录；该记录后续能否刷新行情仍由独立刷新能力决定。
+- 股票市场为空时可以加入自选，但只匹配 `stock_market` 中空 market 的既有记录；该记录后续能否刷新行情仍由独立刷新能力决定。

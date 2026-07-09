@@ -3,10 +3,10 @@ package com.echoamoy.holdlens.server.infrastructure.adapter.repository;
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
 import com.echoamoy.holdlens.server.domain.funddata.model.entity.FundRefreshTargetEntity;
-import com.echoamoy.holdlens.server.infrastructure.dao.IFundDetailItemDao;
+import com.echoamoy.holdlens.server.infrastructure.dao.IFundDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IFundTopHoldingDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IProcessingLogDao;
-import com.echoamoy.holdlens.server.infrastructure.dao.po.FundDetailItemPO;
+import com.echoamoy.holdlens.server.infrastructure.dao.po.FundPO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.FundTopHoldingPO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.ProcessingLogPO;
 import org.springframework.stereotype.Repository;
@@ -29,7 +29,7 @@ public class FundDataRepository implements IFundDataRepository {
     private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
 
     @Resource
-    private IFundDetailItemDao fundDetailItemDao;
+    private IFundDao fundDao;
 
     @Resource
     private IFundTopHoldingDao fundTopHoldingDao;
@@ -42,7 +42,7 @@ public class FundDataRepository implements IFundDataRepository {
     public void saveCurrentData(FundCurrentDataAggregate aggregate) {
         if (aggregate.getFunds() != null) {
             for (FundCurrentDataAggregate.FundDetail fund : aggregate.getFunds()) {
-                fundDetailItemDao.upsert(toItemPO(fund));
+                fundDao.upsert(toFundPO(fund));
                 // 当前重仓以基金代码为边界整体替换，避免最新结果减少 rank 时旧 rank 残留。
                 fundTopHoldingDao.deleteByFundCode(fund.getFundCode());
                 if (fund.getTopHoldings() != null) {
@@ -64,11 +64,11 @@ public class FundDataRepository implements IFundDataRepository {
         if (fundCodes == null || fundCodes.isEmpty()) {
             return Map.of();
         }
-        List<FundDetailItemPO> itemPOList = fundDetailItemDao.selectByFundCodes(fundCodes);
+        List<FundPO> fundPOList = fundDao.selectByFundCodes(fundCodes);
         Map<String, List<FundTopHoldingPO>> topHoldingsByFundCode = groupTopHoldings(fundCodes);
         Map<String, FundCurrentDataAggregate.FundDetail> result = new LinkedHashMap<>();
-        for (FundDetailItemPO itemPO : itemPOList) {
-            result.put(itemPO.getFundCode(), toFundDetail(itemPO, topHoldingsByFundCode.getOrDefault(itemPO.getFundCode(), List.of())));
+        for (FundPO fundPO : fundPOList) {
+            result.put(fundPO.getFundCode(), toFundDetail(fundPO, topHoldingsByFundCode.getOrDefault(fundPO.getFundCode(), List.of())));
         }
         return result;
     }
@@ -79,8 +79,8 @@ public class FundDataRepository implements IFundDataRepository {
             return Set.of();
         }
         Set<String> result = new LinkedHashSet<>();
-        for (FundDetailItemPO itemPO : fundDetailItemDao.selectByFundCodes(fundCodes)) {
-            result.add(itemPO.getFundCode());
+        for (FundPO fundPO : fundDao.selectByFundCodes(fundCodes)) {
+            result.add(fundPO.getFundCode());
         }
         return result;
     }
@@ -94,7 +94,7 @@ public class FundDataRepository implements IFundDataRepository {
             if (refreshTarget == null) {
                 continue;
             }
-            fundDetailItemDao.upsertTarget(FundDetailItemPO.builder()
+            fundDao.upsertTarget(FundPO.builder()
                     .fundCode(refreshTarget.getFundCode())
                     .fundName(refreshTarget.getFundName())
                     .build());
@@ -106,7 +106,7 @@ public class FundDataRepository implements IFundDataRepository {
         if (limit <= 0) {
             return List.of();
         }
-        return fundDetailItemDao.selectRefreshTargetsAfterId(lastId == null ? 0L : lastId, limit).stream()
+        return fundDao.selectRefreshTargetsAfterId(lastId == null ? 0L : lastId, limit).stream()
                 .map(po -> FundRefreshTargetEntity.builder()
                         .id(po.getId())
                         .fundCode(po.getFundCode())
@@ -124,9 +124,8 @@ public class FundDataRepository implements IFundDataRepository {
         return result;
     }
 
-    private FundDetailItemPO toItemPO(FundCurrentDataAggregate.FundDetail fund) {
-        return FundDetailItemPO.builder()
-                .fundAssetId(null)
+    private FundPO toFundPO(FundCurrentDataAggregate.FundDetail fund) {
+        return FundPO.builder()
                 .fundCode(fund.getFundCode())
                 .fundName(fund.getFundName())
                 .buyStatus(fund.getBuyStatus())
@@ -165,23 +164,23 @@ public class FundDataRepository implements IFundDataRepository {
                 .build();
     }
 
-    private FundCurrentDataAggregate.FundDetail toFundDetail(FundDetailItemPO itemPO,
+    private FundCurrentDataAggregate.FundDetail toFundDetail(FundPO fundPO,
                                                             List<FundTopHoldingPO> topHoldingPOList) {
         return FundCurrentDataAggregate.FundDetail.builder()
-                .id(itemPO.getId())
-                .fundCode(itemPO.getFundCode())
-                .fundName(itemPO.getFundName())
-                .buyStatus(itemPO.getBuyStatus())
-                .dailyPurchaseLimit(itemPO.getDailyPurchaseLimit())
-                .returnsAsOf(itemPO.getReturnsAsOf())
-                .topHoldingsAsOf(itemPO.getTopHoldingsAsOf())
-                .publicHoldingsStatus(itemPO.getPublicHoldingsStatus())
-                .oneMonthReturn(itemPO.getOneMonthReturn())
-                .threeMonthsReturn(itemPO.getThreeMonthsReturn())
-                .sixMonthsReturn(itemPO.getSixMonthsReturn())
-                .oneYearReturn(itemPO.getOneYearReturn())
-                .threeYearsReturn(itemPO.getThreeYearsReturn())
-                .updateTime(toBeijingLocalDateTime(itemPO.getUpdateTime()))
+                .id(fundPO.getId())
+                .fundCode(fundPO.getFundCode())
+                .fundName(fundPO.getFundName())
+                .buyStatus(fundPO.getBuyStatus())
+                .dailyPurchaseLimit(fundPO.getDailyPurchaseLimit())
+                .returnsAsOf(fundPO.getReturnsAsOf())
+                .topHoldingsAsOf(fundPO.getTopHoldingsAsOf())
+                .publicHoldingsStatus(fundPO.getPublicHoldingsStatus())
+                .oneMonthReturn(fundPO.getOneMonthReturn())
+                .threeMonthsReturn(fundPO.getThreeMonthsReturn())
+                .sixMonthsReturn(fundPO.getSixMonthsReturn())
+                .oneYearReturn(fundPO.getOneYearReturn())
+                .threeYearsReturn(fundPO.getThreeYearsReturn())
+                .updateTime(toBeijingLocalDateTime(fundPO.getUpdateTime()))
                 .topHoldings(topHoldingPOList.stream().map(this::toTopHolding).toList())
                 .build();
     }

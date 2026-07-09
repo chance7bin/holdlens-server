@@ -13,15 +13,12 @@ import java.util.Date;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FundDetailItemPO implements Serializable {
+public class FundPO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /** 基金详情ID */
+    /** 基金ID */
     private Long id;
-
-    /** 基金资产ID */
-    private Long fundAssetId;
 
     /** 基金代码 */
     private String fundCode;

@@ -141,12 +141,11 @@ CREATE TABLE `processing_callback` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='处理回调幂等记录表';
 
 -- ----------------------------
--- 基金当前详情表
+-- 基金表
 -- ----------------------------
-DROP TABLE IF EXISTS `fund_detail_item`;
-CREATE TABLE `fund_detail_item` (
-    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '基金详情ID',
-    `fund_asset_id` BIGINT DEFAULT NULL COMMENT '基金资产ID',
+DROP TABLE IF EXISTS `fund`;
+CREATE TABLE `fund` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '基金ID',
     `fund_code` VARCHAR(50) NOT NULL COMMENT '基金代码',
     `fund_name` VARCHAR(200) NOT NULL COMMENT '基金名称',
     `buy_status` VARCHAR(30) NOT NULL DEFAULT 'unknown' COMMENT '申购状态：open/closed/limited/suspended/unknown',
@@ -162,8 +161,8 @@ CREATE TABLE `fund_detail_item` (
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_fund_detail_item_fund_code` (`fund_code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='基金当前详情表';
+    UNIQUE KEY `uk_fund_fund_code` (`fund_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='基金表';
 
 -- ----------------------------
 -- 基金当前前十大重仓表
