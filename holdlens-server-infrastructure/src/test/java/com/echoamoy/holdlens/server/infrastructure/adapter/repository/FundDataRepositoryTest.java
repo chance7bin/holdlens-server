@@ -13,17 +13,31 @@ import org.junit.Test;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
 public class FundDataRepositoryTest {
 
     @Test
-    public void saveCurrentDataUpsertsFundAndReplacesTopHoldingsAndLogsWarnings() throws Exception {
+    public void saveCurrentDataUpdatesExistingRankInsertsNewRankAndDeletesStaleRank() throws Exception {
         FundDataRepository repository = new FundDataRepository();
         FakeFundDao fundDao = new FakeFundDao();
         FakeFundTopHoldingDao fundTopHoldingDao = new FakeFundTopHoldingDao();
         FakeProcessingLogDao processingLogDao = new FakeProcessingLogDao();
+        fundTopHoldingDao.existing = List.of(
+                FundTopHoldingPO.builder()
+                        .id(101L)
+                        .fundCode("000001")
+                        .rankNo(1)
+                        .stockCode("600001")
+                        .build(),
+                FundTopHoldingPO.builder()
+                        .id(102L)
+                        .fundCode("000001")
+                        .rankNo(2)
+                        .stockCode("600002")
+                        .build());
         setField(repository, "fundDao", fundDao);
         setField(repository, "fundTopHoldingDao", fundTopHoldingDao);
         setField(repository, "processingLogDao", processingLogDao);
@@ -38,11 +52,17 @@ public class FundDataRepositoryTest {
                 .funds(List.of(FundCurrentDataAggregate.FundDetail.builder()
                         .fundCode("000001")
                         .fundName("测试基金")
-                        .topHoldings(List.of(FundCurrentDataAggregate.TopHolding.builder()
-                                .rankNo(1)
-                                .stockCode("600000")
-                                .market("1")
-                                .build()))
+                        .topHoldings(List.of(
+                                FundCurrentDataAggregate.TopHolding.builder()
+                                        .rankNo(1)
+                                        .stockCode("600000")
+                                        .market("1")
+                                        .build(),
+                                FundCurrentDataAggregate.TopHolding.builder()
+                                        .rankNo(3)
+                                        .stockCode("600003")
+                                        .market("1")
+                                        .build()))
                         .build()))
                 .warnings(List.of(FundCurrentDataAggregate.RefreshWarning.builder()
                         .module("fund_refresh")
@@ -53,14 +73,85 @@ public class FundDataRepositoryTest {
                 .build());
 
         Assert.assertEquals("000001", fundDao.upserted.getFundCode());
-        Assert.assertEquals("000001", fundTopHoldingDao.deletedFundCode);
-        Assert.assertEquals("000001", fundTopHoldingDao.inserted.getFundCode());
-        Assert.assertEquals("600000", fundTopHoldingDao.inserted.getStockCode());
+        Assert.assertEquals(1, fundTopHoldingDao.updated.size());
+        Assert.assertEquals(Long.valueOf(101L), fundTopHoldingDao.updated.get(0).getId());
+        Assert.assertEquals(Integer.valueOf(1), fundTopHoldingDao.updated.get(0).getRankNo());
+        Assert.assertEquals("600000", fundTopHoldingDao.updated.get(0).getStockCode());
+        Assert.assertEquals(1, fundTopHoldingDao.inserted.size());
+        Assert.assertEquals(Integer.valueOf(3), fundTopHoldingDao.inserted.get(0).getRankNo());
+        Assert.assertEquals("600003", fundTopHoldingDao.inserted.get(0).getStockCode());
+        Assert.assertEquals(List.of(102L), fundTopHoldingDao.deletedIds);
+        Assert.assertNull(fundTopHoldingDao.deletedFundCode);
         Assert.assertEquals("task_1", processingLogDao.inserted.getSourceRefId());
         Assert.assertEquals("fund_refresh", processingLogDao.inserted.getModule());
         Assert.assertEquals("provider_fund_failed", processingLogDao.inserted.getEvent());
         Assert.assertEquals("provider failed for one fund", processingLogDao.inserted.getMessage());
         Assert.assertEquals("error", processingLogDao.inserted.getSeverity());
+    }
+
+    @Test
+    public void saveCurrentDataDeletesAllExistingTopHoldingsWhenIncomingListIsEmpty() throws Exception {
+        FundDataRepository repository = new FundDataRepository();
+        FakeFundDao fundDao = new FakeFundDao();
+        FakeFundTopHoldingDao fundTopHoldingDao = new FakeFundTopHoldingDao();
+        fundTopHoldingDao.existing = List.of(FundTopHoldingPO.builder()
+                .id(101L)
+                .fundCode("000001")
+                .rankNo(1)
+                .build());
+        setField(repository, "fundDao", fundDao);
+        setField(repository, "fundTopHoldingDao", fundTopHoldingDao);
+        setField(repository, "processingLogDao", new FakeProcessingLogDao());
+
+        repository.saveCurrentData(FundCurrentDataAggregate.builder()
+                .funds(List.of(FundCurrentDataAggregate.FundDetail.builder()
+                        .fundCode("000001")
+                        .topHoldings(List.of())
+                        .build()))
+                .build());
+
+        Assert.assertEquals("000001", fundTopHoldingDao.deletedFundCode);
+        Assert.assertTrue(fundTopHoldingDao.updated.isEmpty());
+        Assert.assertTrue(fundTopHoldingDao.inserted.isEmpty());
+        Assert.assertTrue(fundTopHoldingDao.deletedIds.isEmpty());
+    }
+
+    @Test
+    public void saveCurrentDataUsesLastDuplicateRankOnlyOnce() throws Exception {
+        FundDataRepository repository = new FundDataRepository();
+        FakeFundDao fundDao = new FakeFundDao();
+        FakeFundTopHoldingDao fundTopHoldingDao = new FakeFundTopHoldingDao();
+        fundTopHoldingDao.existing = List.of(FundTopHoldingPO.builder()
+                .id(101L)
+                .fundCode("000001")
+                .rankNo(1)
+                .stockCode("old")
+                .build());
+        setField(repository, "fundDao", fundDao);
+        setField(repository, "fundTopHoldingDao", fundTopHoldingDao);
+        setField(repository, "processingLogDao", new FakeProcessingLogDao());
+
+        repository.saveCurrentData(FundCurrentDataAggregate.builder()
+                .funds(List.of(FundCurrentDataAggregate.FundDetail.builder()
+                        .fundCode("000001")
+                        .topHoldings(List.of(
+                                FundCurrentDataAggregate.TopHolding.builder()
+                                        .rankNo(1)
+                                        .stockCode("first")
+                                        .build(),
+                                FundCurrentDataAggregate.TopHolding.builder()
+                                        .rankNo(1)
+                                        .stockCode("last")
+                                        .build()))
+                        .build()))
+                .build());
+
+        Assert.assertEquals(1, fundTopHoldingDao.updated.size());
+        Assert.assertEquals(Long.valueOf(101L), fundTopHoldingDao.updated.get(0).getId());
+        Assert.assertEquals("last", fundTopHoldingDao.updated.get(0).getStockCode());
+        Assert.assertTrue(fundTopHoldingDao.inserted.isEmpty());
+        Assert.assertTrue(fundTopHoldingDao.deletedIds.isEmpty());
+        Assert.assertNull(fundTopHoldingDao.deletedFundCode);
     }
 
     @Test
@@ -150,16 +241,29 @@ public class FundDataRepositoryTest {
 
     private static class FakeFundTopHoldingDao implements IFundTopHoldingDao {
         private String deletedFundCode;
-        private FundTopHoldingPO inserted;
+        private List<Long> deletedIds = new ArrayList<>();
+        private List<FundTopHoldingPO> existing = List.of();
+        private List<FundTopHoldingPO> inserted = new ArrayList<>();
+        private List<FundTopHoldingPO> updated = new ArrayList<>();
 
         @Override
         public void insert(FundTopHoldingPO fundTopHoldingPO) {
-            inserted = fundTopHoldingPO;
+            inserted.add(fundTopHoldingPO);
+        }
+
+        @Override
+        public void update(FundTopHoldingPO fundTopHoldingPO) {
+            updated.add(fundTopHoldingPO);
         }
 
         @Override
         public void deleteByFundCode(String fundCode) {
             deletedFundCode = fundCode;
+        }
+
+        @Override
+        public void deleteByIds(Collection<Long> ids) {
+            deletedIds.addAll(ids);
         }
 
         @Override
@@ -169,7 +273,7 @@ public class FundDataRepositoryTest {
 
         @Override
         public List<FundTopHoldingPO> selectByFundCodes(Collection<String> fundCodes) {
-            return List.of();
+            return existing;
         }
 
         @Override

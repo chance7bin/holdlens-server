@@ -43,13 +43,7 @@ public class FundDataRepository implements IFundDataRepository {
         if (aggregate.getFunds() != null) {
             for (FundCurrentDataAggregate.FundDetail fund : aggregate.getFunds()) {
                 fundDao.upsert(toFundPO(fund));
-                // 当前重仓以基金代码为边界整体替换，避免最新结果减少 rank 时旧 rank 残留。
-                fundTopHoldingDao.deleteByFundCode(fund.getFundCode());
-                if (fund.getTopHoldings() != null) {
-                    for (FundCurrentDataAggregate.TopHolding topHolding : fund.getTopHoldings()) {
-                        fundTopHoldingDao.insert(toTopHoldingPO(fund.getFundCode(), topHolding));
-                    }
-                }
+                syncTopHoldings(fund.getFundCode(), fund.getTopHoldings());
             }
         }
         if (aggregate.getWarnings() != null) {
@@ -122,6 +116,48 @@ public class FundDataRepository implements IFundDataRepository {
             result.computeIfAbsent(po.getFundCode(), key -> new java.util.ArrayList<>()).add(po);
         }
         return result;
+    }
+
+    private void syncTopHoldings(String fundCode, List<FundCurrentDataAggregate.TopHolding> topHoldings) {
+        Map<Integer, FundCurrentDataAggregate.TopHolding> incomingByRank = new LinkedHashMap<>();
+        if (topHoldings != null) {
+            for (FundCurrentDataAggregate.TopHolding topHolding : topHoldings) {
+                if (topHolding == null || topHolding.getRankNo() == null) {
+                    continue;
+                }
+                // 与原逐条 upsert 行为保持一致：同一批次重复排名时，最后一条数据生效。
+                incomingByRank.put(topHolding.getRankNo(), topHolding);
+            }
+        }
+
+        if (incomingByRank.isEmpty()) {
+            fundTopHoldingDao.deleteByFundCode(fundCode);
+            return;
+        }
+
+        Map<Integer, FundTopHoldingPO> existingByRank = new LinkedHashMap<>();
+        for (FundTopHoldingPO existing : fundTopHoldingDao.selectByFundCodes(List.of(fundCode))) {
+            existingByRank.put(existing.getRankNo(), existing);
+        }
+
+        for (Map.Entry<Integer, FundCurrentDataAggregate.TopHolding> entry : incomingByRank.entrySet()) {
+            FundTopHoldingPO current = toTopHoldingPO(fundCode, entry.getValue());
+            FundTopHoldingPO existing = existingByRank.remove(entry.getKey());
+            if (existing == null) {
+                fundTopHoldingDao.insert(current);
+                continue;
+            }
+            // 已有排名使用明确 UPDATE，既保留记录 ID，也避免 upsert INSERT 申请自增值。
+            current.setId(existing.getId());
+            fundTopHoldingDao.update(current);
+        }
+
+        List<Long> staleIds = existingByRank.values().stream()
+                .map(FundTopHoldingPO::getId)
+                .toList();
+        if (!staleIds.isEmpty()) {
+            fundTopHoldingDao.deleteByIds(staleIds);
+        }
     }
 
     private FundPO toFundPO(FundCurrentDataAggregate.FundDetail fund) {

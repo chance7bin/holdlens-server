@@ -29,19 +29,31 @@
             #{fundCode}, #{rankNo}, #{stockName}, #{stockCode}, #{market},
             #{holdingRatio}, #{quarterChangeType}, #{quarterChangeValue}
         )
-        ON DUPLICATE KEY UPDATE
-            stock_name = VALUES(stock_name),
-            stock_code = VALUES(stock_code),
-            market = VALUES(market),
-            holding_ratio = VALUES(holding_ratio),
-            quarter_change_type = VALUES(quarter_change_type),
-            quarter_change_value = VALUES(quarter_change_value),
-            update_time = CURRENT_TIMESTAMP
     </insert>
+
+    <update id="update" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundTopHoldingPO">
+        UPDATE fund_top_holding
+        SET stock_name = #{stockName},
+            stock_code = #{stockCode},
+            market = #{market},
+            holding_ratio = #{holdingRatio},
+            quarter_change_type = #{quarterChangeType},
+            quarter_change_value = #{quarterChangeValue},
+            update_time = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
 
     <delete id="deleteByFundCode">
         DELETE FROM fund_top_holding
         WHERE fund_code = #{fundCode}
+    </delete>
+
+    <delete id="deleteByIds">
+        DELETE FROM fund_top_holding
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
     </delete>
 
     <select id="selectById" resultMap="BaseResultMap">
