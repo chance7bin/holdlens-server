@@ -16,6 +16,9 @@ import org.springframework.stereotype.Repository;
 
 import jakarta.annotation.Resource;
 import java.util.List;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Date;
 
 @Repository
 public class ProcessingTaskRepository implements IProcessingTaskRepository {
@@ -72,6 +75,26 @@ public class ProcessingTaskRepository implements IProcessingTaskRepository {
         for (ProcessingLogEntity log : logs) {
             processingLogDao.insert(toPO(log));
         }
+    }
+
+    @Override
+    public List<ProcessingTaskEntity> queryNonTerminalFundSliceTasksUpdatedBefore(LocalDateTime cutoff) {
+        if (cutoff == null) {
+            return List.of();
+        }
+        Date value = Date.from(cutoff.atZone(ZoneId.of("Asia/Shanghai")).toInstant());
+        return processingTaskDao.selectNonTerminalFundSliceTasksUpdatedBefore(value).stream()
+                .map(this::toEntity)
+                .toList();
+    }
+
+    @Override
+    public boolean markCallbackFailedIfTimedOut(String serverTaskId, LocalDateTime cutoff, String errorSummary) {
+        if (serverTaskId == null || cutoff == null) {
+            return false;
+        }
+        Date value = Date.from(cutoff.atZone(ZoneId.of("Asia/Shanghai")).toInstant());
+        return processingTaskDao.markCallbackFailedIfTimedOut(serverTaskId, value, errorSummary) == 1;
     }
 
     private ProcessingTaskPO toPO(ProcessingTaskEntity entity) {

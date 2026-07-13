@@ -26,14 +26,28 @@ public class FundPO implements Serializable {
     /** 基金名称 */
     private String fundName;
 
+    private String fundType;
+
+    private String pinyinAbbr;
+
+    private String pinyinFull;
+
     /** 申购状态：open/closed/limited/suspended/unknown */
     private String buyStatus;
 
     /** 单日申购限额展示文本 */
     private String dailyPurchaseLimit;
 
+    private String returnCoverageStatus;
+
     /** 涨跌幅数据日期 */
     private Date returnsAsOf;
+
+    private BigDecimal unitNav;
+
+    private BigDecimal accumulatedNav;
+
+    private BigDecimal dailyGrowthRate;
 
     /** 重仓披露日期 */
     private Date topHoldingsAsOf;
@@ -55,6 +69,16 @@ public class FundPO implements Serializable {
 
     /** 近3年涨跌幅 */
     private BigDecimal threeYearsReturn;
+
+    private Date catalogFetchedAt;
+
+    private Date purchaseStatusFetchedAt;
+
+    private Date periodReturnFetchedAt;
+
+    private Date topHoldingFetchedAt;
+
+    private Date lastDetailViewTime;
 
     /** 创建时间 */
     private Date createTime;

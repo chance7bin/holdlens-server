@@ -1,11 +1,12 @@
 package com.echoamoy.holdlens.server.infrastructure.adapter.port;
 
 import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentAShareMarketRefreshPort;
-import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentFundRefreshPort;
+import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentFundSliceRefreshPort;
 import com.echoamoy.holdlens.server.domain.processing.adapter.port.IAgentUSStockMarketRefreshPort;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.AShareMarketRefreshDispatchCommandEntity;
-import com.echoamoy.holdlens.server.domain.processing.model.entity.FundRefreshDispatchCommandEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.FundRefreshDispatchResultEntity;
+import com.echoamoy.holdlens.server.domain.processing.model.entity.FundSliceRefreshDispatchCommandEntity;
+import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingTaskEntity;
 import com.echoamoy.holdlens.server.domain.processing.model.entity.USStockMarketRefreshDispatchCommandEntity;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,12 +19,21 @@ import java.util.Map;
 
 @Slf4j
 @Component
-public class AgentFundRefreshPort implements IAgentFundRefreshPort, IAgentAShareMarketRefreshPort, IAgentUSStockMarketRefreshPort {
+public class AgentFundRefreshPort implements IAgentFundSliceRefreshPort, IAgentAShareMarketRefreshPort, IAgentUSStockMarketRefreshPort {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    @Value("${holdlens.agent.fund-refresh-url}")
-    private String fundRefreshUrl;
+    @Value("${holdlens.agent.fund-catalog-refresh-url:http://127.0.0.1:8765/tasks/fund-catalog-refresh}")
+    private String fundCatalogRefreshUrl;
+
+    @Value("${holdlens.agent.fund-purchase-status-refresh-url:http://127.0.0.1:8765/tasks/fund-purchase-status-refresh}")
+    private String fundPurchaseStatusRefreshUrl;
+
+    @Value("${holdlens.agent.fund-period-return-refresh-url:http://127.0.0.1:8765/tasks/fund-period-return-refresh}")
+    private String fundPeriodReturnRefreshUrl;
+
+    @Value("${holdlens.agent.fund-top-holding-refresh-url:http://127.0.0.1:8765/tasks/fund-top-holding-refresh}")
+    private String fundTopHoldingRefreshUrl;
 
     @Value("${holdlens.agent.a-share-market-refresh-url:http://127.0.0.1:8765/tasks/a-share-market-refresh}")
     private String aShareMarketRefreshUrl;
@@ -32,16 +42,27 @@ public class AgentFundRefreshPort implements IAgentFundRefreshPort, IAgentAShare
     private String usStockMarketRefreshUrl;
 
     @Override
-    public FundRefreshDispatchResultEntity dispatch(FundRefreshDispatchCommandEntity commandEntity) {
+    public FundRefreshDispatchResultEntity dispatch(FundSliceRefreshDispatchCommandEntity commandEntity) {
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("schema_version", commandEntity.getSchemaVersion());
         request.put("server_task_id", commandEntity.getServerTaskId());
-        request.put("fund_codes", commandEntity.getFundCodes());
+        if (ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH.equals(commandEntity.getTaskType())) {
+            request.put("fund_codes", commandEntity.getFundCodes());
+        }
         request.put("allow_network", commandEntity.getAllowNetwork());
         request.put("callback_url", commandEntity.getCallbackUrl());
-
-        ResponseEntity<Map> response = restTemplate.postForEntity(fundRefreshUrl, request, Map.class);
+        ResponseEntity<Map> response = restTemplate.postForEntity(sliceUrl(commandEntity.getTaskType()), request, Map.class);
         return toDispatchResult(response);
+    }
+
+    private String sliceUrl(String taskType) {
+        return switch (taskType) {
+            case ProcessingTaskEntity.FUND_CATALOG_REFRESH -> fundCatalogRefreshUrl;
+            case ProcessingTaskEntity.FUND_PURCHASE_STATUS_REFRESH -> fundPurchaseStatusRefreshUrl;
+            case ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH -> fundPeriodReturnRefreshUrl;
+            case ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH -> fundTopHoldingRefreshUrl;
+            default -> throw new IllegalArgumentException("unsupported fund slice task type: " + taskType);
+        };
     }
 
     @Override

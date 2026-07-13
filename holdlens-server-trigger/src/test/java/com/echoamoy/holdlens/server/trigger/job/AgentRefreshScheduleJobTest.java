@@ -1,84 +1,84 @@
 package com.echoamoy.holdlens.server.trigger.job;
 
-import com.echoamoy.holdlens.server.cases.agent.IAgentFundRefreshCase;
-import com.echoamoy.holdlens.server.cases.agent.model.AShareMarketRefreshCallbackCommand;
-import com.echoamoy.holdlens.server.cases.agent.model.AShareMarketRefreshCreateCommand;
-import com.echoamoy.holdlens.server.cases.agent.model.AgentFundRefreshCallbackCommand;
-import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
+import com.echoamoy.holdlens.server.cases.agent.IFundSliceRefreshCase;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
-import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCallbackCommand;
-import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCreateCommand;
-import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
-import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
-import com.echoamoy.holdlens.server.domain.funddata.model.entity.FundRefreshTargetEntity;
-import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingTaskEntity;
+import com.echoamoy.holdlens.server.cases.agent.model.FundSliceRefreshCallbackCommand;
 import org.junit.Assert;
 import org.junit.Test;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Collection;
+import java.lang.reflect.Method;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 public class AgentRefreshScheduleJobTest {
 
     @Test
-    public void disabledFundScheduleDoesNotScan() throws Exception {
-        FakeAgentFundRefreshCase refreshCase = new FakeAgentFundRefreshCase();
-        FakeFundDataRepository fundDataRepository = new FakeFundDataRepository(List.of(
-                FundRefreshTargetEntity.builder().id(1L).fundCode("000001").build()));
-        AgentRefreshScheduleJob job = newJob(refreshCase, fundDataRepository);
-        setField(job, "fundRefreshScheduleEnabled", false);
-
-        job.runFundRefreshSchedule();
-
-        Assert.assertEquals(0, fundDataRepository.queryCount);
-        Assert.assertTrue(refreshCase.fundCommands.isEmpty());
+    public void allSchedulesAreDisabledIndependently() throws Exception {
+        FakeCase fake = new FakeCase();
+        AgentRefreshScheduleJob job = newJob(fake);
+        job.runFundCatalogRefreshSchedule();
+        job.runFundPurchaseStatusRefreshSchedule();
+        job.runFundPeriodReturnRefreshSchedule();
+        job.runFundTopHoldingRefreshSchedule();
+        Assert.assertEquals(0, fake.calls);
     }
 
     @Test
-    public void fundScheduleSkipsWhenSameTypeTaskIsActive() throws Exception {
-        FakeAgentFundRefreshCase refreshCase = new FakeAgentFundRefreshCase();
-        refreshCase.activeTaskTypes.add(ProcessingTaskEntity.FUND_DETAIL_REFRESH);
-        FakeFundDataRepository fundDataRepository = new FakeFundDataRepository(List.of(
-                FundRefreshTargetEntity.builder().id(1L).fundCode("000001").build()));
-        AgentRefreshScheduleJob job = newJob(refreshCase, fundDataRepository);
-        setField(job, "fundRefreshScheduleEnabled", true);
-        setField(job, "fundRefreshBatchSize", 20);
-
-        job.runFundRefreshSchedule();
-
-        Assert.assertEquals(0, fundDataRepository.queryCount);
-        Assert.assertTrue(refreshCase.fundCommands.isEmpty());
+    public void enabledSchedulesOnlyRouteToCase() throws Exception {
+        FakeCase fake = new FakeCase();
+        AgentRefreshScheduleJob job = newJob(fake);
+        setField(job, "catalogEnabled", true);
+        setField(job, "purchaseEnabled", true);
+        setField(job, "returnEnabled", true);
+        setField(job, "holdingEnabled", true);
+        setField(job, "holdingBatchSize", 20);
+        job.runFundCatalogRefreshSchedule();
+        job.runFundPurchaseStatusRefreshSchedule();
+        job.runFundPeriodReturnRefreshSchedule();
+        job.runFundTopHoldingRefreshSchedule();
+        Assert.assertEquals(4, fake.calls);
+        Assert.assertEquals(20, fake.lastBatchSize);
     }
 
     @Test
-    public void fundScheduleScansAllPagesAndCreatesBatches() throws Exception {
-        FakeAgentFundRefreshCase refreshCase = new FakeAgentFundRefreshCase();
-        FakeFundDataRepository fundDataRepository = new FakeFundDataRepository(List.of(
-                FundRefreshTargetEntity.builder().id(1L).fundCode("000001").build(),
-                FundRefreshTargetEntity.builder().id(2L).fundCode("000002").build(),
-                FundRefreshTargetEntity.builder().id(3L).fundCode("000003").build()));
-        AgentRefreshScheduleJob job = newJob(refreshCase, fundDataRepository);
-        setField(job, "fundRefreshScheduleEnabled", true);
-        setField(job, "fundRefreshBatchSize", 2);
-
-        job.runFundRefreshSchedule();
-
-        Assert.assertEquals(3, fundDataRepository.queryCount);
-        Assert.assertEquals(2, refreshCase.fundCommands.size());
-        Assert.assertEquals(List.of("000001", "000002"), refreshCase.fundCommands.get(0).getFundCodes());
-        Assert.assertEquals(List.of("000003"), refreshCase.fundCommands.get(1).getFundCodes());
-        Assert.assertEquals("schedule", refreshCase.fundCommands.get(0).getTrigger());
+    public void invalidHoldingBatchIsSafelySkipped() throws Exception {
+        FakeCase fake = new FakeCase();
+        AgentRefreshScheduleJob job = newJob(fake);
+        setField(job, "holdingEnabled", true);
+        setField(job, "holdingBatchSize", 0);
+        job.runFundTopHoldingRefreshSchedule();
+        Assert.assertEquals(0, fake.calls);
     }
 
-    private AgentRefreshScheduleJob newJob(FakeAgentFundRefreshCase refreshCase,
-                                           FakeFundDataRepository fundDataRepository) throws Exception {
+    @Test
+    public void schedulesUseShanghaiCalendarDefaultsAndHoldingRunsOnFirstAndFifteenth() throws Exception {
+        Scheduled catalog = scheduled("runFundCatalogRefreshSchedule");
+        Scheduled purchase = scheduled("runFundPurchaseStatusRefreshSchedule");
+        Scheduled periodReturn = scheduled("runFundPeriodReturnRefreshSchedule");
+        Scheduled holding = scheduled("runFundTopHoldingRefreshSchedule");
+        Assert.assertEquals("Asia/Shanghai", catalog.zone());
+        Assert.assertEquals("Asia/Shanghai", purchase.zone());
+        Assert.assertEquals("Asia/Shanghai", periodReturn.zone());
+        Assert.assertEquals("Asia/Shanghai", holding.zone());
+        Assert.assertTrue(catalog.cron().contains("0 0 2 * * ?"));
+        Assert.assertTrue(purchase.cron().contains("0 10 2 * * ?"));
+        Assert.assertTrue(periodReturn.cron().contains("0 20 2 * * ?"));
+        Assert.assertTrue(holding.cron().contains("0 30 2 1,15 * ?"));
+
+        Field batchSize = AgentRefreshScheduleJob.class.getDeclaredField("holdingBatchSize");
+        Assert.assertTrue(batchSize.getAnnotation(Value.class).value().endsWith(":20}"));
+    }
+
+    private Scheduled scheduled(String methodName) throws Exception {
+        Method method = AgentRefreshScheduleJob.class.getDeclaredMethod(methodName);
+        return method.getAnnotation(Scheduled.class);
+    }
+
+    private AgentRefreshScheduleJob newJob(FakeCase fake) throws Exception {
         AgentRefreshScheduleJob job = new AgentRefreshScheduleJob();
-        setField(job, "agentFundRefreshCase", refreshCase);
-        setField(job, "fundDataRepository", fundDataRepository);
+        setField(job, "fundSliceRefreshCase", fake);
         return job;
     }
 
@@ -88,94 +88,15 @@ public class AgentRefreshScheduleJobTest {
         field.set(target, value);
     }
 
-    private static class FakeAgentFundRefreshCase implements IAgentFundRefreshCase {
-        private final Set<String> activeTaskTypes = new java.util.HashSet<>();
-        private final List<FundRefreshCreateCommand> fundCommands = new ArrayList<>();
-
-        @Override
-        public FundRefreshTaskResult createAndDispatch(FundRefreshCreateCommand command) {
-            fundCommands.add(command);
-            return result("running", ProcessingTaskEntity.FUND_DETAIL_REFRESH, fundCommands.size());
-        }
-
-        @Override
-        public FundRefreshTaskResult handleCallback(AgentFundRefreshCallbackCommand command) {
-            return null;
-        }
-
-        @Override
-        public FundRefreshTaskResult queryTask(String serverTaskId) {
-            return null;
-        }
-
-        @Override
-        public FundRefreshTaskResult createAndDispatchAShareMarket(AShareMarketRefreshCreateCommand command) {
-            return null;
-        }
-
-        @Override
-        public boolean hasNonTerminalTask(String taskType) {
-            return activeTaskTypes.contains(taskType);
-        }
-
-        @Override
-        public FundRefreshTaskResult handleAShareMarketCallback(AShareMarketRefreshCallbackCommand command) {
-            return null;
-        }
-
-        @Override
-        public FundRefreshTaskResult createAndDispatchUSStockMarket(USStockMarketRefreshCreateCommand command) {
-            return null;
-        }
-
-        @Override
-        public FundRefreshTaskResult handleUSStockMarketCallback(USStockMarketRefreshCallbackCommand command) {
-            return null;
-        }
-
-        private FundRefreshTaskResult result(String status, String taskType, int index) {
-            return FundRefreshTaskResult.builder()
-                    .serverTaskId(taskType + "_" + index)
-                    .taskType(taskType)
-                    .status(status)
-                    .build();
-        }
+    private static class FakeCase implements IFundSliceRefreshCase {
+        int calls;
+        int lastBatchSize;
+        public FundRefreshTaskResult scheduleCatalog(String trigger) { calls++; return null; }
+        public FundRefreshTaskResult schedulePurchaseStatus(String trigger) { calls++; return null; }
+        public FundRefreshTaskResult schedulePeriodReturn(String trigger) { calls++; return null; }
+        public List<FundRefreshTaskResult> scheduleTopHoldings(String trigger, int batchSize) { calls++; lastBatchSize = batchSize; return List.of(); }
+        public FundRefreshTaskResult dispatchTopHoldings(List<String> fundCodes, String trigger) { return null; }
+        public FundRefreshTaskResult handleCallback(String taskType, FundSliceRefreshCallbackCommand command) { return null; }
+        public int closeTimedOutCallbacks(int timeoutMinutes) { return 0; }
     }
-
-    private static class FakeFundDataRepository implements IFundDataRepository {
-        private final List<FundRefreshTargetEntity> targets;
-        private int queryCount;
-
-        private FakeFundDataRepository(List<FundRefreshTargetEntity> targets) {
-            this.targets = targets;
-        }
-
-        @Override
-        public void saveCurrentData(FundCurrentDataAggregate aggregate) {
-        }
-
-        @Override
-        public Map<String, FundCurrentDataAggregate.FundDetail> queryCurrentDetails(Set<String> fundCodes) {
-            return Map.of();
-        }
-
-        @Override
-        public Set<String> queryExistingFundCodes(Collection<String> fundCodes) {
-            return Set.of();
-        }
-
-        @Override
-        public void registerRefreshTargets(List<FundRefreshTargetEntity> refreshTargets) {
-        }
-
-        @Override
-        public List<FundRefreshTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit) {
-            queryCount++;
-            return targets.stream()
-                    .filter(target -> target.getId() > lastId)
-                    .limit(limit)
-                    .toList();
-        }
-    }
-
 }

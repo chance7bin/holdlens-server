@@ -111,7 +111,7 @@ DROP TABLE IF EXISTS `processing_task`;
 CREATE TABLE `processing_task` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '处理任务ID',
     `server_task_id` VARCHAR(100) NOT NULL COMMENT 'server任务标识',
-    `task_type` VARCHAR(50) NOT NULL COMMENT '任务类型：fund_detail_refresh/a_share_market_refresh',
+    `task_type` VARCHAR(50) NOT NULL COMMENT '任务类型：基金切片刷新/A股行情/美股行情',
     `task_params_json` TEXT DEFAULT NULL COMMENT '安全任务参数摘要JSON',
     `status` VARCHAR(30) NOT NULL DEFAULT 'created' COMMENT '状态：created/dispatched/running/succeeded/partial_failed/failed/dispatch_failed/callback_failed',
     `error_summary` VARCHAR(1000) DEFAULT NULL COMMENT '安全错误摘要',
@@ -148,9 +148,16 @@ CREATE TABLE `fund` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '基金ID',
     `fund_code` VARCHAR(50) NOT NULL COMMENT '基金代码',
     `fund_name` VARCHAR(200) NOT NULL COMMENT '基金名称',
+    `fund_type` VARCHAR(100) DEFAULT NULL COMMENT '基金类型',
+    `pinyin_abbr` VARCHAR(100) DEFAULT NULL COMMENT '基金名称拼音缩写',
+    `pinyin_full` VARCHAR(500) DEFAULT NULL COMMENT '基金名称完整拼音',
     `buy_status` VARCHAR(30) NOT NULL DEFAULT 'unknown' COMMENT '申购状态：open/closed/limited/suspended/unknown',
     `daily_purchase_limit` VARCHAR(200) DEFAULT NULL COMMENT '单日申购限额展示文本',
+    `return_coverage_status` VARCHAR(30) NOT NULL DEFAULT 'unknown' COMMENT '收益覆盖状态：covered/source_not_covered/unknown',
     `returns_as_of` DATE DEFAULT NULL COMMENT '涨跌幅数据日期',
+    `unit_nav` DECIMAL(18, 6) DEFAULT NULL COMMENT '单位净值',
+    `accumulated_nav` DECIMAL(18, 6) DEFAULT NULL COMMENT '累计净值',
+    `daily_growth_rate` DECIMAL(12, 4) DEFAULT NULL COMMENT '日增长率（百分点）',
     `top_holdings_as_of` DATE DEFAULT NULL COMMENT '重仓披露日期',
     `public_holdings_status` VARCHAR(50) NOT NULL DEFAULT 'missing' COMMENT '公开重仓状态：public/no_public_stock_holdings/missing',
     `one_month_return` DECIMAL(12, 4) DEFAULT NULL COMMENT '近1月涨跌幅',
@@ -158,10 +165,16 @@ CREATE TABLE `fund` (
     `six_months_return` DECIMAL(12, 4) DEFAULT NULL COMMENT '近6月涨跌幅',
     `one_year_return` DECIMAL(12, 4) DEFAULT NULL COMMENT '近1年涨跌幅',
     `three_years_return` DECIMAL(12, 4) DEFAULT NULL COMMENT '近3年涨跌幅',
+    `catalog_fetched_at` DATETIME DEFAULT NULL COMMENT '基金清单信息最近成功获取时间',
+    `purchase_status_fetched_at` DATETIME DEFAULT NULL COMMENT '基金申购信息最近成功获取时间',
+    `period_return_fetched_at` DATETIME DEFAULT NULL COMMENT '基金阶段收益信息最近成功获取时间',
+    `top_holding_fetched_at` DATETIME DEFAULT NULL COMMENT '基金重仓信息最近成功获取时间',
+    `last_detail_view_time` DATETIME DEFAULT NULL COMMENT '基金详情最近查看时间，仅用于公共数据刷新目标',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_fund_fund_code` (`fund_code`)
+    UNIQUE KEY `uk_fund_fund_code` (`fund_code`),
+    KEY `idx_fund_last_detail_view_time` (`last_detail_view_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='基金表';
 
 -- ----------------------------

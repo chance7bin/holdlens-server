@@ -31,9 +31,16 @@ public class FundCurrentDataAggregate {
         private Long id;
         private String fundCode;
         private String fundName;
+        private String fundType;
+        private String pinyinAbbr;
+        private String pinyinFull;
         private String buyStatus;
         private String dailyPurchaseLimit;
+        private String returnCoverageStatus;
         private Date returnsAsOf;
+        private BigDecimal unitNav;
+        private BigDecimal accumulatedNav;
+        private BigDecimal dailyGrowthRate;
         private Date topHoldingsAsOf;
         private String publicHoldingsStatus;
         private BigDecimal oneMonthReturn;
@@ -41,6 +48,11 @@ public class FundCurrentDataAggregate {
         private BigDecimal sixMonthsReturn;
         private BigDecimal oneYearReturn;
         private BigDecimal threeYearsReturn;
+        private LocalDateTime catalogFetchedAt;
+        private LocalDateTime purchaseStatusFetchedAt;
+        private LocalDateTime periodReturnFetchedAt;
+        private LocalDateTime topHoldingFetchedAt;
+        private LocalDateTime lastDetailViewTime;
         private LocalDateTime updateTime;
         private List<TopHolding> topHoldings;
     }

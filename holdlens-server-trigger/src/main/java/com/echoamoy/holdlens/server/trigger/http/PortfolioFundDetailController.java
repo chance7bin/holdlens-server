@@ -6,6 +6,7 @@ import com.echoamoy.holdlens.server.api.response.Response;
 import com.echoamoy.holdlens.server.cases.portfolio.IPortfolioFundDetailCase;
 import com.echoamoy.holdlens.server.cases.portfolio.model.PortfolioFundDetailResult;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -22,6 +23,12 @@ public class PortfolioFundDetailController implements IPortfolioFundDetailServic
     @Override
     public Response<PortfolioFundDetailDTO> queryPortfolioFundDetails(@RequestParam Long userId) {
         return Response.ok(toDTO(portfolioFundDetailCase.queryPortfolioFundDetails(userId)));
+    }
+
+    @GetMapping("/api/funds/{fundCode}")
+    @Override
+    public Response<PortfolioFundDetailDTO.FundDetail> queryFundDetail(@PathVariable String fundCode) {
+        return Response.ok(toFundDetail(portfolioFundDetailCase.queryFundDetail(fundCode)));
     }
 
     private PortfolioFundDetailDTO toDTO(PortfolioFundDetailResult result) {
@@ -68,10 +75,15 @@ public class PortfolioFundDetailController implements IPortfolioFundDetailServic
         return PortfolioFundDetailDTO.FundDetail.builder()
                 .fundCode(fundDetail.getFundCode())
                 .fundName(fundDetail.getFundName())
+                .fundType(fundDetail.getFundType())
                 .detailStatus(fundDetail.getDetailStatus())
                 .buyStatus(fundDetail.getBuyStatus())
                 .dailyPurchaseLimit(fundDetail.getDailyPurchaseLimit())
                 .returnsAsOf(fundDetail.getReturnsAsOf())
+                .unitNav(fundDetail.getUnitNav())
+                .accumulatedNav(fundDetail.getAccumulatedNav())
+                .dailyGrowthRate(fundDetail.getDailyGrowthRate())
+                .returnCoverageStatus(fundDetail.getReturnCoverageStatus())
                 .topHoldingsAsOf(fundDetail.getTopHoldingsAsOf())
                 .publicHoldingsStatus(fundDetail.getPublicHoldingsStatus())
                 .oneMonthReturn(fundDetail.getOneMonthReturn())
@@ -79,6 +91,11 @@ public class PortfolioFundDetailController implements IPortfolioFundDetailServic
                 .sixMonthsReturn(fundDetail.getSixMonthsReturn())
                 .oneYearReturn(fundDetail.getOneYearReturn())
                 .threeYearsReturn(fundDetail.getThreeYearsReturn())
+                .catalogFetchedAt(fundDetail.getCatalogFetchedAt())
+                .purchaseStatusFetchedAt(fundDetail.getPurchaseStatusFetchedAt())
+                .periodReturnFetchedAt(fundDetail.getPeriodReturnFetchedAt())
+                .topHoldingFetchedAt(fundDetail.getTopHoldingFetchedAt())
+                .topHoldingRefreshStatus(fundDetail.getTopHoldingRefreshStatus())
                 .topHoldings(toTopHoldings(fundDetail.getTopHoldings()))
                 .build();
     }

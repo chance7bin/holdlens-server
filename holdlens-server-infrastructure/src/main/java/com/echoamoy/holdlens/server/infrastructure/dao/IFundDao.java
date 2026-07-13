@@ -9,14 +9,21 @@ import java.util.List;
 @Mapper
 public interface IFundDao {
 
-    void upsert(FundPO fundPO);
+    void upsertCatalog(FundPO fundPO);
 
-    void upsertTarget(FundPO fundPO);
+    int updatePurchaseStatus(FundPO fundPO);
+
+    int updatePeriodReturn(FundPO fundPO);
+
+    int updateTopHoldingMetadata(FundPO fundPO);
+
+    int updateLastDetailViewTime(@Param("fundCodes") java.util.Collection<String> fundCodes,
+                                 @Param("lastDetailViewTime") java.util.Date lastDetailViewTime);
 
     FundPO selectById(@Param("id") Long id);
 
     List<FundPO> selectByFundCodes(@Param("fundCodes") java.util.Collection<String> fundCodes);
 
-    List<FundPO> selectRefreshTargetsAfterId(@Param("lastId") Long lastId, @Param("limit") int limit);
+    List<String> selectTopHoldingRefreshTargets(@Param("viewedSince") java.util.Date viewedSince);
 
 }

@@ -16,9 +16,19 @@ import java.util.Date;
 @AllArgsConstructor
 public class ProcessingTaskEntity {
 
-    public static final String FUND_DETAIL_REFRESH = "fund_detail_refresh";
+    public static final String FUND_CATALOG_REFRESH = "fund_catalog_refresh";
+    public static final String FUND_PURCHASE_STATUS_REFRESH = "fund_purchase_status_refresh";
+    public static final String FUND_PERIOD_RETURN_REFRESH = "fund_period_return_refresh";
+    public static final String FUND_TOP_HOLDING_REFRESH = "fund_top_holding_refresh";
     public static final String A_SHARE_MARKET_REFRESH = "a_share_market_refresh";
     public static final String US_STOCK_MARKET_REFRESH = "us_stock_market_refresh";
+
+    public static boolean isFundSliceRefresh(String taskType) {
+        return FUND_CATALOG_REFRESH.equals(taskType)
+                || FUND_PURCHASE_STATUS_REFRESH.equals(taskType)
+                || FUND_PERIOD_RETURN_REFRESH.equals(taskType)
+                || FUND_TOP_HOLDING_REFRESH.equals(taskType);
+    }
 
     private Long id;
     private String serverTaskId;

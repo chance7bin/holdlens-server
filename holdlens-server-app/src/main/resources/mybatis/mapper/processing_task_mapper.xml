@@ -46,4 +46,26 @@
           AND status IN ('created', 'dispatched', 'running')
     </select>
 
+    <select id="selectNonTerminalFundSliceTasksUpdatedBefore" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM processing_task
+        WHERE task_type IN ('fund_catalog_refresh', 'fund_purchase_status_refresh',
+                            'fund_period_return_refresh', 'fund_top_holding_refresh')
+          AND status IN ('created', 'dispatched', 'running')
+          AND update_time &lt; #{cutoff}
+        ORDER BY id ASC
+    </select>
+
+    <update id="markCallbackFailedIfTimedOut">
+        UPDATE processing_task
+        SET status = 'callback_failed',
+            error_summary = #{errorSummary},
+            update_time = NOW()
+        WHERE server_task_id = #{serverTaskId}
+          AND task_type IN ('fund_catalog_refresh', 'fund_purchase_status_refresh',
+                            'fund_period_return_refresh', 'fund_top_holding_refresh')
+          AND status IN ('created', 'dispatched', 'running')
+          AND update_time &lt; #{cutoff}
+    </update>
+
 </mapper>

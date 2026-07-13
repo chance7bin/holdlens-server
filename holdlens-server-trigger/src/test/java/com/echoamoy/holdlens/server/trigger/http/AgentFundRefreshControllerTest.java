@@ -9,8 +9,6 @@ import com.echoamoy.holdlens.server.api.response.Response;
 import com.echoamoy.holdlens.server.cases.agent.IAgentFundRefreshCase;
 import com.echoamoy.holdlens.server.cases.agent.model.AShareMarketRefreshCallbackCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.AShareMarketRefreshCreateCommand;
-import com.echoamoy.holdlens.server.cases.agent.model.AgentFundRefreshCallbackCommand;
-import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
 import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCallbackCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCreateCommand;
@@ -151,21 +149,6 @@ public class AgentFundRefreshControllerTest {
         private USStockMarketRefreshCallbackCommand lastUSCallbackCommand;
 
         @Override
-        public FundRefreshTaskResult createAndDispatch(FundRefreshCreateCommand command) {
-            return null;
-        }
-
-        @Override
-        public FundRefreshTaskResult handleCallback(AgentFundRefreshCallbackCommand command) {
-            return null;
-        }
-
-        @Override
-        public FundRefreshTaskResult queryTask(String serverTaskId) {
-            return null;
-        }
-
-        @Override
         public FundRefreshTaskResult createAndDispatchAShareMarket(AShareMarketRefreshCreateCommand command) {
             lastCreateCommand = command;
             return FundRefreshTaskResult.builder()
@@ -173,11 +156,6 @@ public class AgentFundRefreshControllerTest {
                     .taskType(ProcessingTaskEntity.A_SHARE_MARKET_REFRESH)
                     .status("dispatched")
                     .build();
-        }
-
-        @Override
-        public boolean hasNonTerminalTask(String taskType) {
-            return false;
         }
 
         @Override

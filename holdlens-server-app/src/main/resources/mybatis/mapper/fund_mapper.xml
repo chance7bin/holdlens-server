@@ -6,9 +6,16 @@
         <id column="id" property="id"/>
         <result column="fund_code" property="fundCode"/>
         <result column="fund_name" property="fundName"/>
+        <result column="fund_type" property="fundType"/>
+        <result column="pinyin_abbr" property="pinyinAbbr"/>
+        <result column="pinyin_full" property="pinyinFull"/>
         <result column="buy_status" property="buyStatus"/>
         <result column="daily_purchase_limit" property="dailyPurchaseLimit"/>
+        <result column="return_coverage_status" property="returnCoverageStatus"/>
         <result column="returns_as_of" property="returnsAsOf"/>
+        <result column="unit_nav" property="unitNav"/>
+        <result column="accumulated_nav" property="accumulatedNav"/>
+        <result column="daily_growth_rate" property="dailyGrowthRate"/>
         <result column="top_holdings_as_of" property="topHoldingsAsOf"/>
         <result column="public_holdings_status" property="publicHoldingsStatus"/>
         <result column="one_month_return" property="oneMonthReturn"/>
@@ -16,55 +23,78 @@
         <result column="six_months_return" property="sixMonthsReturn"/>
         <result column="one_year_return" property="oneYearReturn"/>
         <result column="three_years_return" property="threeYearsReturn"/>
+        <result column="catalog_fetched_at" property="catalogFetchedAt"/>
+        <result column="purchase_status_fetched_at" property="purchaseStatusFetchedAt"/>
+        <result column="period_return_fetched_at" property="periodReturnFetchedAt"/>
+        <result column="top_holding_fetched_at" property="topHoldingFetchedAt"/>
+        <result column="last_detail_view_time" property="lastDetailViewTime"/>
         <result column="create_time" property="createTime"/>
         <result column="update_time" property="updateTime"/>
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, fund_code, fund_name, buy_status,
-        daily_purchase_limit, returns_as_of, top_holdings_as_of, public_holdings_status,
+        id, fund_code, fund_name, fund_type, pinyin_abbr, pinyin_full, buy_status,
+        daily_purchase_limit, return_coverage_status, returns_as_of, unit_nav, accumulated_nav,
+        daily_growth_rate, top_holdings_as_of, public_holdings_status,
         one_month_return, three_months_return, six_months_return, one_year_return,
-        three_years_return, create_time, update_time
+        three_years_return, catalog_fetched_at, purchase_status_fetched_at,
+        period_return_fetched_at, top_holding_fetched_at, last_detail_view_time,
+        create_time, update_time
     </sql>
 
-    <insert id="upsert" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundPO" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO fund (
-            fund_code, fund_name, buy_status,
-            daily_purchase_limit, returns_as_of, top_holdings_as_of, public_holdings_status,
-            one_month_return, three_months_return, six_months_return, one_year_return,
-            three_years_return
-        ) VALUES (
-            #{fundCode}, #{fundName}, #{buyStatus},
-            #{dailyPurchaseLimit}, #{returnsAsOf}, #{topHoldingsAsOf}, #{publicHoldingsStatus},
-            #{oneMonthReturn}, #{threeMonthsReturn}, #{sixMonthsReturn}, #{oneYearReturn},
-            #{threeYearsReturn}
-        )
+    <insert id="upsertCatalog" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO fund (fund_code, fund_name, fund_type, pinyin_abbr, pinyin_full, catalog_fetched_at)
+        VALUES (#{fundCode}, #{fundName}, #{fundType}, #{pinyinAbbr}, #{pinyinFull}, #{catalogFetchedAt})
         ON DUPLICATE KEY UPDATE
             id = LAST_INSERT_ID(id),
-            fund_name = COALESCE(VALUES(fund_name), fund_name),
-            buy_status = VALUES(buy_status),
-            daily_purchase_limit = VALUES(daily_purchase_limit),
-            returns_as_of = VALUES(returns_as_of),
-            top_holdings_as_of = VALUES(top_holdings_as_of),
-            public_holdings_status = VALUES(public_holdings_status),
-            one_month_return = VALUES(one_month_return),
-            three_months_return = VALUES(three_months_return),
-            six_months_return = VALUES(six_months_return),
-            one_year_return = VALUES(one_year_return),
-            three_years_return = VALUES(three_years_return),
+            fund_name = VALUES(fund_name),
+            fund_type = VALUES(fund_type),
+            pinyin_abbr = VALUES(pinyin_abbr),
+            pinyin_full = VALUES(pinyin_full),
+            catalog_fetched_at = VALUES(catalog_fetched_at),
             update_time = CURRENT_TIMESTAMP
     </insert>
 
-    <insert id="upsertTarget" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundPO" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO fund (
-            fund_code, fund_name
-        ) VALUES (
-            #{fundCode}, #{fundName}
-        )
-        ON DUPLICATE KEY UPDATE
-            id = LAST_INSERT_ID(id),
-            fund_name = COALESCE(fund_name, VALUES(fund_name))
-    </insert>
+    <update id="updatePurchaseStatus" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundPO">
+        UPDATE fund
+        SET buy_status = #{buyStatus},
+            daily_purchase_limit = #{dailyPurchaseLimit},
+            purchase_status_fetched_at = #{purchaseStatusFetchedAt},
+            update_time = CURRENT_TIMESTAMP
+        WHERE fund_code = #{fundCode}
+    </update>
+
+    <update id="updatePeriodReturn" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundPO">
+        UPDATE fund
+        SET return_coverage_status = #{returnCoverageStatus},
+            returns_as_of = CASE WHEN #{returnCoverageStatus} = 'covered' THEN #{returnsAsOf} ELSE returns_as_of END,
+            unit_nav = CASE WHEN #{returnCoverageStatus} = 'covered' THEN #{unitNav} ELSE unit_nav END,
+            accumulated_nav = CASE WHEN #{returnCoverageStatus} = 'covered' THEN #{accumulatedNav} ELSE accumulated_nav END,
+            daily_growth_rate = CASE WHEN #{returnCoverageStatus} = 'covered' THEN #{dailyGrowthRate} ELSE daily_growth_rate END,
+            one_month_return = CASE WHEN #{returnCoverageStatus} = 'covered' THEN #{oneMonthReturn} ELSE one_month_return END,
+            three_months_return = CASE WHEN #{returnCoverageStatus} = 'covered' THEN #{threeMonthsReturn} ELSE three_months_return END,
+            six_months_return = CASE WHEN #{returnCoverageStatus} = 'covered' THEN #{sixMonthsReturn} ELSE six_months_return END,
+            one_year_return = CASE WHEN #{returnCoverageStatus} = 'covered' THEN #{oneYearReturn} ELSE one_year_return END,
+            three_years_return = CASE WHEN #{returnCoverageStatus} = 'covered' THEN #{threeYearsReturn} ELSE three_years_return END,
+            period_return_fetched_at = #{periodReturnFetchedAt},
+            update_time = CURRENT_TIMESTAMP
+        WHERE fund_code = #{fundCode}
+    </update>
+
+    <update id="updateTopHoldingMetadata" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundPO">
+        UPDATE fund
+        SET top_holdings_as_of = #{topHoldingsAsOf},
+            public_holdings_status = #{publicHoldingsStatus},
+            top_holding_fetched_at = #{topHoldingFetchedAt},
+            update_time = CURRENT_TIMESTAMP
+        WHERE fund_code = #{fundCode}
+    </update>
+
+    <update id="updateLastDetailViewTime">
+        UPDATE fund SET last_detail_view_time = #{lastDetailViewTime}
+        WHERE fund_code IN
+        <foreach collection="fundCodes" item="fundCode" open="(" separator="," close=")">#{fundCode}</foreach>
+    </update>
 
     <select id="selectById" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
@@ -82,14 +112,24 @@
         ORDER BY fund_code ASC
     </select>
 
-    <select id="selectRefreshTargetsAfterId" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/>
-        FROM fund
-        WHERE id &gt; #{lastId}
-          AND fund_code IS NOT NULL
-          AND fund_code != ''
-        ORDER BY id ASC
-        LIMIT #{limit}
+    <select id="selectTopHoldingRefreshTargets" resultType="string">
+        SELECT DISTINCT targets.fund_code
+        FROM (
+            SELECT ai.asset_code AS fund_code
+            FROM asset_info ai
+            WHERE ai.asset_kind = 'fund' AND ai.status = 'enabled' AND ai.asset_code IS NOT NULL
+            UNION
+            SELECT ai.asset_code AS fund_code
+            FROM asset_holding ah
+            INNER JOIN asset_info ai ON ai.id = ah.asset_id
+            WHERE ah.status = 'active' AND ai.asset_kind = 'fund' AND ai.status = 'enabled'
+            UNION
+            SELECT f.fund_code
+            FROM fund f
+            WHERE f.last_detail_view_time &gt;= #{viewedSince}
+        ) targets
+        INNER JOIN fund f ON f.fund_code = targets.fund_code
+        ORDER BY targets.fund_code
     </select>
 
 </mapper>

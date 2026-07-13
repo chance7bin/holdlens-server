@@ -2,13 +2,10 @@ package com.echoamoy.holdlens.server.infrastructure.adapter.repository;
 
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
-import com.echoamoy.holdlens.server.domain.funddata.model.entity.FundRefreshTargetEntity;
 import com.echoamoy.holdlens.server.infrastructure.dao.IFundDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IFundTopHoldingDao;
-import com.echoamoy.holdlens.server.infrastructure.dao.IProcessingLogDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.FundPO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.FundTopHoldingPO;
-import com.echoamoy.holdlens.server.infrastructure.dao.po.ProcessingLogPO;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,25 +30,6 @@ public class FundDataRepository implements IFundDataRepository {
 
     @Resource
     private IFundTopHoldingDao fundTopHoldingDao;
-
-    @Resource
-    private IProcessingLogDao processingLogDao;
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void saveCurrentData(FundCurrentDataAggregate aggregate) {
-        if (aggregate.getFunds() != null) {
-            for (FundCurrentDataAggregate.FundDetail fund : aggregate.getFunds()) {
-                fundDao.upsert(toFundPO(fund));
-                syncTopHoldings(fund.getFundCode(), fund.getTopHoldings());
-            }
-        }
-        if (aggregate.getWarnings() != null) {
-            for (FundCurrentDataAggregate.RefreshWarning warning : aggregate.getWarnings()) {
-                processingLogDao.insert(toProcessingLogPO(aggregate.getSourceRefId(), warning));
-            }
-        }
-    }
 
     @Override
     public Map<String, FundCurrentDataAggregate.FundDetail> queryCurrentDetails(Set<String> fundCodes) {
@@ -80,33 +58,45 @@ public class FundDataRepository implements IFundDataRepository {
     }
 
     @Override
-    public void registerRefreshTargets(List<FundRefreshTargetEntity> refreshTargets) {
-        if (refreshTargets == null || refreshTargets.isEmpty()) {
-            return;
-        }
-        for (FundRefreshTargetEntity refreshTarget : refreshTargets) {
-            if (refreshTarget == null) {
-                continue;
-            }
-            fundDao.upsertTarget(FundPO.builder()
-                    .fundCode(refreshTarget.getFundCode())
-                    .fundName(refreshTarget.getFundName())
-                    .build());
-        }
+    public void upsertCatalog(FundCurrentDataAggregate.FundDetail fund) {
+        fundDao.upsertCatalog(toFundPO(fund));
     }
 
     @Override
-    public List<FundRefreshTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit) {
-        if (limit <= 0) {
-            return List.of();
+    public boolean updatePurchaseStatus(FundCurrentDataAggregate.FundDetail fund) {
+        return fundDao.updatePurchaseStatus(toFundPO(fund)) > 0;
+    }
+
+    @Override
+    public boolean updatePeriodReturn(FundCurrentDataAggregate.FundDetail fund) {
+        return fundDao.updatePeriodReturn(toFundPO(fund)) > 0;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean updateTopHoldingSnapshot(FundCurrentDataAggregate.FundDetail fund, boolean clearHoldings) {
+        if (fundDao.updateTopHoldingMetadata(toFundPO(fund)) == 0) {
+            return false;
         }
-        return fundDao.selectRefreshTargetsAfterId(lastId == null ? 0L : lastId, limit).stream()
-                .map(po -> FundRefreshTargetEntity.builder()
-                        .id(po.getId())
-                        .fundCode(po.getFundCode())
-                        .fundName(po.getFundName())
-                        .build())
-                .toList();
+        if (clearHoldings) {
+            fundTopHoldingDao.deleteByFundCode(fund.getFundCode());
+        } else {
+            syncTopHoldings(fund.getFundCode(), fund.getTopHoldings());
+        }
+        return true;
+    }
+
+    @Override
+    public List<String> queryTopHoldingRefreshTargets(LocalDateTime viewedSince) {
+        return fundDao.selectTopHoldingRefreshTargets(toDate(viewedSince));
+    }
+
+    @Override
+    public void markDetailViewed(Collection<String> fundCodes, LocalDateTime viewedAt) {
+        if (fundCodes == null || fundCodes.isEmpty() || viewedAt == null) {
+            return;
+        }
+        fundDao.updateLastDetailViewTime(fundCodes, toDate(viewedAt));
     }
 
     private Map<String, List<FundTopHoldingPO>> groupTopHoldings(Collection<String> fundCodes) {
@@ -164,9 +154,16 @@ public class FundDataRepository implements IFundDataRepository {
         return FundPO.builder()
                 .fundCode(fund.getFundCode())
                 .fundName(fund.getFundName())
+                .fundType(fund.getFundType())
+                .pinyinAbbr(fund.getPinyinAbbr())
+                .pinyinFull(fund.getPinyinFull())
                 .buyStatus(fund.getBuyStatus())
                 .dailyPurchaseLimit(fund.getDailyPurchaseLimit())
+                .returnCoverageStatus(fund.getReturnCoverageStatus())
                 .returnsAsOf(fund.getReturnsAsOf())
+                .unitNav(fund.getUnitNav())
+                .accumulatedNav(fund.getAccumulatedNav())
+                .dailyGrowthRate(fund.getDailyGrowthRate())
                 .topHoldingsAsOf(fund.getTopHoldingsAsOf())
                 .publicHoldingsStatus(fund.getPublicHoldingsStatus())
                 .oneMonthReturn(fund.getOneMonthReturn())
@@ -174,6 +171,11 @@ public class FundDataRepository implements IFundDataRepository {
                 .sixMonthsReturn(fund.getSixMonthsReturn())
                 .oneYearReturn(fund.getOneYearReturn())
                 .threeYearsReturn(fund.getThreeYearsReturn())
+                .catalogFetchedAt(toDate(fund.getCatalogFetchedAt()))
+                .purchaseStatusFetchedAt(toDate(fund.getPurchaseStatusFetchedAt()))
+                .periodReturnFetchedAt(toDate(fund.getPeriodReturnFetchedAt()))
+                .topHoldingFetchedAt(toDate(fund.getTopHoldingFetchedAt()))
+                .lastDetailViewTime(toDate(fund.getLastDetailViewTime()))
                 .build();
     }
 
@@ -190,25 +192,22 @@ public class FundDataRepository implements IFundDataRepository {
                 .build();
     }
 
-    private ProcessingLogPO toProcessingLogPO(String sourceRefId, FundCurrentDataAggregate.RefreshWarning warning) {
-        return ProcessingLogPO.builder()
-                .sourceRefId(sourceRefId)
-                .module(warning.getModule())
-                .event(warning.getEvent())
-                .message(warning.getMessage())
-                .severity(warning.getSeverity())
-                .build();
-    }
-
     private FundCurrentDataAggregate.FundDetail toFundDetail(FundPO fundPO,
                                                             List<FundTopHoldingPO> topHoldingPOList) {
         return FundCurrentDataAggregate.FundDetail.builder()
                 .id(fundPO.getId())
                 .fundCode(fundPO.getFundCode())
                 .fundName(fundPO.getFundName())
+                .fundType(fundPO.getFundType())
+                .pinyinAbbr(fundPO.getPinyinAbbr())
+                .pinyinFull(fundPO.getPinyinFull())
                 .buyStatus(fundPO.getBuyStatus())
                 .dailyPurchaseLimit(fundPO.getDailyPurchaseLimit())
+                .returnCoverageStatus(fundPO.getReturnCoverageStatus())
                 .returnsAsOf(fundPO.getReturnsAsOf())
+                .unitNav(fundPO.getUnitNav())
+                .accumulatedNav(fundPO.getAccumulatedNav())
+                .dailyGrowthRate(fundPO.getDailyGrowthRate())
                 .topHoldingsAsOf(fundPO.getTopHoldingsAsOf())
                 .publicHoldingsStatus(fundPO.getPublicHoldingsStatus())
                 .oneMonthReturn(fundPO.getOneMonthReturn())
@@ -216,6 +215,11 @@ public class FundDataRepository implements IFundDataRepository {
                 .sixMonthsReturn(fundPO.getSixMonthsReturn())
                 .oneYearReturn(fundPO.getOneYearReturn())
                 .threeYearsReturn(fundPO.getThreeYearsReturn())
+                .catalogFetchedAt(toBeijingLocalDateTime(fundPO.getCatalogFetchedAt()))
+                .purchaseStatusFetchedAt(toBeijingLocalDateTime(fundPO.getPurchaseStatusFetchedAt()))
+                .periodReturnFetchedAt(toBeijingLocalDateTime(fundPO.getPeriodReturnFetchedAt()))
+                .topHoldingFetchedAt(toBeijingLocalDateTime(fundPO.getTopHoldingFetchedAt()))
+                .lastDetailViewTime(toBeijingLocalDateTime(fundPO.getLastDetailViewTime()))
                 .updateTime(toBeijingLocalDateTime(fundPO.getUpdateTime()))
                 .topHoldings(topHoldingPOList.stream().map(this::toTopHolding).toList())
                 .build();
@@ -226,6 +230,10 @@ public class FundDataRepository implements IFundDataRepository {
             return null;
         }
         return value.toInstant().atZone(BEIJING_ZONE).toLocalDateTime();
+    }
+
+    private Date toDate(LocalDateTime value) {
+        return value == null ? null : Date.from(value.atZone(BEIJING_ZONE).toInstant());
     }
 
     private FundCurrentDataAggregate.TopHolding toTopHolding(FundTopHoldingPO po) {

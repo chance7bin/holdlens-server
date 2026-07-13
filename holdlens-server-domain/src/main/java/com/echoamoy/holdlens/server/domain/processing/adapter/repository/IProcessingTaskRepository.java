@@ -5,6 +5,7 @@ import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingLog
 import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingTaskEntity;
 
 import java.util.List;
+import java.time.LocalDateTime;
 
 public interface IProcessingTaskRepository {
 
@@ -21,5 +22,11 @@ public interface IProcessingTaskRepository {
     void markCallbackProcessed(String serverTaskId, String idempotencyKey, String processStatus, String errorSummary);
 
     void saveLogs(List<ProcessingLogEntity> logs);
+
+    default List<ProcessingTaskEntity> queryNonTerminalFundSliceTasksUpdatedBefore(LocalDateTime cutoff) { return List.of(); }
+
+    default boolean markCallbackFailedIfTimedOut(String serverTaskId, LocalDateTime cutoff, String errorSummary) {
+        return false;
+    }
 
 }

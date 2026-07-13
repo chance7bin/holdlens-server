@@ -53,10 +53,15 @@ public class PortfolioFundDetailResult {
 
         private String fundCode;
         private String fundName;
+        private String fundType;
         private String detailStatus;
         private String buyStatus;
         private String dailyPurchaseLimit;
         private Date returnsAsOf;
+        private BigDecimal unitNav;
+        private BigDecimal accumulatedNav;
+        private BigDecimal dailyGrowthRate;
+        private String returnCoverageStatus;
         private Date topHoldingsAsOf;
         private String publicHoldingsStatus;
         private BigDecimal oneMonthReturn;
@@ -64,6 +69,11 @@ public class PortfolioFundDetailResult {
         private BigDecimal sixMonthsReturn;
         private BigDecimal oneYearReturn;
         private BigDecimal threeYearsReturn;
+        private Date catalogFetchedAt;
+        private Date purchaseStatusFetchedAt;
+        private Date periodReturnFetchedAt;
+        private Date topHoldingFetchedAt;
+        private String topHoldingRefreshStatus;
         private List<TopHolding> topHoldings;
 
     }

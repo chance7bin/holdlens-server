@@ -13,4 +13,9 @@ public interface IPortfolioFundDetailService {
      */
     Response<PortfolioFundDetailDTO> queryPortfolioFundDetails(Long userId);
 
+    /**
+     * 查询基金目录中的单只基金详情；缺失或陈旧重仓只触发异步刷新，不阻塞当前响应。
+     */
+    Response<PortfolioFundDetailDTO.FundDetail> queryFundDetail(String fundCode);
+
 }

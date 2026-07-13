@@ -8,11 +8,11 @@ import org.junit.Test;
 public class AgentRefreshScheduleControllerTest {
 
     @Test
-    public void testRunFundRefreshSchedule() {
+    public void testRunFundTopHoldingRefreshSchedule() {
         CountingAgentRefreshScheduleJob job = new CountingAgentRefreshScheduleJob();
         AgentRefreshScheduleController controller = new AgentRefreshScheduleController(job);
 
-        Response<Void> response = controller.runFundRefreshSchedule();
+        Response<Void> response = controller.runFundTopHoldingRefreshSchedule();
 
         Assert.assertEquals("0000", response.getCode());
         Assert.assertEquals("成功", response.getInfo());
@@ -24,7 +24,7 @@ public class AgentRefreshScheduleControllerTest {
         private int fundRunCount;
 
         @Override
-        public void runFundRefreshSchedule() {
+        public void runFundTopHoldingRefreshSchedule() {
             fundRunCount++;
         }
     }

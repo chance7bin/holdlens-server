@@ -11,12 +11,11 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FundRefreshDispatchCommandEntity {
-
+public class FundSliceRefreshDispatchCommandEntity {
+    private String taskType;
     private String schemaVersion;
     private String serverTaskId;
     private List<String> fundCodes;
     private Boolean allowNetwork;
     private String callbackUrl;
-
 }

@@ -7,10 +7,19 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.http.ResponseEntity;
 
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(AgentCallbackHttpException.class)
+    public ResponseEntity<Response<Void>> handleAgentCallbackHttpException(AgentCallbackHttpException exception) {
+        log.warn("agent 回调处理失败，httpStatus={}，code={}，info={}",
+                exception.getHttpStatus().value(), exception.getCode(), exception.getInfo());
+        return ResponseEntity.status(exception.getHttpStatus())
+                .body(Response.fail(exception.getCode(), exception.getInfo()));
+    }
 
     @ExceptionHandler(AppException.class)
     public Response<Void> handleAppException(AppException exception) {

@@ -43,14 +43,30 @@ logging:
 
 holdlens:
   agent:
-    fund-refresh-url: http://127.0.0.1:8765/tasks/fund-detail-refresh
+    fund-catalog-refresh-url: http://127.0.0.1:8765/tasks/fund-catalog-refresh
+    fund-purchase-status-refresh-url: http://127.0.0.1:8765/tasks/fund-purchase-status-refresh
+    fund-period-return-refresh-url: http://127.0.0.1:8765/tasks/fund-period-return-refresh
+    fund-top-holding-refresh-url: http://127.0.0.1:8765/tasks/fund-top-holding-refresh
+    server-base-url: http://127.0.0.1:8091
     a-share-market-refresh-url: http://127.0.0.1:8765/tasks/a-share-market-refresh
     us-stock-market-refresh-url: http://127.0.0.1:8765/tasks/us-stock-market-refresh
-    callback-url: http://127.0.0.1:8091/internal/agent/fund-detail-refresh/callback
     a-share-market-callback-url: http://127.0.0.1:8091/internal/agent/a-share-market-refresh/callback
     us-stock-market-callback-url: http://127.0.0.1:8091/internal/agent/us-stock-market-refresh/callback
     callback-header-value: internal
-    fund-refresh-schedule:
-      enabled: true
-      batch-size: 20
+    fund-catalog-refresh-schedule:
+      enabled: false
+      cron: "0 0 2 * * ?"
+    fund-purchase-status-refresh-schedule:
+      enabled: false
+      cron: "0 10 2 * * ?"
+    fund-period-return-refresh-schedule:
+      enabled: false
       cron: "0 20 2 * * ?"
+    fund-top-holding-refresh-schedule:
+      enabled: false
+      batch-size: 20
+      cron: "0 30 2 1,15 * ?"
+    fund-slice-callback-timeout:
+      enabled: false
+      minutes: 30
+      cron: "0 */5 * * * ?"

@@ -3,7 +3,6 @@ package com.echoamoy.holdlens.server.cases.portfolio.impl;
 import com.echoamoy.holdlens.server.cases.portfolio.model.PortfolioFundDetailResult;
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
-import com.echoamoy.holdlens.server.domain.funddata.model.entity.FundRefreshTargetEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.adapter.repository.IPortfolioRepository;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.PortfolioHoldingEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.WatchlistAssetEntity;
@@ -32,13 +31,29 @@ public class PortfolioFundDetailCaseImplTest {
 
         Assert.assertEquals(1001L, result.getUserId().longValue());
         Assert.assertEquals(2, result.getHoldings().size());
-        Assert.assertEquals("available", result.getHoldings().get(0).getFundDetail().getDetailStatus());
+        Assert.assertEquals("stale", result.getHoldings().get(0).getFundDetail().getDetailStatus());
         Assert.assertEquals("missing", result.getHoldings().get(1).getFundDetail().getDetailStatus());
 	        Assert.assertEquals("available", result.getHoldings().get(0).getFundDetail().getTopHoldings().get(0).getQuoteStatus());
         Assert.assertEquals(new BigDecimal("0.50"), result.getHoldings().get(0).getFundDetail().getTopHoldings().get(0).getChangePercent());
         Assert.assertEquals("available", result.getHoldings().get(0).getFundDetail().getTopHoldings().get(1).getQuoteStatus());
         Assert.assertEquals(new BigDecimal("0.10"), result.getHoldings().get(0).getFundDetail().getTopHoldings().get(1).getChangePercent());
         Assert.assertEquals(new BigDecimal("123.45"), result.getHoldings().get(0).getAmount());
+    }
+
+    @Test
+    public void queryCatalogFundDetailReturnsDatabaseSnapshotAndMarksRecentView() throws Exception {
+        PortfolioFundDetailCaseImpl fundDetailCase = new PortfolioFundDetailCaseImpl();
+        FakeFundDataRepository fundRepository = new FakeFundDataRepository();
+        setField(fundDetailCase, "portfolioRepository", new FakePortfolioRepository());
+        setField(fundDetailCase, "fundDataRepository", fundRepository);
+        setField(fundDetailCase, "stockMarketRepository", new FakeStockMarketRepository());
+
+        PortfolioFundDetailResult.FundDetail result = fundDetailCase.queryFundDetail(" 000001 ");
+
+        Assert.assertEquals("000001", result.getFundCode());
+        Assert.assertEquals("stale", result.getDetailStatus());
+        Assert.assertEquals("refreshing", result.getTopHoldingRefreshStatus());
+        Assert.assertEquals(Set.of("000001"), fundRepository.viewedCodes);
     }
 
     private void setField(Object target, String name, Object value) throws Exception {
@@ -79,14 +94,10 @@ public class PortfolioFundDetailCaseImplTest {
     }
 
     private static class FakeFundDataRepository implements IFundDataRepository {
-        @Override
-        public void saveCurrentData(FundCurrentDataAggregate aggregate) {
-        }
-
+        private Set<String> viewedCodes = Set.of();
         @Override
         public Map<String, FundCurrentDataAggregate.FundDetail> queryCurrentDetails(Set<String> fundCodes) {
             Assert.assertTrue(fundCodes.contains("000001"));
-            Assert.assertTrue(fundCodes.contains("161725"));
             return Map.of(
                     "000001", FundCurrentDataAggregate.FundDetail.builder()
                             .fundCode("000001")
@@ -117,12 +128,8 @@ public class PortfolioFundDetailCaseImplTest {
         }
 
         @Override
-        public void registerRefreshTargets(List<FundRefreshTargetEntity> refreshTargets) {
-        }
-
-        @Override
-        public List<FundRefreshTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit) {
-            return List.of();
+        public void markDetailViewed(java.util.Collection<String> fundCodes, LocalDateTime viewedAt) {
+            viewedCodes = Set.copyOf(fundCodes);
         }
     }
 

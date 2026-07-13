@@ -1,96 +1,56 @@
 package com.echoamoy.holdlens.server.trigger.job;
 
-import com.echoamoy.holdlens.server.cases.agent.IAgentFundRefreshCase;
-import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshCreateCommand;
-import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
-import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
-import com.echoamoy.holdlens.server.domain.funddata.model.entity.FundRefreshTargetEntity;
-import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingTaskEntity;
+import com.echoamoy.holdlens.server.cases.agent.IFundSliceRefreshCase;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import jakarta.annotation.Resource;
-import java.util.List;
-import java.util.Set;
-
+/**
+ * 基金切片刷新触发器。这里只处理开关和 cron 路由，目标选择、批次和派发均由 Case 编排。
+ */
 @Slf4j
 @Component
 public class AgentRefreshScheduleJob {
+    private static final String TRIGGER = "schedule";
 
-    private static final String SCHEDULE_TRIGGER = "schedule";
-    private static final Set<String> CONTINUABLE_STATUS = Set.of("created", "running", "dispatched");
+    @Resource private IFundSliceRefreshCase fundSliceRefreshCase;
+    @Value("${holdlens.agent.fund-catalog-refresh-schedule.enabled:false}") private boolean catalogEnabled;
+    @Value("${holdlens.agent.fund-purchase-status-refresh-schedule.enabled:false}") private boolean purchaseEnabled;
+    @Value("${holdlens.agent.fund-period-return-refresh-schedule.enabled:false}") private boolean returnEnabled;
+    @Value("${holdlens.agent.fund-top-holding-refresh-schedule.enabled:false}") private boolean holdingEnabled;
+    @Value("${holdlens.agent.fund-top-holding-refresh-schedule.batch-size:20}") private int holdingBatchSize;
+    @Value("${holdlens.agent.fund-slice-callback-timeout.enabled:false}") private boolean callbackTimeoutEnabled;
+    @Value("${holdlens.agent.fund-slice-callback-timeout.minutes:30}") private int callbackTimeoutMinutes;
 
-    @Resource
-    private IAgentFundRefreshCase agentFundRefreshCase;
+    @Scheduled(cron="${holdlens.agent.fund-catalog-refresh-schedule.cron:0 0 2 * * ?}", zone="Asia/Shanghai")
+    public void runFundCatalogRefreshSchedule() {
+        if (catalogEnabled) fundSliceRefreshCase.scheduleCatalog(TRIGGER);
+    }
 
-    @Resource
-    private IFundDataRepository fundDataRepository;
+    @Scheduled(cron="${holdlens.agent.fund-purchase-status-refresh-schedule.cron:0 10 2 * * ?}", zone="Asia/Shanghai")
+    public void runFundPurchaseStatusRefreshSchedule() {
+        if (purchaseEnabled) fundSliceRefreshCase.schedulePurchaseStatus(TRIGGER);
+    }
 
-    @Value("${holdlens.agent.fund-refresh-schedule.enabled}")
-    private boolean fundRefreshScheduleEnabled;
+    @Scheduled(cron="${holdlens.agent.fund-period-return-refresh-schedule.cron:0 20 2 * * ?}", zone="Asia/Shanghai")
+    public void runFundPeriodReturnRefreshSchedule() {
+        if (returnEnabled) fundSliceRefreshCase.schedulePeriodReturn(TRIGGER);
+    }
 
-    @Value("${holdlens.agent.fund-refresh-schedule.batch-size}")
-    private int fundRefreshBatchSize;
-
-    @Scheduled(cron = "${holdlens.agent.fund-refresh-schedule.cron}")
-    public void runFundRefreshSchedule() {
-        if (!fundRefreshScheduleEnabled) {
+    @Scheduled(cron="${holdlens.agent.fund-top-holding-refresh-schedule.cron:0 30 2 1,15 * ?}", zone="Asia/Shanghai")
+    public void runFundTopHoldingRefreshSchedule() {
+        if (!holdingEnabled) return;
+        if (holdingBatchSize <= 0) {
+            log.warn("跳过基金重仓刷新，batch-size 无效 batchSize={}", holdingBatchSize);
             return;
         }
-        if (!isValidBatchSize(fundRefreshBatchSize, ProcessingTaskEntity.FUND_DETAIL_REFRESH)) {
-            return;
-        }
-        if (agentFundRefreshCase.hasNonTerminalTask(ProcessingTaskEntity.FUND_DETAIL_REFRESH)) {
-            log.info("跳过基金详情定时刷新，本轮开始前已有非终态任务");
-            return;
-        }
-
-        Long lastId = 0L;
-        int batchNo = 0;
-        while (true) {
-            List<FundRefreshTargetEntity> targets = fundDataRepository.queryRefreshTargetsAfterId(lastId, fundRefreshBatchSize);
-            if (targets.isEmpty()) {
-                log.info("基金详情定时刷新扫描完成 batchCount={}", batchNo);
-                return;
-            }
-            batchNo++;
-            FundRefreshTaskResult result = agentFundRefreshCase.createAndDispatch(FundRefreshCreateCommand.builder()
-                    .fundCodes(targets.stream().map(FundRefreshTargetEntity::getFundCode).toList())
-                    .trigger(SCHEDULE_TRIGGER)
-                    .build());
-            if (!isContinuable(result)) {
-                log.warn("基金详情定时刷新批次异常，停止本轮 batchNo={} targetCount={} serverTaskId={} status={} error={}",
-                        batchNo, targets.size(), safeTaskId(result), safeStatus(result), safeError(result));
-                return;
-            }
-            lastId = targets.get(targets.size() - 1).getId();
-        }
+        fundSliceRefreshCase.scheduleTopHoldings(TRIGGER, holdingBatchSize);
     }
 
-    private boolean isValidBatchSize(int batchSize, String taskType) {
-        if (batchSize > 0) {
-            return true;
-        }
-        log.warn("跳过 agent 刷新定时任务，batch-size 无效 taskType={} batchSize={}", taskType, batchSize);
-        return false;
+    @Scheduled(cron="${holdlens.agent.fund-slice-callback-timeout.cron:0 */5 * * * ?}", zone="Asia/Shanghai")
+    public void closeTimedOutCallbacks() {
+        if (callbackTimeoutEnabled) fundSliceRefreshCase.closeTimedOutCallbacks(callbackTimeoutMinutes);
     }
-
-    private boolean isContinuable(FundRefreshTaskResult result) {
-        return result != null && CONTINUABLE_STATUS.contains(result.getStatus());
-    }
-
-    private String safeTaskId(FundRefreshTaskResult result) {
-        return result == null ? null : result.getServerTaskId();
-    }
-
-    private String safeStatus(FundRefreshTaskResult result) {
-        return result == null ? null : result.getStatus();
-    }
-
-    private String safeError(FundRefreshTaskResult result) {
-        return result == null ? null : result.getErrorSummary();
-    }
-
 }

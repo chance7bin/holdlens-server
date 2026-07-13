@@ -4,7 +4,6 @@ import com.echoamoy.holdlens.server.cases.portfolio.model.WatchlistAssetBatchAdd
 import com.echoamoy.holdlens.server.cases.portfolio.model.WatchlistAssetBatchAddResult;
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
-import com.echoamoy.holdlens.server.domain.funddata.model.entity.FundRefreshTargetEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.adapter.repository.IPortfolioRepository;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.PortfolioHoldingEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.WatchlistAssetEntity;
@@ -60,7 +59,6 @@ public class WatchlistAssetBatchAddCaseImplTest {
         Assert.assertEquals("公开股票600000", portfolioRepository.watchlistAssets.get(1).getAssetName());
         Assert.assertEquals("公开股票000001", portfolioRepository.watchlistAssets.get(2).getAssetName());
         Assert.assertNull(portfolioRepository.watchlistAssets.get(1).getMarket());
-        Assert.assertTrue(fundDataRepository.registeredRefreshTargets.isEmpty());
         Assert.assertTrue(stockMarketRepository.registeredQuoteTargets.isEmpty());
     }
 
@@ -81,7 +79,6 @@ public class WatchlistAssetBatchAddCaseImplTest {
 
         Assert.assertTrue(result.getInvalidItems().isEmpty());
         Assert.assertEquals(1, portfolioRepository.watchlistAssets.size());
-        Assert.assertTrue(fundDataRepository.registeredRefreshTargets.isEmpty());
         Assert.assertTrue(stockMarketRepository.registeredQuoteTargets.isEmpty());
     }
 
@@ -137,14 +134,9 @@ public class WatchlistAssetBatchAddCaseImplTest {
 
     private static class FakeFundDataRepository implements IFundDataRepository {
         private final Set<String> existingFundCodes;
-        private final List<FundRefreshTargetEntity> registeredRefreshTargets = new ArrayList<>();
 
         private FakeFundDataRepository(Set<String> existingFundCodes) {
             this.existingFundCodes = existingFundCodes;
-        }
-
-        @Override
-        public void saveCurrentData(FundCurrentDataAggregate aggregate) {
         }
 
         @Override
@@ -172,15 +164,6 @@ public class WatchlistAssetBatchAddCaseImplTest {
             return result;
         }
 
-        @Override
-        public void registerRefreshTargets(List<FundRefreshTargetEntity> refreshTargets) {
-            registeredRefreshTargets.addAll(refreshTargets);
-        }
-
-        @Override
-        public List<FundRefreshTargetEntity> queryRefreshTargetsAfterId(Long lastId, int limit) {
-            return List.of();
-        }
     }
 
     private static class FakeStockMarketRepository implements IStockMarketRepository {

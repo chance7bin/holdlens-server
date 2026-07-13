@@ -6,4 +6,6 @@ public interface IPortfolioFundDetailCase {
 
     PortfolioFundDetailResult queryPortfolioFundDetails(Long userId);
 
+    PortfolioFundDetailResult.FundDetail queryFundDetail(String fundCode);
+
 }

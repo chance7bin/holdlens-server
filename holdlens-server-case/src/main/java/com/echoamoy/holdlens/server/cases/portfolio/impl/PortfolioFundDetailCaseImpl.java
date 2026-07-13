@@ -2,6 +2,7 @@ package com.echoamoy.holdlens.server.cases.portfolio.impl;
 
 import com.echoamoy.holdlens.server.cases.portfolio.IPortfolioFundDetailCase;
 import com.echoamoy.holdlens.server.cases.portfolio.model.PortfolioFundDetailResult;
+import com.echoamoy.holdlens.server.cases.agent.IFundSliceRefreshCase;
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
 import com.echoamoy.holdlens.server.domain.portfolio.adapter.repository.IPortfolioRepository;
@@ -12,6 +13,8 @@ import com.echoamoy.holdlens.server.types.common.DateTimeUtils;
 import com.echoamoy.holdlens.server.types.enums.ResponseCode;
 import com.echoamoy.holdlens.server.types.exception.AppException;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
+import lombok.extern.slf4j.Slf4j;
 
 import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
@@ -21,14 +24,17 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.ArrayList;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.RejectedExecutionException;
 
 import static com.echoamoy.holdlens.server.types.common.StringUtils.isBlank;
 import static com.echoamoy.holdlens.server.types.common.StringUtils.normalizeNullable;
 
+@Slf4j
 @Service
 public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
 
-    private static final int STALE_DAYS = 7;
     private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
 
     @Resource
@@ -39,6 +45,15 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
 
     @Resource
     private IStockMarketRepository stockMarketRepository;
+
+    @Resource
+    private IFundSliceRefreshCase fundSliceRefreshCase;
+
+    @Resource
+    private ThreadPoolExecutor threadPoolExecutor;
+
+    @Value("${holdlens.agent.fund-top-holding-refresh.detail-stale-days:15}")
+    private int topHoldingStaleDays;
 
     @Override
     public PortfolioFundDetailResult queryPortfolioFundDetails(Long userId) {
@@ -56,17 +71,50 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
         }
         Map<String, FundCurrentDataAggregate.FundDetail> currentDetails = fundDataRepository.queryCurrentDetails(fundCodes);
         Map<String, StockMarketEntity> stockMarkets = stockMarketRepository.queryByStockKeys(collectStockKeys(currentDetails));
-        return PortfolioFundDetailResult.builder()
+        LocalDateTime viewedAt = LocalDateTime.now(BEIJING_ZONE);
+        fundDataRepository.markDetailViewed(fundCodes, viewedAt);
+        List<String> staleCodes = fundCodes.stream()
+                .filter(code -> needsTopHoldingRefresh(currentDetails.get(code), viewedAt))
+                .toList();
+        PortfolioFundDetailResult result = PortfolioFundDetailResult.builder()
                 .userId(userId)
                 .holdings(holdings.stream()
-                        .map(holding -> toHoldingDetail(holding, currentDetails.get(holding.fundCodeOrNull()), stockMarkets))
+                        .map(holding -> toHoldingDetail(holding, currentDetails.get(holding.fundCodeOrNull()), stockMarkets,
+                                staleCodes.contains(holding.fundCodeOrNull())))
                         .toList())
                 .build();
+        dispatchTopHoldingRefreshBestEffort(staleCodes);
+        return result;
+    }
+
+    @Override
+    public PortfolioFundDetailResult.FundDetail queryFundDetail(String fundCode) {
+        if (isBlank(fundCode)) {
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "基金代码不能为空");
+        }
+        String normalizedCode = fundCode.trim();
+        FundCurrentDataAggregate.FundDetail detail = fundDataRepository
+                .queryCurrentDetails(Set.of(normalizedCode)).get(normalizedCode);
+        if (detail == null) {
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "基金目录中不存在该基金");
+        }
+
+        LocalDateTime viewedAt = LocalDateTime.now(BEIJING_ZONE);
+        fundDataRepository.markDetailViewed(Set.of(normalizedCode), viewedAt);
+        boolean stale = needsTopHoldingRefresh(detail, viewedAt);
+        Map<String, StockMarketEntity> stockMarkets = stockMarketRepository
+                .queryByStockKeys(collectStockKeys(Map.of(normalizedCode, detail)));
+        PortfolioFundDetailResult.FundDetail result = toFundDetail(normalizedCode, detail, stockMarkets, stale);
+        if (stale) {
+            dispatchTopHoldingRefreshBestEffort(List.of(normalizedCode));
+        }
+        return result;
     }
 
     private PortfolioFundDetailResult.HoldingDetail toHoldingDetail(PortfolioHoldingEntity holding,
                                                                     FundCurrentDataAggregate.FundDetail fundDetail,
-                                                                    Map<String, StockMarketEntity> stockMarkets) {
+                                                                    Map<String, StockMarketEntity> stockMarkets,
+                                                                    boolean refreshing) {
         return PortfolioFundDetailResult.HoldingDetail.builder()
                 .holdingId(holding.getHoldingId())
                 .accountId(holding.getAccountId())
@@ -84,13 +132,14 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                 .amountDisplay(holding.getAmountDisplay())
                 .amountMissingReason(holding.getAmountMissingReason())
                 .status(holding.getStatus())
-                .fundDetail(toFundDetail(holding.fundCodeOrNull(), fundDetail, stockMarkets))
+                .fundDetail(toFundDetail(holding.fundCodeOrNull(), fundDetail, stockMarkets, refreshing))
                 .build();
     }
 
     private PortfolioFundDetailResult.FundDetail toFundDetail(String fundCode,
                                                              FundCurrentDataAggregate.FundDetail detail,
-                                                             Map<String, StockMarketEntity> stockMarkets) {
+                                                             Map<String, StockMarketEntity> stockMarkets,
+                                                             boolean refreshing) {
         if (fundCode == null) {
             return PortfolioFundDetailResult.FundDetail.builder().detailStatus("unavailable").build();
         }
@@ -98,15 +147,21 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
             return PortfolioFundDetailResult.FundDetail.builder()
                     .fundCode(fundCode)
                     .detailStatus("missing")
+                    .topHoldingRefreshStatus(refreshing ? "refreshing" : "missing")
                     .build();
         }
         return PortfolioFundDetailResult.FundDetail.builder()
                 .fundCode(detail.getFundCode())
                 .fundName(detail.getFundName())
-                .detailStatus(isStale(detail) ? "stale" : "available")
+                .fundType(detail.getFundType())
+                .detailStatus(needsTopHoldingRefresh(detail, LocalDateTime.now(BEIJING_ZONE)) ? "stale" : "available")
                 .buyStatus(detail.getBuyStatus())
                 .dailyPurchaseLimit(detail.getDailyPurchaseLimit())
                 .returnsAsOf(detail.getReturnsAsOf())
+                .unitNav(detail.getUnitNav())
+                .accumulatedNav(detail.getAccumulatedNav())
+                .dailyGrowthRate(detail.getDailyGrowthRate())
+                .returnCoverageStatus(detail.getReturnCoverageStatus())
                 .topHoldingsAsOf(detail.getTopHoldingsAsOf())
                 .publicHoldingsStatus(detail.getPublicHoldingsStatus())
                 .oneMonthReturn(detail.getOneMonthReturn())
@@ -114,6 +169,11 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                 .sixMonthsReturn(detail.getSixMonthsReturn())
                 .oneYearReturn(detail.getOneYearReturn())
                 .threeYearsReturn(detail.getThreeYearsReturn())
+                .catalogFetchedAt(DateTimeUtils.toBusinessDate(detail.getCatalogFetchedAt()))
+                .purchaseStatusFetchedAt(DateTimeUtils.toBusinessDate(detail.getPurchaseStatusFetchedAt()))
+                .periodReturnFetchedAt(DateTimeUtils.toBusinessDate(detail.getPeriodReturnFetchedAt()))
+                .topHoldingFetchedAt(DateTimeUtils.toBusinessDate(detail.getTopHoldingFetchedAt()))
+                .topHoldingRefreshStatus(refreshing ? "refreshing" : "current")
                 .topHoldings(detail.getTopHoldings() == null ? List.of() : detail.getTopHoldings().stream()
                         .map(topHolding -> toTopHolding(topHolding,
                                 stockMarkets.get(stockKey(topHolding.getStockCode(), normalizeNullable(topHolding.getMarket())))))
@@ -156,9 +216,24 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
         return stockCode + "#" + (market == null ? "" : market);
     }
 
-    private boolean isStale(FundCurrentDataAggregate.FundDetail detail) {
-        return detail.getUpdateTime() != null
-                && detail.getUpdateTime().isBefore(LocalDateTime.now(BEIJING_ZONE).minus(STALE_DAYS, ChronoUnit.DAYS));
+    private boolean needsTopHoldingRefresh(FundCurrentDataAggregate.FundDetail detail, LocalDateTime now) {
+        return detail == null || detail.getTopHoldingFetchedAt() == null
+                || detail.getTopHoldingFetchedAt().isBefore(now.minus(Math.max(topHoldingStaleDays, 1), ChronoUnit.DAYS));
+    }
+
+    private void dispatchTopHoldingRefreshBestEffort(List<String> staleCodes) {
+        if (staleCodes.isEmpty() || threadPoolExecutor == null || fundSliceRefreshCase == null) return;
+        try {
+            threadPoolExecutor.execute(() -> {
+                try {
+                    fundSliceRefreshCase.dispatchTopHoldings(new ArrayList<>(staleCodes), "detail_view");
+                } catch (RuntimeException exception) {
+                    log.warn("基金详情异步重仓刷新派发失败 fundCodeCount={}", staleCodes.size());
+                }
+            });
+        } catch (RejectedExecutionException exception) {
+            log.warn("基金详情异步重仓刷新进入线程池失败 fundCodeCount={}", staleCodes.size());
+        }
     }
 
 }

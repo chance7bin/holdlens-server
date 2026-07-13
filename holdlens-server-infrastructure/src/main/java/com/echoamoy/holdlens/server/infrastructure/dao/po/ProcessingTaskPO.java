@@ -22,7 +22,7 @@ public class ProcessingTaskPO implements Serializable {
     /** server任务标识 */
     private String serverTaskId;
 
-    /** 任务类型：fund_detail_refresh */
+    /** 任务类型 */
     private String taskType;
 
     /** 安全任务参数摘要JSON */
