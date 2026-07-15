@@ -87,11 +87,11 @@ Preserve:
 Superpowers 相关技能默认不自动加载，也不替代本文件中的 OpenSpec、实现授权、Git 和质量门规则。仅当用户明确要求，或本文件明确允许的触发条件满足时，才读取并使用对应 skill。
 
 当前允许使用的 Superpowers skills：
-- `.codex/skills/superpowers/skills/brainstorming`
+- `brainstorming`
 
 #### Brainstorming
 
-当用户明确要求 brainstorming、需求仍模糊、存在多个可行方向，或需要先发散再收敛时，应优先读取并使用 `.codex/skills/superpowers/skills/brainstorming`。
+当用户明确要求 brainstorming、需求仍模糊、存在多个可行方向，或需要先发散再收敛时，应优先读取并使用 `brainstorming` skill。
 
 `brainstorming` 只负责澄清需求、探索方案、明确假设、范围边界和成功标准。
 
@@ -107,18 +107,11 @@ Superpowers 相关技能默认不自动加载，也不替代本文件中的 Open
 
 ### Required Project Skills
 
-- 前端开发工作应加载并遵循 `mall-frontend-development`；该技能负责前端设计参考、样式、交互和模块边界指导。
 - 后端开发工作应加载 `xfg-ddd-skills`，并按其 DDD/六边形架构约定处理领域、用例/应用、基础设施和部署相关决策。
 - 在生成涉及领域建模、限界上下文、分层边界、仓储/适配器或跨层设计的 DDD/六边形方案、架构设计、OpenSpec proposal 或设计文档前，加载 `xfg-ddd-skills` 并用它指导设计。普通的轻量分析如果不涉及 DDD 或架构，则不要加载它。
 
 ### Runtime Environment
 
-前端运行环境：
-- 默认前端项目已由用户启动；不要自行尝试启动或重新运行前端开发服务。
-- 测试前端页面时，优先按模块打开对应端口：`admin-web` 使用 `http://localhost:5673`，`user-map` 使用 `http://localhost:5675`，`merchant-mp` 使用 `http://localhost:5676`。
-- 如果识别到目标前端项目未启动，或改动后需要重新运行前端项目，应告知用户对应启动或重新运行方式，并等待用户处理后再继续验证。
-
-后端运行环境：
 - 默认后端项目已由用户启动，服务端口为 `8091`；不要自行尝试启动后端应用，也不要改用其他端口运行。
 - 改动后端项目后，如果需要重新运行 application，应告知用户重新运行方式，并等待用户处理后再继续验证。
 

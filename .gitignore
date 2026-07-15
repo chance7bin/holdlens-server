@@ -31,5 +31,8 @@ logs/
 # Local data
 data/
 
+# Local agent/editor configuration
+.superpowers/
+
 # hidden
 .*/
