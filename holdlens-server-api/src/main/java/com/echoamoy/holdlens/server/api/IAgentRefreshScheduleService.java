@@ -8,6 +8,11 @@ import com.echoamoy.holdlens.server.api.response.Response;
 public interface IAgentRefreshScheduleService {
 
     /**
+     * 手动触发基金目录全量刷新调度，执行规则与 cron 定时触发保持一致。
+     */
+    Response<Void> runFundCatalogRefreshSchedule();
+
+    /**
      * 手动触发基金重仓刷新调度，执行规则与 cron 定时触发保持一致。
      */
     Response<Void> runFundTopHoldingRefreshSchedule();

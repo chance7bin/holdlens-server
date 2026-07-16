@@ -19,6 +19,14 @@ public class AgentRefreshScheduleController implements IAgentRefreshScheduleServ
         this.agentRefreshScheduleJob = agentRefreshScheduleJob;
     }
 
+    @PostMapping("/api/agent/fund-catalog-refresh/schedule-runs")
+    @Override
+    public Response<Void> runFundCatalogRefreshSchedule() {
+        log.info("手动触发基金目录全量刷新调度");
+        agentRefreshScheduleJob.runFundCatalogRefreshSchedule();
+        return Response.ok(null);
+    }
+
     @PostMapping("/api/agent/fund-top-holding-refresh/schedule-runs")
     @Override
     public Response<Void> runFundTopHoldingRefreshSchedule() {
