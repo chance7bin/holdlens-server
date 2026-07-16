@@ -15,6 +15,8 @@ public interface IProcessingTaskDao {
 
     ProcessingTaskPO selectByServerTaskId(@Param("serverTaskId") String serverTaskId);
 
+    ProcessingTaskPO selectByServerTaskIdForUpdate(@Param("serverTaskId") String serverTaskId);
+
     int countNonTerminalByTaskType(@Param("taskType") String taskType);
 
     List<ProcessingTaskPO> selectNonTerminalFundSliceTasksUpdatedBefore(@Param("cutoff") Date cutoff);

@@ -24,6 +24,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Supplier;
 
 public class FundSliceRefreshCaseImplTest {
@@ -57,8 +59,10 @@ public class FundSliceRefreshCaseImplTest {
         Fixture fixture = fixture();
         String taskId = fixture.caseImpl.scheduleCatalog("schedule").getServerTaskId();
         FundSliceRefreshCallbackCommand callback = callback(taskId, "fund-catalog-refresh-result/v1", "succeeded", List.of());
-        Assert.assertEquals("failed", fixture.caseImpl.handleCallback(ProcessingTaskEntity.FUND_CATALOG_REFRESH, callback).getStatus());
+        Assert.assertEquals("running", fixture.caseImpl.handleCallback(ProcessingTaskEntity.FUND_CATALOG_REFRESH, callback).getStatus());
         Assert.assertEquals(0, fixture.funds.catalogWrites);
+        fixture.executor.runNext();
+        Assert.assertEquals("failed", fixture.processing.tasks.get(taskId).getStatus().getCode());
     }
 
     @Test
@@ -67,32 +71,33 @@ public class FundSliceRefreshCaseImplTest {
         String taskId = fixture.caseImpl.scheduleCatalog("schedule").getServerTaskId();
         List<FundSliceRefreshCallbackCommand.FundItem> funds = catalogFunds(1001);
 
-        String status = fixture.caseImpl.handleCallback(
+        String acceptedStatus = fixture.caseImpl.handleCallback(
                 ProcessingTaskEntity.FUND_CATALOG_REFRESH,
                 callback(taskId, "fund-catalog-refresh-result/v1", "succeeded", funds)).getStatus();
 
-        Assert.assertEquals("succeeded", status);
+        Assert.assertEquals("running", acceptedStatus);
+        Assert.assertEquals(0, fixture.funds.catalogWrites);
+        fixture.executor.runNext();
+        Assert.assertEquals("succeeded", fixture.processing.tasks.get(taskId).getStatus().getCode());
         Assert.assertEquals(List.of(500, 500, 1), fixture.funds.catalogBatchSizes);
         Assert.assertEquals(1001, fixture.funds.catalogWrites);
     }
 
     @Test
-    public void catalogBatchFailureStopsLaterBatchesAndPropagatesTheException() throws Exception {
+    public void catalogBatchFailureStopsLaterBatchesAndRecordsCallbackFailure() throws Exception {
         Fixture fixture = fixture();
         fixture.funds.failCatalogBatchIndex = 2;
         String taskId = fixture.caseImpl.scheduleCatalog("schedule").getServerTaskId();
 
-        try {
-            fixture.caseImpl.handleCallback(
-                    ProcessingTaskEntity.FUND_CATALOG_REFRESH,
-                    callback(taskId, "fund-catalog-refresh-result/v1", "succeeded", catalogFunds(1001)));
-            Assert.fail("catalog batch failure must propagate");
-        } catch (IllegalStateException expected) {
-            Assert.assertEquals("simulated catalog batch failure", expected.getMessage());
-        }
+        Assert.assertEquals("running", fixture.caseImpl.handleCallback(
+                ProcessingTaskEntity.FUND_CATALOG_REFRESH,
+                callback(taskId, "fund-catalog-refresh-result/v1", "succeeded", catalogFunds(1001))).getStatus());
+        fixture.executor.runNext();
 
         Assert.assertEquals(List.of(500, 500), fixture.funds.catalogBatchAttempts);
         Assert.assertEquals(List.of(500), fixture.funds.catalogBatchSizes);
+        Assert.assertEquals("callback_failed", fixture.processing.tasks.get(taskId).getStatus().getCode());
+        Assert.assertEquals("failed", fixture.processing.callback(taskId).getProcessStatus());
     }
 
     @Test
@@ -159,6 +164,8 @@ public class FundSliceRefreshCaseImplTest {
         FundSliceRefreshCallbackCommand callback = callback(taskId, "fund-catalog-refresh-result/v1", "succeeded", List.of(item));
         fixture.caseImpl.handleCallback(ProcessingTaskEntity.FUND_CATALOG_REFRESH, callback);
         fixture.caseImpl.handleCallback(ProcessingTaskEntity.FUND_CATALOG_REFRESH, callback);
+        Assert.assertEquals(1, fixture.executor.size());
+        fixture.executor.runNext();
         Assert.assertEquals(1, fixture.funds.catalogWrites);
 
         ProcessingTaskEntity old = ProcessingTaskEntity.builder().serverTaskId("old").taskType(ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH)
@@ -181,11 +188,43 @@ public class FundSliceRefreshCaseImplTest {
                 .message("token=secret-value cookie=session-value").build()));
 
         fixture.caseImpl.handleCallback(ProcessingTaskEntity.FUND_CATALOG_REFRESH, callback);
+        fixture.executor.runNext();
 
         String persisted = fixture.processing.logs.get(0).getMessage();
         Assert.assertFalse(persisted.contains("secret-value"));
         Assert.assertFalse(persisted.contains("session-value"));
         Assert.assertTrue(persisted.contains("[REDACTED]"));
+    }
+
+    @Test
+    public void slowCatalogCallbackOnlyWarnsAndKeepsProcessingState() throws Exception {
+        Fixture fixture = fixture();
+        String taskId = fixture.caseImpl.scheduleCatalog("schedule").getServerTaskId();
+        FundSliceRefreshCallbackCommand callback = callback(taskId, "fund-catalog-refresh-result/v1", "succeeded",
+                List.of(FundSliceRefreshCallbackCommand.FundItem.builder()
+                        .fundCode("000001").fundName("测试基金").build()));
+
+        fixture.caseImpl.handleCallback(ProcessingTaskEntity.FUND_CATALOG_REFRESH, callback);
+        fixture.processing.slowCallbacks.add(fixture.processing.callback(taskId));
+
+        Assert.assertEquals(1, fixture.caseImpl.warnSlowCatalogCallbacks(10));
+        Assert.assertEquals("running", fixture.processing.tasks.get(taskId).getStatus().getCode());
+        Assert.assertEquals("processing", fixture.processing.callback(taskId).getProcessStatus());
+        Assert.assertFalse(fixture.processing.callbackFailed.contains(taskId));
+    }
+
+    @Test
+    public void rejectedCatalogCallbackExecutionRecordsFailureWithoutRunningOnRequestThread() throws Exception {
+        Fixture fixture = fixture();
+        fixture.executor.reject = true;
+        String taskId = fixture.caseImpl.scheduleCatalog("schedule").getServerTaskId();
+
+        String status = fixture.caseImpl.handleCallback(ProcessingTaskEntity.FUND_CATALOG_REFRESH,
+                callback(taskId, "fund-catalog-refresh-result/v1", "succeeded", catalogFunds(1))).getStatus();
+
+        Assert.assertEquals("callback_failed", status);
+        Assert.assertEquals(0, fixture.funds.catalogWrites);
+        Assert.assertEquals("failed", fixture.processing.callback(taskId).getProcessStatus());
     }
 
     private FundSliceRefreshCallbackCommand callback(String taskId, String schema, String status,
@@ -211,12 +250,14 @@ public class FundSliceRefreshCaseImplTest {
         FakeProcessing processing = new FakeProcessing();
         FakeFunds funds = new FakeFunds();
         FakePort port = new FakePort();
+        QueuedExecutor executor = new QueuedExecutor();
         set(impl, "processingTaskRepository", processing);
         set(impl, "fundDataRepository", funds);
         set(impl, "agentFundSliceRefreshPort", port);
         set(impl, "transactionExecutor", new DirectTransactionExecutor());
+        set(impl, "fundCatalogCallbackExecutor", executor);
         set(impl, "serverBaseUrl", "http://server");
-        return new Fixture(impl, processing, funds, port);
+        return new Fixture(impl, processing, funds, port, executor);
     }
 
     private void set(Object target, String name, Object value) throws Exception {
@@ -225,10 +266,23 @@ public class FundSliceRefreshCaseImplTest {
         field.set(target, value);
     }
 
-    private record Fixture(FundSliceRefreshCaseImpl caseImpl, FakeProcessing processing, FakeFunds funds, FakePort port) { }
+    private record Fixture(FundSliceRefreshCaseImpl caseImpl, FakeProcessing processing, FakeFunds funds,
+                           FakePort port, QueuedExecutor executor) { }
 
     private static class DirectTransactionExecutor extends TransactionExecutor {
         @Override public <T> T required(Supplier<T> action) { return action.get(); }
+        @Override public <T> T requiresNew(Supplier<T> action) { return action.get(); }
+    }
+
+    private static class QueuedExecutor implements Executor {
+        final List<Runnable> tasks = new ArrayList<>();
+        boolean reject;
+        @Override public void execute(Runnable command) {
+            if (reject) throw new RejectedExecutionException("simulated rejection");
+            tasks.add(command);
+        }
+        void runNext() { tasks.remove(0).run(); }
+        int size() { return tasks.size(); }
     }
 
     private static class FakePort implements IAgentFundSliceRefreshPort {
@@ -241,23 +295,39 @@ public class FundSliceRefreshCaseImplTest {
 
     private static class FakeProcessing implements IProcessingTaskRepository {
         final Map<String, ProcessingTaskEntity> tasks = new HashMap<>();
-        final Set<String> callbacks = new HashSet<>();
+        final Map<String, ProcessingCallbackEntity> callbacks = new HashMap<>();
         final List<ProcessingTaskEntity> timedOut = new ArrayList<>();
+        final List<ProcessingCallbackEntity> slowCallbacks = new ArrayList<>();
         final List<ProcessingLogEntity> logs = new ArrayList<>();
         final Set<String> callbackFailed = new HashSet<>();
         public void saveTask(ProcessingTaskEntity task) { tasks.put(task.getServerTaskId(), task); }
         public void updateTask(ProcessingTaskEntity task) { tasks.put(task.getServerTaskId(), task); }
         public ProcessingTaskEntity queryTask(String id) { return tasks.get(id); }
         public boolean existsNonTerminalTask(String type) { return tasks.values().stream().anyMatch(t -> type.equals(t.getTaskType()) && !t.isTerminal()); }
-        public boolean saveCallbackIfAbsent(ProcessingCallbackEntity callback) { return callbacks.add(callback.getServerTaskId() + "#" + callback.getIdempotencyKey()); }
-        public void markCallbackProcessed(String serverTaskId, String key, String status, String error) { }
+        public boolean saveCallbackIfAbsent(ProcessingCallbackEntity callback) {
+            return callbacks.putIfAbsent(callback.getServerTaskId() + "#" + callback.getIdempotencyKey(), callback) == null;
+        }
+        public void markCallbackProcessed(String serverTaskId, String key, String status, String error) {
+            ProcessingCallbackEntity callback = callbacks.get(serverTaskId + "#" + key);
+            if (callback != null) {
+                callback.setProcessStatus(status);
+                callback.setErrorSummary(error);
+            }
+        }
         public void saveLogs(List<ProcessingLogEntity> logs) { this.logs.addAll(logs); }
         public List<ProcessingTaskEntity> queryNonTerminalFundSliceTasksUpdatedBefore(LocalDateTime cutoff) { return List.copyOf(timedOut); }
+        public List<ProcessingCallbackEntity> queryProcessingCatalogCallbacksCreatedBefore(LocalDateTime cutoff) {
+            return List.copyOf(slowCallbacks);
+        }
         public boolean markCallbackFailedIfTimedOut(String serverTaskId, LocalDateTime cutoff, String errorSummary) {
             ProcessingTaskEntity task = timedOut.stream().filter(item -> serverTaskId.equals(item.getServerTaskId())).findFirst().orElse(null);
             if (task == null || task.isTerminal()) return false;
             callbackFailed.add(serverTaskId);
             return true;
+        }
+        ProcessingCallbackEntity callback(String serverTaskId) {
+            return callbacks.values().stream().filter(item -> serverTaskId.equals(item.getServerTaskId()))
+                    .findFirst().orElseThrow();
         }
     }
 

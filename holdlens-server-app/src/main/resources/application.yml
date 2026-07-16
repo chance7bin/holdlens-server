@@ -35,4 +35,5 @@ holdlens:
     fund-slice-callback-timeout:
       enabled: false
       minutes: 30
+      processing-warning-minutes: 10
       cron: "0 */5 * * * ?"

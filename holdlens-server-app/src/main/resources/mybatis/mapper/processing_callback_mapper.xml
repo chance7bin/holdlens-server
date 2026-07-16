@@ -2,6 +2,22 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.echoamoy.holdlens.server.infrastructure.dao.IProcessingCallbackDao">
 
+    <resultMap id="BaseResultMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.ProcessingCallbackPO">
+        <id column="id" property="id"/>
+        <result column="server_task_id" property="serverTaskId"/>
+        <result column="idempotency_key" property="idempotencyKey"/>
+        <result column="callback_status" property="callbackStatus"/>
+        <result column="process_status" property="processStatus"/>
+        <result column="error_summary" property="errorSummary"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, server_task_id, idempotency_key, callback_status, process_status,
+        error_summary, create_time, update_time
+    </sql>
+
     <insert id="insert" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.ProcessingCallbackPO" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO processing_callback (
             server_task_id, idempotency_key, callback_status, process_status, error_summary
@@ -18,5 +34,20 @@
         WHERE server_task_id = #{serverTaskId}
           AND idempotency_key = #{idempotencyKey}
     </update>
+
+    <select id="selectProcessingCatalogCallbacksCreatedBefore" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM processing_callback callback_record
+        WHERE callback_record.process_status = 'processing'
+          AND callback_record.create_time &lt; #{cutoff}
+          AND EXISTS (
+              SELECT 1
+              FROM processing_task task
+              WHERE task.server_task_id = callback_record.server_task_id
+                AND task.task_type = 'fund_catalog_refresh'
+                AND task.status IN ('created', 'dispatched', 'running')
+          )
+        ORDER BY callback_record.id ASC
+    </select>
 
 </mapper>

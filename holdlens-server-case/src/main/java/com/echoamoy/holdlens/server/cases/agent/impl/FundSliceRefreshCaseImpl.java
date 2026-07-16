@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
@@ -69,6 +70,7 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
     @Resource private IFundDataRepository fundDataRepository;
     @Resource private IAgentFundSliceRefreshPort agentFundSliceRefreshPort;
     @Resource private TransactionExecutor transactionExecutor;
+    @Resource(name = "fundCatalogCallbackExecutor") private Executor fundCatalogCallbackExecutor;
 
     @Value("${holdlens.agent.server-base-url}")
     private String serverBaseUrl;
@@ -165,23 +167,84 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
 
         int inputCount = command.getFunds() == null ? 0 : command.getFunds().size();
         long startedNanos = System.nanoTime();
-        log.info("开始处理基金目录 callback serverTaskId={} inputCount={}", command.getServerTaskId(), inputCount);
+        CallbackAcceptanceOutcome acceptance;
         try {
-            CallbackProcessingOutcome outcome = transactionExecutor.required(() -> processCallback(taskType, command));
-            int skippedCount = outcome.deduplicated() ? 0 : Math.max(0, inputCount - outcome.validCount());
-            // TransactionTemplate 仅在事务提交成功后返回，成功汇总必须留在该边界之外。
-            log.info("基金目录 callback 事务已提交 serverTaskId={} inputCount={} validCount={} skippedCount={} "
-                            + "batchCount={} deduplicated={} elapsedMs={} status={}",
-                    command.getServerTaskId(), inputCount, outcome.validCount(), skippedCount,
-                    outcome.batchCount(), outcome.deduplicated(), elapsedMillis(startedNanos),
-                    outcome.result().getStatus());
-            return outcome.result();
+            acceptance = transactionExecutor.required(() -> acceptCatalogCallback(command));
         } catch (RuntimeException exception) {
-            log.warn("基金目录 callback 事务处理失败 serverTaskId={} inputCount={} elapsedMs={} exceptionType={}",
+            log.warn("基金目录 callback 接收事务失败 serverTaskId={} inputCount={} elapsedMs={} exceptionType={}",
                     command.getServerTaskId(), inputCount, elapsedMillis(startedNanos),
                     exception.getClass().getSimpleName());
             throw exception;
         }
+
+        if (!acceptance.shouldProcess()) {
+            log.info("基金目录 callback 已去重，不重复提交异步处理 serverTaskId={} inputCount={} elapsedMs={} status={}",
+                    command.getServerTaskId(), inputCount, elapsedMillis(startedNanos), acceptance.result().getStatus());
+            return acceptance.result();
+        }
+
+        try {
+            fundCatalogCallbackExecutor.execute(() -> processCatalogCallbackAsync(command, inputCount));
+        } catch (RuntimeException exception) {
+            log.error("基金目录 callback 异步任务提交失败 serverTaskId={} inputCount={} elapsedMs={}",
+                    command.getServerTaskId(), inputCount, elapsedMillis(startedNanos), exception);
+            recordCatalogCallbackProcessingFailure(command, exception);
+            ProcessingTaskEntity latestTask = processingTaskRepository.queryTask(command.getServerTaskId());
+            return latestTask == null ? acceptance.result() : toResult(latestTask);
+        }
+
+        log.info("基金目录 callback 已接收并提交异步处理 serverTaskId={} inputCount={} elapsedMs={}",
+                command.getServerTaskId(), inputCount, elapsedMillis(startedNanos));
+        return acceptance.result();
+    }
+
+    private CallbackAcceptanceOutcome acceptCatalogCallback(FundSliceRefreshCallbackCommand command) {
+        // 锁定任务行，避免 timeout 扫描和 callback 接收同时把同一任务推进到不同状态。
+        ProcessingTaskEntity task = requireTaskForUpdate(
+                ProcessingTaskEntity.FUND_CATALOG_REFRESH, command.getServerTaskId());
+        if (task.isTerminal()) {
+            return new CallbackAcceptanceOutcome(toResult(task), false);
+        }
+        task.transitTo(ProcessingTaskStatusEnumVO.RUNNING, null);
+        processingTaskRepository.updateTask(task);
+        boolean first = processingTaskRepository.saveCallbackIfAbsent(ProcessingCallbackEntity.builder()
+                .serverTaskId(command.getServerTaskId())
+                .idempotencyKey(command.getIdempotencyKey())
+                .callbackStatus(command.getStatus())
+                .processStatus("processing")
+                .errorSummary(safe(command.getErrorSummary()))
+                .build());
+        if (!first) {
+            return new CallbackAcceptanceOutcome(toResult(task), false);
+        }
+        return new CallbackAcceptanceOutcome(toResult(task), true);
+    }
+
+    private void processCatalogCallbackAsync(FundSliceRefreshCallbackCommand command, int inputCount) {
+        long startedNanos = System.nanoTime();
+        log.info("开始异步处理基金目录 callback serverTaskId={} inputCount={}", command.getServerTaskId(), inputCount);
+        try {
+            CallbackProcessingOutcome outcome = transactionExecutor.required(() -> processAcceptedCatalogCallback(command));
+            int skippedCount = outcome.deduplicated() ? 0 : Math.max(0, inputCount - outcome.validCount());
+            // TransactionTemplate 仅在事务提交成功后返回，成功汇总必须留在该边界之外。
+            log.info("基金目录 callback 异步事务已提交 serverTaskId={} inputCount={} validCount={} skippedCount={} "
+                            + "batchCount={} deduplicated={} elapsedMs={} status={}",
+                    command.getServerTaskId(), inputCount, outcome.validCount(), skippedCount,
+                    outcome.batchCount(), outcome.deduplicated(), elapsedMillis(startedNanos),
+                    outcome.result().getStatus());
+        } catch (RuntimeException exception) {
+            log.error("基金目录 callback 异步事务处理失败 serverTaskId={} inputCount={} elapsedMs={}",
+                    command.getServerTaskId(), inputCount, elapsedMillis(startedNanos), exception);
+            recordCatalogCallbackProcessingFailure(command, exception);
+        }
+    }
+
+    private CallbackProcessingOutcome processAcceptedCatalogCallback(FundSliceRefreshCallbackCommand command) {
+        ProcessingTaskEntity task = requireTask(ProcessingTaskEntity.FUND_CATALOG_REFRESH, command.getServerTaskId());
+        if (task.isTerminal()) {
+            return new CallbackProcessingOutcome(toResult(task), 0, 0, true);
+        }
+        return applyCallbackResult(ProcessingTaskEntity.FUND_CATALOG_REFRESH, command, task);
     }
 
     private CallbackProcessingOutcome processCallback(String taskType, FundSliceRefreshCallbackCommand command) {
@@ -197,6 +260,11 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
             return new CallbackProcessingOutcome(toResult(task), 0, 0, true);
         }
 
+        return applyCallbackResult(taskType, command, task);
+    }
+
+    private CallbackProcessingOutcome applyCallbackResult(String taskType, FundSliceRefreshCallbackCommand command,
+                                                           ProcessingTaskEntity task) {
         List<ProcessingLogEntity> logs = toLogs(command);
         ProcessingTaskStatusEnumVO target = toStatus(command.getStatus());
         int validCount = 0;
@@ -226,6 +294,26 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
         processingTaskRepository.updateTask(task);
         processingTaskRepository.markCallbackProcessed(command.getServerTaskId(), command.getIdempotencyKey(), "processed", null);
         return new CallbackProcessingOutcome(toResult(task), validCount, batchCount, false);
+    }
+
+    private void recordCatalogCallbackProcessingFailure(FundSliceRefreshCallbackCommand command, RuntimeException cause) {
+        try {
+            transactionExecutor.requiresNew(() -> {
+                String errorSummary = safe(blank(cause.getMessage())
+                        ? cause.getClass().getSimpleName() : cause.getMessage());
+                ProcessingTaskEntity latestTask = processingTaskRepository.queryTask(command.getServerTaskId());
+                if (latestTask != null && !latestTask.isTerminal()) {
+                    latestTask.transitTo(ProcessingTaskStatusEnumVO.CALLBACK_FAILED, errorSummary);
+                    processingTaskRepository.updateTask(latestTask);
+                }
+                processingTaskRepository.markCallbackProcessed(command.getServerTaskId(), command.getIdempotencyKey(),
+                        "failed", errorSummary);
+                return null;
+            });
+        } catch (RuntimeException exception) {
+            log.error("基金目录 callback 异步失败状态记录失败 serverTaskId={} idempotencyKey={}",
+                    command.getServerTaskId(), command.getIdempotencyKey(), exception);
+        }
     }
 
     private FundApplyResult applyFunds(String taskType, List<FundSliceRefreshCallbackCommand.FundItem> funds,
@@ -448,6 +536,23 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
         return closed;
     }
 
+    @Override
+    public int warnSlowCatalogCallbacks(int warningMinutes) {
+        if (warningMinutes < 1) {
+            log.warn("跳过基金目录 callback 慢处理扫描，配置必须大于 0 warningMinutes={}", warningMinutes);
+            return 0;
+        }
+        LocalDateTime cutoff = LocalDateTime.now(BEIJING_ZONE).minusMinutes(warningMinutes);
+        List<ProcessingCallbackEntity> callbacks =
+                processingTaskRepository.queryProcessingCatalogCallbacksCreatedBefore(cutoff);
+        for (ProcessingCallbackEntity callback : callbacks) {
+            log.warn("基金目录 callback 异步处理超过阈值，保持 processing 状态 serverTaskId={} "
+                            + "processStatus={} warningMinutes={} callbackCreateTime={}",
+                    callback.getServerTaskId(), callback.getProcessStatus(), warningMinutes, callback.getCreateTime());
+        }
+        return callbacks.size();
+    }
+
     private void validateCallback(String taskType, FundSliceRefreshCallbackCommand command) {
         if (!ProcessingTaskEntity.isFundSliceRefresh(taskType) || command == null || blank(command.getServerTaskId()))
             throw illegal("回调任务信息不完整");
@@ -459,6 +564,12 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
 
     private ProcessingTaskEntity requireTask(String taskType, String taskId) {
         ProcessingTaskEntity task = processingTaskRepository.queryTask(taskId);
+        if (task == null || !Objects.equals(taskType, task.getTaskType())) throw illegal("未知或类型不匹配的基金切片任务");
+        return task;
+    }
+
+    private ProcessingTaskEntity requireTaskForUpdate(String taskType, String taskId) {
+        ProcessingTaskEntity task = processingTaskRepository.queryTaskForUpdate(taskId);
         if (task == null || !Objects.equals(taskType, task.getTaskType())) throw illegal("未知或类型不匹配的基金切片任务");
         return task;
     }
@@ -537,4 +648,6 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
 
     private record CallbackProcessingOutcome(FundRefreshTaskResult result, int validCount,
                                               int batchCount, boolean deduplicated) { }
+
+    private record CallbackAcceptanceOutcome(FundRefreshTaskResult result, boolean shouldProcess) { }
 }

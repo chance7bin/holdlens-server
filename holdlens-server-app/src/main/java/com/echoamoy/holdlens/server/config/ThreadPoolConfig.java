@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.*;
 
@@ -45,6 +46,21 @@ public class ThreadPoolConfig {
                 new LinkedBlockingQueue<>(properties.getBlockQueueSize()),
                 Executors.defaultThreadFactory(),
                 handler);
+    }
+
+    /**
+     * 基金目录 callback 必须始终脱离 HTTP 请求线程执行；拒绝时由 Case 记录失败，不能回退到 CallerRunsPolicy。
+     */
+    @Bean("fundCatalogCallbackExecutor")
+    public Executor fundCatalogCallbackExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(1);
+        executor.setThreadNamePrefix("fund-catalog-callback-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        executor.initialize();
+        return executor;
     }
 
 }

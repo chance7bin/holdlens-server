@@ -48,6 +48,11 @@ public class ProcessingTaskRepository implements IProcessingTaskRepository {
     }
 
     @Override
+    public ProcessingTaskEntity queryTaskForUpdate(String serverTaskId) {
+        return toEntity(processingTaskDao.selectByServerTaskIdForUpdate(serverTaskId));
+    }
+
+    @Override
     public boolean existsNonTerminalTask(String taskType) {
         return processingTaskDao.countNonTerminalByTaskType(taskType) > 0;
     }
@@ -97,6 +102,17 @@ public class ProcessingTaskRepository implements IProcessingTaskRepository {
         return processingTaskDao.markCallbackFailedIfTimedOut(serverTaskId, value, errorSummary) == 1;
     }
 
+    @Override
+    public List<ProcessingCallbackEntity> queryProcessingCatalogCallbacksCreatedBefore(LocalDateTime cutoff) {
+        if (cutoff == null) {
+            return List.of();
+        }
+        Date value = Date.from(cutoff.atZone(ZoneId.of("Asia/Shanghai")).toInstant());
+        return processingCallbackDao.selectProcessingCatalogCallbacksCreatedBefore(value).stream()
+                .map(this::toEntity)
+                .toList();
+    }
+
     private ProcessingTaskPO toPO(ProcessingTaskEntity entity) {
         if (entity == null) {
             return null;
@@ -135,6 +151,22 @@ public class ProcessingTaskRepository implements IProcessingTaskRepository {
                 .callbackStatus(entity.getCallbackStatus())
                 .processStatus(entity.getProcessStatus())
                 .errorSummary(entity.getErrorSummary())
+                .build();
+    }
+
+    private ProcessingCallbackEntity toEntity(ProcessingCallbackPO po) {
+        if (po == null) {
+            return null;
+        }
+        return ProcessingCallbackEntity.builder()
+                .id(po.getId())
+                .serverTaskId(po.getServerTaskId())
+                .idempotencyKey(po.getIdempotencyKey())
+                .callbackStatus(po.getCallbackStatus())
+                .processStatus(po.getProcessStatus())
+                .errorSummary(po.getErrorSummary())
+                .createTime(po.getCreateTime())
+                .updateTime(po.getUpdateTime())
                 .build();
     }
 

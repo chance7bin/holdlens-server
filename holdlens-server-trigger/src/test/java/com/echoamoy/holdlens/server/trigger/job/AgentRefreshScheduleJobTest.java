@@ -58,6 +58,20 @@ public class AgentRefreshScheduleJobTest {
     }
 
     @Test
+    public void callbackTimeoutScheduleClosesMissingCallbacksAndWarnsSlowCatalogProcessing() throws Exception {
+        FakeCase fake = new FakeCase();
+        AgentRefreshScheduleJob job = newJob(fake);
+        setField(job, "callbackTimeoutEnabled", true);
+        setField(job, "callbackTimeoutMinutes", 30);
+        setField(job, "callbackProcessingWarningMinutes", 10);
+
+        job.closeTimedOutCallbacks();
+
+        Assert.assertEquals(30, fake.lastCallbackTimeoutMinutes);
+        Assert.assertEquals(10, fake.lastProcessingWarningMinutes);
+    }
+
+    @Test
     public void schedulesReferenceExternalConfiguration() throws Exception {
         Scheduled catalog = scheduled("runFundCatalogRefreshSchedule");
         Scheduled purchase = scheduled("runFundPurchaseStatusRefreshSchedule");
@@ -77,6 +91,7 @@ public class AgentRefreshScheduleJobTest {
         assertValue("holdingBatchSize", "${holdlens.agent.fund-top-holding-refresh-schedule.batch-size}");
         assertValue("callbackTimeoutEnabled", "${holdlens.agent.fund-slice-callback-timeout.enabled}");
         assertValue("callbackTimeoutMinutes", "${holdlens.agent.fund-slice-callback-timeout.minutes}");
+        assertValue("callbackProcessingWarningMinutes", "${holdlens.agent.fund-slice-callback-timeout.processing-warning-minutes:10}");
     }
 
     @Test
@@ -92,6 +107,7 @@ public class AgentRefreshScheduleJobTest {
         Assert.assertEquals(false, properties.getProperty("holdlens.agent.fund-period-return-refresh-schedule.enabled"));
         Assert.assertEquals(false, properties.getProperty("holdlens.agent.fund-top-holding-refresh-schedule.enabled"));
         Assert.assertEquals(false, properties.getProperty("holdlens.agent.fund-slice-callback-timeout.enabled"));
+        Assert.assertEquals(10, properties.getProperty("holdlens.agent.fund-slice-callback-timeout.processing-warning-minutes"));
     }
 
     private void assertSchedule(Scheduled scheduled, String cron) {
@@ -133,12 +149,15 @@ public class AgentRefreshScheduleJobTest {
     private static class FakeCase implements IFundSliceRefreshCase {
         int calls;
         int lastBatchSize;
+        int lastCallbackTimeoutMinutes;
+        int lastProcessingWarningMinutes;
         public FundRefreshTaskResult scheduleCatalog(String trigger) { calls++; return null; }
         public FundRefreshTaskResult schedulePurchaseStatus(String trigger) { calls++; return null; }
         public FundRefreshTaskResult schedulePeriodReturn(String trigger) { calls++; return null; }
         public List<FundRefreshTaskResult> scheduleTopHoldings(String trigger, int batchSize) { calls++; lastBatchSize = batchSize; return List.of(); }
         public FundRefreshTaskResult dispatchTopHoldings(List<String> fundCodes, String trigger) { return null; }
         public FundRefreshTaskResult handleCallback(String taskType, FundSliceRefreshCallbackCommand command) { return null; }
-        public int closeTimedOutCallbacks(int timeoutMinutes) { return 0; }
+        public int closeTimedOutCallbacks(int timeoutMinutes) { lastCallbackTimeoutMinutes = timeoutMinutes; return 0; }
+        public int warnSlowCatalogCallbacks(int warningMinutes) { lastProcessingWarningMinutes = warningMinutes; return 0; }
     }
 }

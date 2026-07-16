@@ -23,6 +23,7 @@ public class AgentRefreshScheduleJob {
     @Value("${holdlens.agent.fund-top-holding-refresh-schedule.batch-size}") private int holdingBatchSize;
     @Value("${holdlens.agent.fund-slice-callback-timeout.enabled}") private boolean callbackTimeoutEnabled;
     @Value("${holdlens.agent.fund-slice-callback-timeout.minutes}") private int callbackTimeoutMinutes;
+    @Value("${holdlens.agent.fund-slice-callback-timeout.processing-warning-minutes:10}") private int callbackProcessingWarningMinutes;
 
     @Scheduled(cron="${holdlens.agent.fund-catalog-refresh-schedule.cron}", zone="${holdlens.agent.fund-refresh-schedule-zone}")
     public void runFundCatalogRefreshSchedule() {
@@ -51,6 +52,8 @@ public class AgentRefreshScheduleJob {
 
     @Scheduled(cron="${holdlens.agent.fund-slice-callback-timeout.cron}", zone="${holdlens.agent.fund-refresh-schedule-zone}")
     public void closeTimedOutCallbacks() {
-        if (callbackTimeoutEnabled) fundSliceRefreshCase.closeTimedOutCallbacks(callbackTimeoutMinutes);
+        if (!callbackTimeoutEnabled) return;
+        fundSliceRefreshCase.closeTimedOutCallbacks(callbackTimeoutMinutes);
+        fundSliceRefreshCase.warnSlowCatalogCallbacks(callbackProcessingWarningMinutes);
     }
 }

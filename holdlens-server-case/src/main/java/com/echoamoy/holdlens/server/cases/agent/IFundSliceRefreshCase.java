@@ -13,4 +13,5 @@ public interface IFundSliceRefreshCase {
     FundRefreshTaskResult dispatchTopHoldings(List<String> fundCodes, String trigger);
     FundRefreshTaskResult handleCallback(String taskType, FundSliceRefreshCallbackCommand command);
     int closeTimedOutCallbacks(int timeoutMinutes);
+    default int warnSlowCatalogCallbacks(int warningMinutes) { return 0; }
 }

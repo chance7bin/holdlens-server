@@ -58,7 +58,28 @@ public class FundRefreshSqlStructureTest {
         String taskMapper = Files.readString(projectRoot().resolve(
                 "holdlens-server-app/src/main/resources/mybatis/mapper/processing_task_mapper.xml"));
         Assert.assertTrue(taskMapper.contains("id=\"markCallbackFailedIfTimedOut\""));
+        Assert.assertTrue(taskMapper.contains("id=\"selectByServerTaskIdForUpdate\""));
+        Assert.assertTrue(taskMapper.contains("FOR UPDATE"));
         Assert.assertTrue(taskMapper.contains("status IN ('created', 'dispatched', 'running')"));
+        Assert.assertEquals(2, occurrences(taskMapper, "NOT EXISTS ("));
+        Assert.assertEquals(2, occurrences(taskMapper, "FROM processing_callback callback_record"));
+
+        String callbackMapper = Files.readString(projectRoot().resolve(
+                "holdlens-server-app/src/main/resources/mybatis/mapper/processing_callback_mapper.xml"));
+        Assert.assertTrue(callbackMapper.contains("id=\"selectProcessingCatalogCallbacksCreatedBefore\""));
+        Assert.assertTrue(callbackMapper.contains("callback_record.process_status = 'processing'"));
+        Assert.assertTrue(callbackMapper.contains("task.task_type = 'fund_catalog_refresh'"));
+        Assert.assertTrue(callbackMapper.contains("task.status IN ('created', 'dispatched', 'running')"));
+    }
+
+    private int occurrences(String value, String target) {
+        int count = 0;
+        int index = 0;
+        while ((index = value.indexOf(target, index)) >= 0) {
+            count++;
+            index += target.length();
+        }
+        return count;
     }
 
     private Path projectRoot() {

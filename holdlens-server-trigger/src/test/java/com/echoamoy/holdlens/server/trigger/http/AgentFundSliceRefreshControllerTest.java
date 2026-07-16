@@ -7,11 +7,25 @@ import com.echoamoy.holdlens.server.cases.agent.model.FundSliceRefreshCallbackCo
 import com.echoamoy.holdlens.server.domain.processing.model.entity.ProcessingTaskEntity;
 import org.junit.Assert;
 import org.junit.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.List;
 
 public class AgentFundSliceRefreshControllerTest {
+    @Test
+    public void catalogCallbackReturnsAcceptedWhileOtherCallbacksKeepDefaultStatus() throws Exception {
+        Method catalog = AgentFundSliceRefreshController.class.getMethod(
+                "catalogCallback", String.class, FundSliceRefreshCallbackRequest.class);
+        Method purchase = AgentFundSliceRefreshController.class.getMethod(
+                "purchaseStatusCallback", String.class, FundSliceRefreshCallbackRequest.class);
+
+        Assert.assertEquals(HttpStatus.ACCEPTED, catalog.getAnnotation(ResponseStatus.class).value());
+        Assert.assertNull(purchase.getAnnotation(ResponseStatus.class));
+    }
+
     @Test
     public void eachEndpointPassesItsOwnTaskTypeAndRejectsUnauthorizedHeader() throws Exception {
         AgentFundSliceRefreshController controller = new AgentFundSliceRefreshController();

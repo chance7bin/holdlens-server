@@ -28,7 +28,7 @@ public class ProcessingCallbackPO implements Serializable {
     /** 回调状态 */
     private String callbackStatus;
 
-    /** 处理状态：created/processed/failed */
+    /** 处理状态：created/processing/processed/failed */
     private String processStatus;
 
     /** 安全错误摘要 */

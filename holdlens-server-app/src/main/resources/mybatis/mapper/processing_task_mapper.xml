@@ -39,6 +39,13 @@
         WHERE server_task_id = #{serverTaskId}
     </select>
 
+    <select id="selectByServerTaskIdForUpdate" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM processing_task
+        WHERE server_task_id = #{serverTaskId}
+        FOR UPDATE
+    </select>
+
     <select id="countNonTerminalByTaskType" resultType="int">
         SELECT COUNT(1)
         FROM processing_task
@@ -53,6 +60,11 @@
                             'fund_period_return_refresh', 'fund_top_holding_refresh')
           AND status IN ('created', 'dispatched', 'running')
           AND update_time &lt; #{cutoff}
+          AND NOT EXISTS (
+              SELECT 1
+              FROM processing_callback callback_record
+              WHERE callback_record.server_task_id = processing_task.server_task_id
+          )
         ORDER BY id ASC
     </select>
 
@@ -66,6 +78,11 @@
                             'fund_period_return_refresh', 'fund_top_holding_refresh')
           AND status IN ('created', 'dispatched', 'running')
           AND update_time &lt; #{cutoff}
+          AND NOT EXISTS (
+              SELECT 1
+              FROM processing_callback callback_record
+              WHERE callback_record.server_task_id = processing_task.server_task_id
+          )
     </update>
 
 </mapper>

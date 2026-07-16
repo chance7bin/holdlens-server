@@ -131,7 +131,7 @@ CREATE TABLE `processing_callback` (
     `server_task_id` VARCHAR(100) NOT NULL COMMENT 'server任务标识',
     `idempotency_key` VARCHAR(200) NOT NULL COMMENT '幂等键',
     `callback_status` VARCHAR(30) NOT NULL COMMENT '回调状态',
-    `process_status` VARCHAR(30) NOT NULL DEFAULT 'created' COMMENT '处理状态：created/processed/failed',
+    `process_status` VARCHAR(30) NOT NULL DEFAULT 'created' COMMENT '处理状态：created/processing/processed/failed',
     `error_summary` VARCHAR(1000) DEFAULT NULL COMMENT '安全错误摘要',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

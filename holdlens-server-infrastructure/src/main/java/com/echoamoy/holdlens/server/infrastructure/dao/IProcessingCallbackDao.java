@@ -4,6 +4,9 @@ import com.echoamoy.holdlens.server.infrastructure.dao.po.ProcessingCallbackPO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.util.Date;
+import java.util.List;
+
 @Mapper
 public interface IProcessingCallbackDao {
 
@@ -13,5 +16,7 @@ public interface IProcessingCallbackDao {
                             @Param("idempotencyKey") String idempotencyKey,
                             @Param("processStatus") String processStatus,
                             @Param("errorSummary") String errorSummary);
+
+    List<ProcessingCallbackPO> selectProcessingCatalogCallbacksCreatedBefore(@Param("cutoff") Date cutoff);
 
 }

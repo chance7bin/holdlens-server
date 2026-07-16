@@ -15,6 +15,8 @@ public interface IProcessingTaskRepository {
 
     ProcessingTaskEntity queryTask(String serverTaskId);
 
+    default ProcessingTaskEntity queryTaskForUpdate(String serverTaskId) { return queryTask(serverTaskId); }
+
     boolean existsNonTerminalTask(String taskType);
 
     boolean saveCallbackIfAbsent(ProcessingCallbackEntity callbackEntity);
@@ -27,6 +29,10 @@ public interface IProcessingTaskRepository {
 
     default boolean markCallbackFailedIfTimedOut(String serverTaskId, LocalDateTime cutoff, String errorSummary) {
         return false;
+    }
+
+    default List<ProcessingCallbackEntity> queryProcessingCatalogCallbacksCreatedBefore(LocalDateTime cutoff) {
+        return List.of();
     }
 
 }

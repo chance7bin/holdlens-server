@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import com.echoamoy.holdlens.server.types.exception.AppException;
 
 import java.util.List;
@@ -26,6 +27,7 @@ public class AgentFundSliceRefreshController implements IAgentFundSliceRefreshSe
     @Value("${holdlens.agent.callback-header-value}") private String callbackHeaderValue;
 
     @PostMapping("/internal/agent/fund-catalog-refresh/callback")
+    @ResponseStatus(HttpStatus.ACCEPTED)
     public Response<FundRefreshTaskDTO> catalogCallback(@RequestHeader(value="X-HoldLens-Agent-Callback", required=false) String header,
                                                         @RequestBody FundSliceRefreshCallbackRequest request) {
         return callback(header, ProcessingTaskEntity.FUND_CATALOG_REFRESH, request);
