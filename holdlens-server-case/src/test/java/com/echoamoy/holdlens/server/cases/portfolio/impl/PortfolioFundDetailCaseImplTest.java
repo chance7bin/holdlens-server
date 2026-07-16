@@ -128,6 +128,11 @@ public class PortfolioFundDetailCaseImplTest {
         }
 
         @Override
+        public void upsertCatalogs(List<FundCurrentDataAggregate.FundDetail> funds) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public void markDetailViewed(java.util.Collection<String> fundCodes, LocalDateTime viewedAt) {
             viewedCodes = Set.copyOf(fundCodes);
         }

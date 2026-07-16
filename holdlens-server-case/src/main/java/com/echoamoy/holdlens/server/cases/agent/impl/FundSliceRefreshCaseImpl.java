@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 @Slf4j
@@ -45,6 +46,7 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
     private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
     private static final Set<String> CALLBACK_STATUSES = Set.of("succeeded", "partial_failed", "failed");
     private static final Set<String> PURCHASE_STATUSES = Set.of("open", "closed", "limited", "suspended", "unknown");
+    private static final int FUND_CATALOG_UPSERT_BATCH_SIZE = 500;
     private static final Pattern SENSITIVE_VALUE = Pattern.compile(
             "(?i)(api[_-]?key|authorization|callback[_-]?auth|cookie|password|secret|token)\\s*[:=]\\s*[^,\\s;]+");
     private static final Map<String, String> TASK_SCHEMAS = Map.of(
@@ -68,7 +70,7 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
     @Resource private IAgentFundSliceRefreshPort agentFundSliceRefreshPort;
     @Resource private TransactionExecutor transactionExecutor;
 
-    @Value("${holdlens.agent.server-base-url:http://127.0.0.1:8091}")
+    @Value("${holdlens.agent.server-base-url}")
     private String serverBaseUrl;
 
     @Override public FundRefreshTaskResult scheduleCatalog(String trigger) {
@@ -157,10 +159,32 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
     @Override
     public FundRefreshTaskResult handleCallback(String taskType, FundSliceRefreshCallbackCommand command) {
         validateCallback(taskType, command);
-        return transactionExecutor.required(() -> processCallback(taskType, command));
+        if (!ProcessingTaskEntity.FUND_CATALOG_REFRESH.equals(taskType)) {
+            return transactionExecutor.required(() -> processCallback(taskType, command).result());
+        }
+
+        int inputCount = command.getFunds() == null ? 0 : command.getFunds().size();
+        long startedNanos = System.nanoTime();
+        log.info("开始处理基金目录 callback serverTaskId={} inputCount={}", command.getServerTaskId(), inputCount);
+        try {
+            CallbackProcessingOutcome outcome = transactionExecutor.required(() -> processCallback(taskType, command));
+            int skippedCount = outcome.deduplicated() ? 0 : Math.max(0, inputCount - outcome.validCount());
+            // TransactionTemplate 仅在事务提交成功后返回，成功汇总必须留在该边界之外。
+            log.info("基金目录 callback 事务已提交 serverTaskId={} inputCount={} validCount={} skippedCount={} "
+                            + "batchCount={} deduplicated={} elapsedMs={} status={}",
+                    command.getServerTaskId(), inputCount, outcome.validCount(), skippedCount,
+                    outcome.batchCount(), outcome.deduplicated(), elapsedMillis(startedNanos),
+                    outcome.result().getStatus());
+            return outcome.result();
+        } catch (RuntimeException exception) {
+            log.warn("基金目录 callback 事务处理失败 serverTaskId={} inputCount={} elapsedMs={} exceptionType={}",
+                    command.getServerTaskId(), inputCount, elapsedMillis(startedNanos),
+                    exception.getClass().getSimpleName());
+            throw exception;
+        }
     }
 
-    private FundRefreshTaskResult processCallback(String taskType, FundSliceRefreshCallbackCommand command) {
+    private CallbackProcessingOutcome processCallback(String taskType, FundSliceRefreshCallbackCommand command) {
         ProcessingTaskEntity task = requireTask(taskType, command.getServerTaskId());
         boolean first = processingTaskRepository.saveCallbackIfAbsent(ProcessingCallbackEntity.builder()
                 .serverTaskId(command.getServerTaskId())
@@ -170,11 +194,13 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
                 .errorSummary(safe(command.getErrorSummary()))
                 .build());
         if (!first || task.isTerminal()) {
-            return toResult(task);
+            return new CallbackProcessingOutcome(toResult(task), 0, 0, true);
         }
 
         List<ProcessingLogEntity> logs = toLogs(command);
         ProcessingTaskStatusEnumVO target = toStatus(command.getStatus());
+        int validCount = 0;
+        int batchCount = 0;
         if (target != ProcessingTaskStatusEnumVO.FAILED) {
             List<FundSliceRefreshCallbackCommand.FundItem> funds = command.getFunds() == null ? List.of() : command.getFunds();
             boolean inflightNoop = ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH.equals(taskType)
@@ -183,10 +209,14 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
                 target = ProcessingTaskStatusEnumVO.FAILED;
                 logs.add(log(command.getServerTaskId(), taskType, "empty_result", "基金切片结果为空"));
             } else if (!inflightNoop) {
-                int valid = applyFunds(taskType, funds, command.getServerTaskId(), logs, fetchedAt(command.getGeneratedAt()));
-                if (valid == 0) {
+                FundApplyResult applied = applyFunds(
+                        taskType, funds, command.getServerTaskId(), logs, fetchedAt(command.getGeneratedAt()));
+                validCount = applied.validCount();
+                batchCount = applied.batchCount();
+                if (validCount == 0) {
                     target = ProcessingTaskStatusEnumVO.FAILED;
-                } else if (valid < funds.size() || !logs.isEmpty() || target == ProcessingTaskStatusEnumVO.PARTIAL_FAILED) {
+                } else if (validCount < funds.size() || !logs.isEmpty()
+                        || target == ProcessingTaskStatusEnumVO.PARTIAL_FAILED) {
                     target = ProcessingTaskStatusEnumVO.PARTIAL_FAILED;
                 }
             }
@@ -195,11 +225,14 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
         task.transitTo(target, safe(command.getErrorSummary()));
         processingTaskRepository.updateTask(task);
         processingTaskRepository.markCallbackProcessed(command.getServerTaskId(), command.getIdempotencyKey(), "processed", null);
-        return toResult(task);
+        return new CallbackProcessingOutcome(toResult(task), validCount, batchCount, false);
     }
 
-    private int applyFunds(String taskType, List<FundSliceRefreshCallbackCommand.FundItem> funds,
-                           String taskId, List<ProcessingLogEntity> logs, LocalDateTime fetchedAt) {
+    private FundApplyResult applyFunds(String taskType, List<FundSliceRefreshCallbackCommand.FundItem> funds,
+                                       String taskId, List<ProcessingLogEntity> logs, LocalDateTime fetchedAt) {
+        if (ProcessingTaskEntity.FUND_CATALOG_REFRESH.equals(taskType)) {
+            return applyCatalogFunds(funds, taskId, logs, fetchedAt);
+        }
         int valid = 0;
         for (FundSliceRefreshCallbackCommand.FundItem item : funds) {
             if (item == null || blank(item.getFundCode())) {
@@ -207,7 +240,6 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
                 continue;
             }
             boolean accepted = switch (taskType) {
-                case ProcessingTaskEntity.FUND_CATALOG_REFRESH -> applyCatalog(item, fetchedAt);
                 case ProcessingTaskEntity.FUND_PURCHASE_STATUS_REFRESH -> applyPurchase(item, fetchedAt);
                 case ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH -> applyReturn(item, fetchedAt, logs, taskId);
                 case ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH -> applyHolding(item, fetchedAt, logs, taskId);
@@ -220,15 +252,55 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
                 logs.add(log(taskId, taskType, "row_skipped", "基金记录无效或基金不存在: " + item.getFundCode()));
             }
         }
-        return valid;
+        return new FundApplyResult(valid, 0);
     }
 
-    private boolean applyCatalog(FundSliceRefreshCallbackCommand.FundItem item, LocalDateTime fetchedAt) {
-        if (blank(item.getFundName())) return false;
-        fundDataRepository.upsertCatalog(base(item).fundName(item.getFundName().trim())
-                .fundType(trim(item.getFundType())).pinyinAbbr(trim(item.getPinyinAbbr()))
-                .pinyinFull(trim(item.getPinyinFull())).catalogFetchedAt(fetchedAt).build());
-        return true;
+    private FundApplyResult applyCatalogFunds(List<FundSliceRefreshCallbackCommand.FundItem> funds, String taskId,
+                                              List<ProcessingLogEntity> logs, LocalDateTime fetchedAt) {
+        int valid = 0;
+        int batchCount = 0;
+        List<FundCurrentDataAggregate.FundDetail> batch = new ArrayList<>(FUND_CATALOG_UPSERT_BATCH_SIZE);
+        for (FundSliceRefreshCallbackCommand.FundItem item : funds) {
+            if (item == null || blank(item.getFundCode())) {
+                logs.add(log(taskId, ProcessingTaskEntity.FUND_CATALOG_REFRESH, "invalid_fund", "基金代码缺失"));
+                continue;
+            }
+            if (blank(item.getFundName())) {
+                logs.add(log(taskId, ProcessingTaskEntity.FUND_CATALOG_REFRESH, "row_skipped",
+                        "基金记录无效或基金不存在: " + item.getFundCode()));
+                continue;
+            }
+            batch.add(base(item).fundName(item.getFundName().trim())
+                    .fundType(trim(item.getFundType())).pinyinAbbr(trim(item.getPinyinAbbr()))
+                    .pinyinFull(trim(item.getPinyinFull())).catalogFetchedAt(fetchedAt).build());
+            valid++;
+            if (batch.size() == FUND_CATALOG_UPSERT_BATCH_SIZE) {
+                upsertCatalogBatch(taskId, batchCount + 1, batch);
+                batchCount++;
+                batch.clear();
+            }
+        }
+        if (!batch.isEmpty()) {
+            upsertCatalogBatch(taskId, batchCount + 1, batch);
+            batchCount++;
+        }
+        return new FundApplyResult(valid, batchCount);
+    }
+
+    private void upsertCatalogBatch(String taskId, int batchIndex,
+                                    List<FundCurrentDataAggregate.FundDetail> batch) {
+        List<FundCurrentDataAggregate.FundDetail> immutableBatch = List.copyOf(batch);
+        long startedNanos = System.nanoTime();
+        try {
+            fundDataRepository.upsertCatalogs(immutableBatch);
+            log.debug("基金目录批次 SQL 执行完成，等待事务提交 serverTaskId={} batchIndex={} batchSize={} elapsedMs={}",
+                    taskId, batchIndex, immutableBatch.size(), elapsedMillis(startedNanos));
+        } catch (RuntimeException exception) {
+            log.warn("基金目录批次 SQL 执行失败 serverTaskId={} batchIndex={} batchSize={} elapsedMs={} exceptionType={}",
+                    taskId, batchIndex, immutableBatch.size(), elapsedMillis(startedNanos),
+                    exception.getClass().getSimpleName());
+            throw exception;
+        }
     }
 
     private boolean applyPurchase(FundSliceRefreshCallbackCommand.FundItem item, LocalDateTime fetchedAt) {
@@ -452,9 +524,17 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
     private boolean blank(String value) { return value == null || value.trim().isEmpty(); }
     private String trim(String value) { return blank(value) ? null : value.trim(); }
     private String blankToDefault(String value, String fallback) { return blank(value) ? fallback : value.trim(); }
+    private long elapsedMillis(long startedNanos) {
+        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
+    }
     private String safe(String value) {
         if (value == null) return null;
         String redacted = SENSITIVE_VALUE.matcher(value).replaceAll("$1=[REDACTED]");
         return redacted.substring(0, Math.min(1000, redacted.length()));
     }
+
+    private record FundApplyResult(int validCount, int batchCount) { }
+
+    private record CallbackProcessingOutcome(FundRefreshTaskResult result, int validCount,
+                                              int batchCount, boolean deduplicated) { }
 }

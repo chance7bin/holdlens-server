@@ -63,6 +63,14 @@ public class FundDataRepository implements IFundDataRepository {
     }
 
     @Override
+    public void upsertCatalogs(List<FundCurrentDataAggregate.FundDetail> funds) {
+        if (funds == null || funds.isEmpty()) {
+            return;
+        }
+        fundDao.upsertCatalogBatch(funds.stream().map(this::toFundPO).toList());
+    }
+
+    @Override
     public boolean updatePurchaseStatus(FundCurrentDataAggregate.FundDetail fund) {
         return fundDao.updatePurchaseStatus(toFundPO(fund)) > 0;
     }

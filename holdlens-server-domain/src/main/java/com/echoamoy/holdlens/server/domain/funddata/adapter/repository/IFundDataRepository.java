@@ -16,6 +16,8 @@ public interface IFundDataRepository {
 
     default void upsertCatalog(FundCurrentDataAggregate.FundDetail fund) { throw new UnsupportedOperationException(); }
 
+    void upsertCatalogs(List<FundCurrentDataAggregate.FundDetail> funds);
+
     default boolean updatePurchaseStatus(FundCurrentDataAggregate.FundDetail fund) { return false; }
 
     default boolean updatePeriodReturn(FundCurrentDataAggregate.FundDetail fund) { return false; }

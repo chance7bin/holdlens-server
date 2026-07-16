@@ -39,6 +39,7 @@ mybatis:
 logging:
   level:
     root: info
+    com.echoamoy.holdlens.server.cases.agent.impl.FundSliceRefreshCaseImpl: debug
   config: classpath:logback-spring.xml
 
 holdlens:

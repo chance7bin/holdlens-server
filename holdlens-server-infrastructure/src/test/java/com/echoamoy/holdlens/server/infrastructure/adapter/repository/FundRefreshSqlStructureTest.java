@@ -34,6 +34,20 @@ public class FundRefreshSqlStructureTest {
     public void mapperUsesSliceSpecificStatements() throws Exception {
         String mapper = Files.readString(projectRoot().resolve("holdlens-server-app/src/main/resources/mybatis/mapper/fund_mapper.xml"));
         Assert.assertTrue(mapper.contains("id=\"upsertCatalog\""));
+        int batchStart = mapper.indexOf("<insert id=\"upsertCatalogBatch\"");
+        int batchEnd = mapper.indexOf("</insert>", batchStart);
+        Assert.assertTrue(batchStart >= 0);
+        Assert.assertTrue(batchEnd > batchStart);
+        String batchSql = mapper.substring(batchStart, batchEnd);
+        Assert.assertTrue(batchSql.contains("collection=\"funds\""));
+        Assert.assertTrue(batchSql.contains("item=\"fund\""));
+        Assert.assertTrue(batchSql.contains("separator=\",\""));
+        Assert.assertTrue(batchSql.contains("#{fund.fundCode}"));
+        Assert.assertTrue(batchSql.contains("fund_name = VALUES(fund_name)"));
+        Assert.assertTrue(batchSql.contains("fund_type = VALUES(fund_type)"));
+        Assert.assertTrue(batchSql.contains("pinyin_abbr = VALUES(pinyin_abbr)"));
+        Assert.assertTrue(batchSql.contains("pinyin_full = VALUES(pinyin_full)"));
+        Assert.assertTrue(batchSql.contains("catalog_fetched_at = VALUES(catalog_fetched_at)"));
         Assert.assertTrue(mapper.contains("id=\"updatePurchaseStatus\""));
         Assert.assertTrue(mapper.contains("id=\"updatePeriodReturn\""));
         Assert.assertTrue(mapper.contains("id=\"updateTopHoldingMetadata\""));

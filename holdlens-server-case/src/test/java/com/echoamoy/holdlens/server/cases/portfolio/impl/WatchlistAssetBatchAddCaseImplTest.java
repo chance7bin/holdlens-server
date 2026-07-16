@@ -164,6 +164,11 @@ public class WatchlistAssetBatchAddCaseImplTest {
             return result;
         }
 
+        @Override
+        public void upsertCatalogs(List<FundCurrentDataAggregate.FundDetail> funds) {
+            throw new UnsupportedOperationException();
+        }
+
     }
 
     private static class FakeStockMarketRepository implements IStockMarketRepository {

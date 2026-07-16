@@ -55,6 +55,22 @@
             update_time = CURRENT_TIMESTAMP
     </insert>
 
+    <insert id="upsertCatalogBatch">
+        INSERT INTO fund (fund_code, fund_name, fund_type, pinyin_abbr, pinyin_full, catalog_fetched_at)
+        VALUES
+        <foreach collection="funds" item="fund" separator=",">
+            (#{fund.fundCode}, #{fund.fundName}, #{fund.fundType}, #{fund.pinyinAbbr}, #{fund.pinyinFull}, #{fund.catalogFetchedAt})
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            id = LAST_INSERT_ID(id),
+            fund_name = VALUES(fund_name),
+            fund_type = VALUES(fund_type),
+            pinyin_abbr = VALUES(pinyin_abbr),
+            pinyin_full = VALUES(pinyin_full),
+            catalog_fetched_at = VALUES(catalog_fetched_at),
+            update_time = CURRENT_TIMESTAMP
+    </insert>
+
     <update id="updatePurchaseStatus" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundPO">
         UPDATE fund
         SET buy_status = #{buyStatus},

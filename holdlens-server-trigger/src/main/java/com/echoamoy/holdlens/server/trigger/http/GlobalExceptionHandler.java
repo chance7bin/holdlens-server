@@ -15,8 +15,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AgentCallbackHttpException.class)
     public ResponseEntity<Response<Void>> handleAgentCallbackHttpException(AgentCallbackHttpException exception) {
-        log.warn("agent 回调处理失败，httpStatus={}，code={}，info={}",
-                exception.getHttpStatus().value(), exception.getCode(), exception.getInfo());
+        log.error("agent 回调处理失败，httpStatus={}，code={}，info={}",
+                exception.getHttpStatus().value(), exception.getCode(), exception.getInfo(), exception);
         return ResponseEntity.status(exception.getHttpStatus())
                 .body(Response.fail(exception.getCode(), exception.getInfo()));
     }

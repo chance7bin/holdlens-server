@@ -62,6 +62,40 @@ public class FundSliceRefreshCaseImplTest {
     }
 
     @Test
+    public void catalogCallbackUpsertsOneThousandAndOneFundsInFiveHundredItemBatches() throws Exception {
+        Fixture fixture = fixture();
+        String taskId = fixture.caseImpl.scheduleCatalog("schedule").getServerTaskId();
+        List<FundSliceRefreshCallbackCommand.FundItem> funds = catalogFunds(1001);
+
+        String status = fixture.caseImpl.handleCallback(
+                ProcessingTaskEntity.FUND_CATALOG_REFRESH,
+                callback(taskId, "fund-catalog-refresh-result/v1", "succeeded", funds)).getStatus();
+
+        Assert.assertEquals("succeeded", status);
+        Assert.assertEquals(List.of(500, 500, 1), fixture.funds.catalogBatchSizes);
+        Assert.assertEquals(1001, fixture.funds.catalogWrites);
+    }
+
+    @Test
+    public void catalogBatchFailureStopsLaterBatchesAndPropagatesTheException() throws Exception {
+        Fixture fixture = fixture();
+        fixture.funds.failCatalogBatchIndex = 2;
+        String taskId = fixture.caseImpl.scheduleCatalog("schedule").getServerTaskId();
+
+        try {
+            fixture.caseImpl.handleCallback(
+                    ProcessingTaskEntity.FUND_CATALOG_REFRESH,
+                    callback(taskId, "fund-catalog-refresh-result/v1", "succeeded", catalogFunds(1001)));
+            Assert.fail("catalog batch failure must propagate");
+        } catch (IllegalStateException expected) {
+            Assert.assertEquals("simulated catalog batch failure", expected.getMessage());
+        }
+
+        Assert.assertEquals(List.of(500, 500), fixture.funds.catalogBatchAttempts);
+        Assert.assertEquals(List.of(500), fixture.funds.catalogBatchSizes);
+    }
+
+    @Test
     public void sourceNotCoveredIsValidAndDoesNotClearReturnValues() throws Exception {
         Fixture fixture = fixture();
         fixture.funds.current.put("000001", FundCurrentDataAggregate.FundDetail.builder().fundCode("000001").build());
@@ -161,6 +195,17 @@ public class FundSliceRefreshCaseImplTest {
                 .funds(funds).refreshWarnings(List.of()).build();
     }
 
+    private List<FundSliceRefreshCallbackCommand.FundItem> catalogFunds(int count) {
+        List<FundSliceRefreshCallbackCommand.FundItem> funds = new ArrayList<>();
+        for (int index = 1; index <= count; index++) {
+            funds.add(FundSliceRefreshCallbackCommand.FundItem.builder()
+                    .fundCode(String.format("%06d", index))
+                    .fundName("测试基金" + index)
+                    .build());
+        }
+        return funds;
+    }
+
     private Fixture fixture() throws Exception {
         FundSliceRefreshCaseImpl impl = new FundSliceRefreshCaseImpl();
         FakeProcessing processing = new FakeProcessing();
@@ -219,6 +264,9 @@ public class FundSliceRefreshCaseImplTest {
     private static class FakeFunds implements IFundDataRepository {
         final Map<String, FundCurrentDataAggregate.FundDetail> current = new HashMap<>();
         final List<String> targets = new ArrayList<>();
+        final List<Integer> catalogBatchAttempts = new ArrayList<>();
+        final List<Integer> catalogBatchSizes = new ArrayList<>();
+        int failCatalogBatchIndex;
         int catalogWrites;
         int returnWrites;
         int holdingWrites;
@@ -231,6 +279,14 @@ public class FundSliceRefreshCaseImplTest {
         }
         public Set<String> queryExistingFundCodes(Collection<String> codes) { return current.keySet(); }
         public void upsertCatalog(FundCurrentDataAggregate.FundDetail fund) { catalogWrites++; current.put(fund.getFundCode(), fund); }
+        public void upsertCatalogs(List<FundCurrentDataAggregate.FundDetail> funds) {
+            catalogBatchAttempts.add(funds.size());
+            if (catalogBatchAttempts.size() == failCatalogBatchIndex) {
+                throw new IllegalStateException("simulated catalog batch failure");
+            }
+            catalogBatchSizes.add(funds.size());
+            funds.forEach(this::upsertCatalog);
+        }
         public boolean updatePurchaseStatus(FundCurrentDataAggregate.FundDetail fund) { return current.containsKey(fund.getFundCode()); }
         public boolean updatePeriodReturn(FundCurrentDataAggregate.FundDetail fund) { returnWrites++; lastReturn = fund; return current.containsKey(fund.getFundCode()); }
         public boolean updateTopHoldingSnapshot(FundCurrentDataAggregate.FundDetail fund, boolean clear) { holdingWrites++; lastClear = clear; return current.containsKey(fund.getFundCode()); }

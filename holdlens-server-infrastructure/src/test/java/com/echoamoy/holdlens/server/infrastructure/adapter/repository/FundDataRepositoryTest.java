@@ -9,11 +9,42 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
 public class FundDataRepositoryTest {
+
+    @Test
+    public void upsertCatalogsMapsDomainFundsAndUsesOneDaoBatch() throws Exception {
+        FundDataRepository repository = new FundDataRepository();
+        FakeFundDao fundDao = new FakeFundDao();
+        setField(repository, "fundDao", fundDao);
+
+        repository.upsertCatalogs(List.of(
+                FundCurrentDataAggregate.FundDetail.builder()
+                        .fundCode("000001")
+                        .fundName("测试基金一")
+                        .fundType("混合型")
+                        .pinyinAbbr("CSJJY")
+                        .pinyinFull("CESHIJIJINYI")
+                        .catalogFetchedAt(LocalDateTime.of(2026, 7, 16, 10, 0))
+                        .build(),
+                FundCurrentDataAggregate.FundDetail.builder()
+                        .fundCode("000002")
+                        .fundName("测试基金二")
+                        .build()));
+
+        Assert.assertEquals(2, fundDao.catalogBatch.size());
+        Assert.assertEquals("000001", fundDao.catalogBatch.get(0).getFundCode());
+        Assert.assertEquals("测试基金一", fundDao.catalogBatch.get(0).getFundName());
+        Assert.assertEquals("混合型", fundDao.catalogBatch.get(0).getFundType());
+        Assert.assertEquals("CSJJY", fundDao.catalogBatch.get(0).getPinyinAbbr());
+        Assert.assertEquals("CESHIJIJINYI", fundDao.catalogBatch.get(0).getPinyinFull());
+        Assert.assertNotNull(fundDao.catalogBatch.get(0).getCatalogFetchedAt());
+        Assert.assertEquals("000002", fundDao.catalogBatch.get(1).getFundCode());
+    }
 
     @Test
     public void updateTopHoldingSnapshotUpdatesExistingRankInsertsNewRankAndDeletesStaleRank() throws Exception {
@@ -135,9 +166,11 @@ public class FundDataRepositoryTest {
 
     private static class FakeFundDao implements IFundDao {
         private FundPO upserted;
+        private List<FundPO> catalogBatch = List.of();
         private List<FundPO> fundItems = List.of();
 
         @Override public void upsertCatalog(FundPO fundPO) { upserted = fundPO; }
+        @Override public void upsertCatalogBatch(List<FundPO> funds) { catalogBatch = funds; }
         @Override public int updatePurchaseStatus(FundPO fundPO) { upserted = fundPO; return 1; }
         @Override public int updatePeriodReturn(FundPO fundPO) { upserted = fundPO; return 1; }
         @Override public int updateTopHoldingMetadata(FundPO fundPO) { upserted = fundPO; return 1; }

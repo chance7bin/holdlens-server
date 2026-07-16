@@ -11,6 +11,8 @@ public interface IFundDao {
 
     void upsertCatalog(FundPO fundPO);
 
+    void upsertCatalogBatch(@Param("funds") List<FundPO> funds);
+
     int updatePurchaseStatus(FundPO fundPO);
 
     int updatePeriodReturn(FundPO fundPO);
