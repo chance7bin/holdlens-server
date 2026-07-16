@@ -10,7 +10,7 @@
 - [x] 2.2 实现 agent Port 的 `/tasks/fund-asset-allocation-refresh` 路由和 payload，确保只发送去重 `fund_codes` 而不发送报告期；补充路径、schema、callback URL、派发结果和数据安全测试。
 - [x] 2.3 实现基于持有/关注/近 90 天查看并集的资产配置候选查询，覆盖 missing、新已结束季度和 unavailable 七天退避；用 Repository/Mapper 测试验证仅目录基金被排除。
 - [x] 2.4 实现独立调度 Case 与轻量 Job，使用每周 cron、默认 batch size 20、独立开关和同类型非终态跳过；补充空目标、批次切分、开关和基本 scheduler 测试。
-- [x] 2.5 扩展 `IAgentRefreshScheduleService` 和 `AgentRefreshScheduleController`，新增资产配置调度 HTTP 手动入口并复用 Job；补充响应、路由和调用次数测试。
+- [x] 2.5 扩展 `IAgentRefreshScheduleService` 和 `AgentRefreshScheduleController`，新增资产配置调度 HTTP 手动入口；后续由 `decouple-manual-refresh-from-schedule-switches` 将其与 cron 开关解耦。
 
 ## 3. Callback 与原子快照写入
 

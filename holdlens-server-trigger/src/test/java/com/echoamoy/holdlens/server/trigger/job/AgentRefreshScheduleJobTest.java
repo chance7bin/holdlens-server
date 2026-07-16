@@ -111,16 +111,30 @@ public class AgentRefreshScheduleJobTest {
                 .get(0);
 
         Assert.assertEquals("Asia/Shanghai", properties.getProperty("holdlens.agent.fund-refresh-schedule-zone"));
+        assertRefreshSchedulesDisabled(properties);
+        Assert.assertEquals(20, properties.getProperty("holdlens.agent.fund-asset-allocation-refresh-schedule.batch-size"));
+        Assert.assertNotNull(CronExpression.parse((String) properties.getProperty(
+                "holdlens.agent.fund-asset-allocation-refresh-schedule.cron")));
+        Assert.assertEquals(10, properties.getProperty("holdlens.agent.fund-slice-callback-timeout.processing-warning-minutes"));
+    }
+
+    @Test
+    public void devConfigurationKeepsRefreshSchedulesDisabledByDefault() throws Exception {
+        Path applicationConfig = projectRoot().resolve("holdlens-server-app/src/main/resources/application-dev.yml");
+        PropertySource<?> properties = new YamlPropertySourceLoader()
+                .load("application-dev", new FileSystemResource(applicationConfig))
+                .get(0);
+
+        assertRefreshSchedulesDisabled(properties);
+    }
+
+    private void assertRefreshSchedulesDisabled(PropertySource<?> properties) {
         Assert.assertEquals(false, properties.getProperty("holdlens.agent.fund-catalog-refresh-schedule.enabled"));
         Assert.assertEquals(false, properties.getProperty("holdlens.agent.fund-purchase-status-refresh-schedule.enabled"));
         Assert.assertEquals(false, properties.getProperty("holdlens.agent.fund-period-return-refresh-schedule.enabled"));
         Assert.assertEquals(false, properties.getProperty("holdlens.agent.fund-top-holding-refresh-schedule.enabled"));
         Assert.assertEquals(false, properties.getProperty("holdlens.agent.fund-asset-allocation-refresh-schedule.enabled"));
-        Assert.assertEquals(20, properties.getProperty("holdlens.agent.fund-asset-allocation-refresh-schedule.batch-size"));
-        Assert.assertNotNull(CronExpression.parse((String) properties.getProperty(
-                "holdlens.agent.fund-asset-allocation-refresh-schedule.cron")));
         Assert.assertEquals(false, properties.getProperty("holdlens.agent.fund-slice-callback-timeout.enabled"));
-        Assert.assertEquals(10, properties.getProperty("holdlens.agent.fund-slice-callback-timeout.processing-warning-minutes"));
     }
 
     private void assertSchedule(Scheduled scheduled, String cron) {

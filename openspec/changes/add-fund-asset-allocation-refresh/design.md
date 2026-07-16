@@ -39,7 +39,7 @@ server 是长期业务事实源，负责基金目标选择、任务状态、call
 
 ### 1. 使用独立任务类型并复用现有基金切片基础设施
 
-新增 `fund_asset_allocation_refresh` 常量、schema/path 映射、Controller callback 入口、Case 调度/派发入口、Port 路由和 Job 配置。通用 `processing_task`、callback 幂等、日志及状态机继续复用，但新任务拥有独立开关、cron、URL、callback path 和 DTO 字段。Trigger 同时暴露 `POST /api/agent/fund-asset-allocation-refresh/schedule-runs` 手动入口，该入口只委托同一个 Job 方法，因此不会绕过开关、batch size 和同类型非终态任务跳过规则。
+新增 `fund_asset_allocation_refresh` 常量、schema/path 映射、Controller callback 入口、Case 调度/派发入口、Port 路由和 Job 配置。通用 `processing_task`、callback 幂等、日志及状态机继续复用，但新任务拥有独立开关、cron、URL、callback path 和 DTO 字段。Trigger 同时暴露 `POST /api/agent/fund-asset-allocation-refresh/schedule-runs` 手动入口，该入口直接委托 Case 并绕过 cron 开关，同时保留 batch size 和同类型非终态任务跳过规则。
 
 备选方案是把资产配置塞入 `fund_top_holding_refresh`，会让任一数据源失败影响另一 slice，并使空数组和报告期语义冲突，因此不采用。
 

@@ -5,7 +5,7 @@
 ## What Changes
 
 - 新增基金目录全量刷新的手动 HTTP 触发接口。
-- 手动触发复用现有 `AgentRefreshScheduleJob.runFundCatalogRefreshSchedule()`，保持调度开关和同类型非终态任务跳过规则不变。
+- 手动触发直接调用现有基金目录刷新 Case，不受 cron 调度开关影响，并保持同类型非终态任务跳过规则不变。
 - 接口只返回触发调用结果，不改变基金目录刷新任务、agent 下发和回调契约。
 
 ## Capabilities

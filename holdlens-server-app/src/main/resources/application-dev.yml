@@ -59,23 +59,23 @@ holdlens:
     callback-header-value: internal
     fund-refresh-schedule-zone: Asia/Shanghai
     fund-catalog-refresh-schedule:
-      enabled: true
+      enabled: false
       cron: "0 0 2 * * ?"
     fund-purchase-status-refresh-schedule:
-      enabled: true
+      enabled: false
       cron: "0 10 2 * * ?"
     fund-period-return-refresh-schedule:
-      enabled: true
+      enabled: false
       cron: "0 20 2 * * ?"
     fund-top-holding-refresh-schedule:
-      enabled: true
+      enabled: false
       batch-size: 20
       cron: "0 30 2 1,15 * ?"
     fund-asset-allocation-refresh-schedule:
-      enabled: true
+      enabled: false
       cron: "0 30 4 ? * MON"
       batch-size: 20
     fund-slice-callback-timeout:
-      enabled: true
+      enabled: false
       minutes: 30
       cron: "0 */5 * * * ?"

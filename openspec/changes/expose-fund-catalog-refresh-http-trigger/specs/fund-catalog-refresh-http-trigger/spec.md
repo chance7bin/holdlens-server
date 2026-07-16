@@ -10,11 +10,11 @@ server SHALL expose an HTTP endpoint that manually invokes the existing fund cat
 - **THEN** server SHALL invoke the same fund catalog refresh schedule method used by cron
 - **AND** server SHALL return a successful empty response after the invocation completes
 
-#### Scenario: Manual trigger respects disabled schedule
+#### Scenario: Manual trigger ignores disabled schedule
 
 - **WHEN** `fund-catalog-refresh-schedule.enabled` is false
 - **AND** a caller submits `POST /api/agent/fund-catalog-refresh/schedule-runs`
-- **THEN** server SHALL NOT create a fund catalog refresh task
+- **THEN** server SHALL invoke the fund catalog refresh Case with trigger source `manual`
 - **AND** server SHALL return a successful empty response
 
 #### Scenario: Manual trigger skips an active catalog task
