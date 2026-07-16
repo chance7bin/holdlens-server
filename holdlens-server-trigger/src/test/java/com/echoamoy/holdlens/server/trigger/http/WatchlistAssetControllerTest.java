@@ -6,6 +6,10 @@ import com.echoamoy.holdlens.server.api.response.WatchlistAssetBatchAddResponseD
 import com.echoamoy.holdlens.server.cases.portfolio.IWatchlistAssetBatchAddCase;
 import com.echoamoy.holdlens.server.cases.portfolio.model.WatchlistAssetBatchAddCommand;
 import com.echoamoy.holdlens.server.cases.portfolio.model.WatchlistAssetBatchAddResult;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+import jakarta.validation.ValidatorFactory;
 import org.junit.Assert;
 import org.junit.Test;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.List;
+import java.util.Set;
 
 public class WatchlistAssetControllerTest {
 
@@ -49,6 +54,22 @@ public class WatchlistAssetControllerTest {
 
         Assert.assertNotNull(mapping);
         Assert.assertArrayEquals(new String[]{"/api/watchlist/assets/batch-add"}, mapping.value());
+    }
+
+    @Test
+    public void batchAddRequestRejectsMissingUserAndEmptyItems() {
+        WatchlistAssetBatchAddRequestDTO request = WatchlistAssetBatchAddRequestDTO.builder()
+                .items(List.of())
+                .build();
+
+        try (ValidatorFactory validatorFactory = Validation.buildDefaultValidatorFactory()) {
+            Validator validator = validatorFactory.getValidator();
+            Set<ConstraintViolation<WatchlistAssetBatchAddRequestDTO>> violations = validator.validate(request);
+
+            Assert.assertEquals(2, violations.size());
+            Assert.assertTrue(violations.stream().anyMatch(violation -> "userId".equals(violation.getPropertyPath().toString())));
+            Assert.assertTrue(violations.stream().anyMatch(violation -> "items".equals(violation.getPropertyPath().toString())));
+        }
     }
 
     private static class FakeWatchlistAssetBatchAddCase implements IWatchlistAssetBatchAddCase {
