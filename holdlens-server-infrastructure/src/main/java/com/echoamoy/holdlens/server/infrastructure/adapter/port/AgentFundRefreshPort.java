@@ -23,22 +23,22 @@ public class AgentFundRefreshPort implements IAgentFundSliceRefreshPort, IAgentA
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    @Value("${holdlens.agent.fund-catalog-refresh-url:http://127.0.0.1:8765/tasks/fund-catalog-refresh}")
+    @Value("${holdlens.agent.fund-catalog-refresh-url}")
     private String fundCatalogRefreshUrl;
 
-    @Value("${holdlens.agent.fund-purchase-status-refresh-url:http://127.0.0.1:8765/tasks/fund-purchase-status-refresh}")
+    @Value("${holdlens.agent.fund-purchase-status-refresh-url}")
     private String fundPurchaseStatusRefreshUrl;
 
-    @Value("${holdlens.agent.fund-period-return-refresh-url:http://127.0.0.1:8765/tasks/fund-period-return-refresh}")
+    @Value("${holdlens.agent.fund-period-return-refresh-url}")
     private String fundPeriodReturnRefreshUrl;
 
-    @Value("${holdlens.agent.fund-top-holding-refresh-url:http://127.0.0.1:8765/tasks/fund-top-holding-refresh}")
+    @Value("${holdlens.agent.fund-top-holding-refresh-url}")
     private String fundTopHoldingRefreshUrl;
 
-    @Value("${holdlens.agent.a-share-market-refresh-url:http://127.0.0.1:8765/tasks/a-share-market-refresh}")
+    @Value("${holdlens.agent.a-share-market-refresh-url}")
     private String aShareMarketRefreshUrl;
 
-    @Value("${holdlens.agent.us-stock-market-refresh-url:http://127.0.0.1:8765/tasks/us-stock-market-refresh}")
+    @Value("${holdlens.agent.us-stock-market-refresh-url}")
     private String usStockMarketRefreshUrl;
 
     @Override

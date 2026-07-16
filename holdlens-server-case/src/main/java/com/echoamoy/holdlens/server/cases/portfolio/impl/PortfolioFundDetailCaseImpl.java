@@ -52,7 +52,7 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
     @Resource
     private ThreadPoolExecutor threadPoolExecutor;
 
-    @Value("${holdlens.agent.fund-top-holding-refresh.detail-stale-days:15}")
+    @Value("${holdlens.agent.fund-top-holding-refresh.detail-stale-days}")
     private int topHoldingStaleDays;
 
     @Override

@@ -23,7 +23,7 @@ import java.util.List;
 @RestController
 public class AgentFundSliceRefreshController implements IAgentFundSliceRefreshService {
     @Resource private IFundSliceRefreshCase fundSliceRefreshCase;
-    @Value("${holdlens.agent.callback-header-value:internal}") private String callbackHeaderValue;
+    @Value("${holdlens.agent.callback-header-value}") private String callbackHeaderValue;
 
     @PostMapping("/internal/agent/fund-catalog-refresh/callback")
     public Response<FundRefreshTaskDTO> catalogCallback(@RequestHeader(value="X-HoldLens-Agent-Callback", required=false) String header,

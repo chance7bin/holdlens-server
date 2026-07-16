@@ -48,12 +48,15 @@ holdlens:
     fund-purchase-status-refresh-url: http://127.0.0.1:8765/tasks/fund-purchase-status-refresh
     fund-period-return-refresh-url: http://127.0.0.1:8765/tasks/fund-period-return-refresh
     fund-top-holding-refresh-url: http://127.0.0.1:8765/tasks/fund-top-holding-refresh
+    fund-top-holding-refresh:
+      detail-stale-days: 15
     server-base-url: http://127.0.0.1:8091
     a-share-market-refresh-url: http://127.0.0.1:8765/tasks/a-share-market-refresh
     us-stock-market-refresh-url: http://127.0.0.1:8765/tasks/us-stock-market-refresh
     a-share-market-callback-url: http://127.0.0.1:8091/internal/agent/a-share-market-refresh/callback
     us-stock-market-callback-url: http://127.0.0.1:8091/internal/agent/us-stock-market-refresh/callback
     callback-header-value: internal
+    fund-refresh-schedule-zone: Asia/Shanghai
     fund-catalog-refresh-schedule:
       enabled: false
       cron: "0 0 2 * * ?"

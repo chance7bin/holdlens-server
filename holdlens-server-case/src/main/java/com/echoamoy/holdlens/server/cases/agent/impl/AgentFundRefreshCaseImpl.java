@@ -67,10 +67,10 @@ public class AgentFundRefreshCaseImpl implements IAgentFundRefreshCase {
     @Resource
     private TransactionExecutor transactionExecutor;
 
-    @Value("${holdlens.agent.a-share-market-callback-url:http://127.0.0.1:8091/internal/agent/a-share-market-refresh/callback}")
+    @Value("${holdlens.agent.a-share-market-callback-url}")
     private String aShareMarketCallbackUrl;
 
-    @Value("${holdlens.agent.us-stock-market-callback-url:http://127.0.0.1:8091/internal/agent/us-stock-market-refresh/callback}")
+    @Value("${holdlens.agent.us-stock-market-callback-url}")
     private String usStockMarketCallbackUrl;
 
     @Override

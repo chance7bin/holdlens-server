@@ -31,7 +31,7 @@ public class AgentFundRefreshController implements IAgentFundRefreshService {
     @Resource
     private IAgentFundRefreshCase agentFundRefreshCase;
 
-    @Value("${holdlens.agent.callback-header-value:internal}")
+    @Value("${holdlens.agent.callback-header-value}")
     private String callbackHeaderValue;
 
     @PostMapping("/api/agent/a-share-market-refresh/tasks")

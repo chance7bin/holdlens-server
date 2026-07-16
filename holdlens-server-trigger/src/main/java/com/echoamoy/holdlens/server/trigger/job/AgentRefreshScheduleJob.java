@@ -16,30 +16,30 @@ public class AgentRefreshScheduleJob {
     private static final String TRIGGER = "schedule";
 
     @Resource private IFundSliceRefreshCase fundSliceRefreshCase;
-    @Value("${holdlens.agent.fund-catalog-refresh-schedule.enabled:false}") private boolean catalogEnabled;
-    @Value("${holdlens.agent.fund-purchase-status-refresh-schedule.enabled:false}") private boolean purchaseEnabled;
-    @Value("${holdlens.agent.fund-period-return-refresh-schedule.enabled:false}") private boolean returnEnabled;
-    @Value("${holdlens.agent.fund-top-holding-refresh-schedule.enabled:false}") private boolean holdingEnabled;
-    @Value("${holdlens.agent.fund-top-holding-refresh-schedule.batch-size:20}") private int holdingBatchSize;
-    @Value("${holdlens.agent.fund-slice-callback-timeout.enabled:false}") private boolean callbackTimeoutEnabled;
-    @Value("${holdlens.agent.fund-slice-callback-timeout.minutes:30}") private int callbackTimeoutMinutes;
+    @Value("${holdlens.agent.fund-catalog-refresh-schedule.enabled}") private boolean catalogEnabled;
+    @Value("${holdlens.agent.fund-purchase-status-refresh-schedule.enabled}") private boolean purchaseEnabled;
+    @Value("${holdlens.agent.fund-period-return-refresh-schedule.enabled}") private boolean returnEnabled;
+    @Value("${holdlens.agent.fund-top-holding-refresh-schedule.enabled}") private boolean holdingEnabled;
+    @Value("${holdlens.agent.fund-top-holding-refresh-schedule.batch-size}") private int holdingBatchSize;
+    @Value("${holdlens.agent.fund-slice-callback-timeout.enabled}") private boolean callbackTimeoutEnabled;
+    @Value("${holdlens.agent.fund-slice-callback-timeout.minutes}") private int callbackTimeoutMinutes;
 
-    @Scheduled(cron="${holdlens.agent.fund-catalog-refresh-schedule.cron:0 0 2 * * ?}", zone="Asia/Shanghai")
+    @Scheduled(cron="${holdlens.agent.fund-catalog-refresh-schedule.cron}", zone="${holdlens.agent.fund-refresh-schedule-zone}")
     public void runFundCatalogRefreshSchedule() {
         if (catalogEnabled) fundSliceRefreshCase.scheduleCatalog(TRIGGER);
     }
 
-    @Scheduled(cron="${holdlens.agent.fund-purchase-status-refresh-schedule.cron:0 10 2 * * ?}", zone="Asia/Shanghai")
+    @Scheduled(cron="${holdlens.agent.fund-purchase-status-refresh-schedule.cron}", zone="${holdlens.agent.fund-refresh-schedule-zone}")
     public void runFundPurchaseStatusRefreshSchedule() {
         if (purchaseEnabled) fundSliceRefreshCase.schedulePurchaseStatus(TRIGGER);
     }
 
-    @Scheduled(cron="${holdlens.agent.fund-period-return-refresh-schedule.cron:0 20 2 * * ?}", zone="Asia/Shanghai")
+    @Scheduled(cron="${holdlens.agent.fund-period-return-refresh-schedule.cron}", zone="${holdlens.agent.fund-refresh-schedule-zone}")
     public void runFundPeriodReturnRefreshSchedule() {
         if (returnEnabled) fundSliceRefreshCase.schedulePeriodReturn(TRIGGER);
     }
 
-    @Scheduled(cron="${holdlens.agent.fund-top-holding-refresh-schedule.cron:0 30 2 1,15 * ?}", zone="Asia/Shanghai")
+    @Scheduled(cron="${holdlens.agent.fund-top-holding-refresh-schedule.cron}", zone="${holdlens.agent.fund-refresh-schedule-zone}")
     public void runFundTopHoldingRefreshSchedule() {
         if (!holdingEnabled) return;
         if (holdingBatchSize <= 0) {
@@ -49,7 +49,7 @@ public class AgentRefreshScheduleJob {
         fundSliceRefreshCase.scheduleTopHoldings(TRIGGER, holdingBatchSize);
     }
 
-    @Scheduled(cron="${holdlens.agent.fund-slice-callback-timeout.cron:0 */5 * * * ?}", zone="Asia/Shanghai")
+    @Scheduled(cron="${holdlens.agent.fund-slice-callback-timeout.cron}", zone="${holdlens.agent.fund-refresh-schedule-zone}")
     public void closeTimedOutCallbacks() {
         if (callbackTimeoutEnabled) fundSliceRefreshCase.closeTimedOutCallbacks(callbackTimeoutMinutes);
     }
