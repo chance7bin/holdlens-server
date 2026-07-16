@@ -56,6 +56,6 @@
 ## 8. 灰度启用与旧链路退役
 
 - [ ] 8.1 在 agent 四个 endpoint 已发布后部署 server 新链路并保持新 Job disabled，执行前向 migration，验证未产生外部调用。
-- [ ] 8.2 关闭旧 `fund_detail_refresh` 复合 Job，再依次启用目录、申购状态、阶段收益和重仓调度；每一步核对任务终态、warning、返回数量和 slice 数据。
+- [ ] 8.2 关闭旧 `fund_detail_refresh` 复合 Job，再依次启用目录、申购状态、阶段收益和重仓调度；每一步核对任务终态、warning、返回数量和 slice 数据。当前 `application-dev.yml` 已启用四类基金刷新调度及 callback 超时扫描，运行结果尚未逐项核对，因此本任务保持未完成。
 - [x] 8.3 首次完整目录导入后移除旧 Job 的全表扫描入口，确保配置和回滚手册均不能重新启用“扫描全部 fund 并逐基金复合刷新”。
 - [ ] 8.4 稳定观察后退役旧 `fund_detail_refresh` endpoint、DTO、Case/Port 和统一写入路径；运行完整回归并确认单 slice 可通过独立开关停用。
