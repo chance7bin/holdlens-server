@@ -19,13 +19,24 @@ public interface IFundDao {
 
     int updateTopHoldingMetadata(FundPO fundPO);
 
+    int updateAssetAllocationMetadata(FundPO fundPO);
+
+    int markAssetAllocationUnavailable(@Param("fundCode") String fundCode,
+                                       @Param("assetAllocationFetchedAt") java.util.Date assetAllocationFetchedAt);
+
     int updateLastDetailViewTime(@Param("fundCodes") java.util.Collection<String> fundCodes,
                                  @Param("lastDetailViewTime") java.util.Date lastDetailViewTime);
 
     FundPO selectById(@Param("id") Long id);
 
+    FundPO selectAssetAllocationMetadataForUpdate(@Param("fundCode") String fundCode);
+
     List<FundPO> selectByFundCodes(@Param("fundCodes") java.util.Collection<String> fundCodes);
 
     List<String> selectTopHoldingRefreshTargets(@Param("viewedSince") java.util.Date viewedSince);
+
+    List<String> selectAssetAllocationRefreshTargets(@Param("viewedSince") java.util.Date viewedSince,
+                                                     @Param("latestEndedQuarter") java.util.Date latestEndedQuarter,
+                                                     @Param("unavailableRetryBefore") java.util.Date unavailableRetryBefore);
 
 }

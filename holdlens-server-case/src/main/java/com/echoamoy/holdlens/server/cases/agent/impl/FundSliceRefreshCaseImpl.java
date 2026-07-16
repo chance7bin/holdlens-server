@@ -47,6 +47,8 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
     private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
     private static final Set<String> CALLBACK_STATUSES = Set.of("succeeded", "partial_failed", "failed");
     private static final Set<String> PURCHASE_STATUSES = Set.of("open", "closed", "limited", "suspended", "unknown");
+    private static final Set<String> ASSET_ALLOCATION_TYPES =
+            Set.of("stock", "bond", "cash", "fund", "other", "unknown");
     private static final int FUND_CATALOG_UPSERT_BATCH_SIZE = 500;
     private static final Pattern SENSITIVE_VALUE = Pattern.compile(
             "(?i)(api[_-]?key|authorization|callback[_-]?auth|cookie|password|secret|token)\\s*[:=]\\s*[^,\\s;]+");
@@ -54,17 +56,20 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
             ProcessingTaskEntity.FUND_CATALOG_REFRESH, "fund-catalog-refresh-task/v1",
             ProcessingTaskEntity.FUND_PURCHASE_STATUS_REFRESH, "fund-purchase-status-refresh-task/v1",
             ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH, "fund-period-return-refresh-task/v1",
-            ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH, "fund-top-holding-refresh-task/v1");
+            ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH, "fund-top-holding-refresh-task/v1",
+            ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH, "fund-asset-allocation-refresh-task/v1");
     private static final Map<String, String> RESULT_SCHEMAS = Map.of(
             ProcessingTaskEntity.FUND_CATALOG_REFRESH, "fund-catalog-refresh-result/v1",
             ProcessingTaskEntity.FUND_PURCHASE_STATUS_REFRESH, "fund-purchase-status-refresh-result/v1",
             ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH, "fund-period-return-refresh-result/v1",
-            ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH, "fund-top-holding-refresh-result/v1");
+            ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH, "fund-top-holding-refresh-result/v1",
+            ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH, "fund-asset-allocation-refresh-result/v1");
     private static final Map<String, String> CALLBACK_PATHS = Map.of(
             ProcessingTaskEntity.FUND_CATALOG_REFRESH, "/internal/agent/fund-catalog-refresh/callback",
             ProcessingTaskEntity.FUND_PURCHASE_STATUS_REFRESH, "/internal/agent/fund-purchase-status-refresh/callback",
             ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH, "/internal/agent/fund-period-return-refresh/callback",
-            ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH, "/internal/agent/fund-top-holding-refresh/callback");
+            ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH, "/internal/agent/fund-top-holding-refresh/callback",
+            ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH, "/internal/agent/fund-asset-allocation-refresh/callback");
 
     @Resource private IProcessingTaskRepository processingTaskRepository;
     @Resource private IFundDataRepository fundDataRepository;
@@ -113,6 +118,36 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "重仓刷新基金代码不能为空");
         }
         return createAndDispatch(ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH, normalized, trigger);
+    }
+
+    @Override
+    public List<FundRefreshTaskResult> scheduleAssetAllocations(String trigger, int batchSize) {
+        if (batchSize <= 0) {
+            log.warn("跳过基金资产配置刷新，batch-size 无效 batchSize={}", batchSize);
+            return List.of();
+        }
+        if (processingTaskRepository.existsNonTerminalTask(ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH)) {
+            log.info("跳过基金资产配置刷新，本轮开始前已有非终态任务");
+            return List.of();
+        }
+        LocalDateTime now = LocalDateTime.now(BEIJING_ZONE);
+        List<String> targets = normalizeCodes(fundDataRepository.queryAssetAllocationRefreshTargets(
+                now.minusDays(90), latestEndedQuarter(now.toLocalDate()), now.minusDays(7)));
+        List<FundRefreshTaskResult> results = new ArrayList<>();
+        for (int start = 0; start < targets.size(); start += batchSize) {
+            results.add(dispatchAssetAllocations(
+                    targets.subList(start, Math.min(start + batchSize, targets.size())), trigger));
+        }
+        return results;
+    }
+
+    @Override
+    public FundRefreshTaskResult dispatchAssetAllocations(List<String> fundCodes, String trigger) {
+        List<String> normalized = normalizeCodes(fundCodes);
+        if (normalized.isEmpty()) {
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "资产配置刷新基金代码不能为空");
+        }
+        return createAndDispatch(ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH, normalized, trigger);
     }
 
     private FundRefreshTaskResult scheduleGlobal(String taskType, String trigger) {
@@ -271,7 +306,8 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
         int batchCount = 0;
         if (target != ProcessingTaskStatusEnumVO.FAILED) {
             List<FundSliceRefreshCallbackCommand.FundItem> funds = command.getFunds() == null ? List.of() : command.getFunds();
-            boolean inflightNoop = ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH.equals(taskType)
+            boolean inflightNoop = (ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH.equals(taskType)
+                    || ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH.equals(taskType))
                     && funds.isEmpty() && hasWarning(command, "fund_already_inflight");
             if (funds.isEmpty() && !inflightNoop) {
                 target = ProcessingTaskStatusEnumVO.FAILED;
@@ -331,6 +367,8 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
                 case ProcessingTaskEntity.FUND_PURCHASE_STATUS_REFRESH -> applyPurchase(item, fetchedAt);
                 case ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH -> applyReturn(item, fetchedAt, logs, taskId);
                 case ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH -> applyHolding(item, fetchedAt, logs, taskId);
+                case ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH ->
+                        applyAssetAllocation(item, fetchedAt, logs, taskId);
                 default -> false;
             };
             if (accepted) {
@@ -460,6 +498,104 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
         return fundDataRepository.updateTopHoldingSnapshot(incoming, clear);
     }
 
+    private boolean applyAssetAllocation(FundSliceRefreshCallbackCommand.FundItem item, LocalDateTime fetchedAt,
+                                         List<ProcessingLogEntity> logs, String taskId) {
+        FundCurrentDataAggregate.FundDetail current = current(item.getFundCode());
+        if (current == null) {
+            logs.add(log(taskId, ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                    "unknown_fund", "资产配置基金不存在: " + item.getFundCode()));
+            return false;
+        }
+        if ("unavailable".equals(item.getAllocationStatus())) {
+            // unavailable 是 agent 跨报告期探测后的可信结果；有历史时保留，无历史时记录退避时间。
+            if ("available".equals(current.getAssetAllocationStatus())) {
+                return true;
+            }
+            fundDataRepository.markAssetAllocationUnavailable(item.getFundCode().trim(), fetchedAt);
+            return true;
+        }
+        if ("missing".equals(item.getAllocationStatus())) {
+            logs.add(log(taskId, ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                    "missing_snapshot", "资产配置结果缺失，保留当前值: " + item.getFundCode()));
+            return false;
+        }
+        if (!"available".equals(item.getAllocationStatus())) {
+            logs.add(log(taskId, ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                    "invalid_allocation_status", "资产配置状态无效: " + item.getFundCode()));
+            return false;
+        }
+
+        Date asOf = parseDate(item.getAssetAllocationAsOf());
+        if (asOf == null) {
+            logs.add(log(taskId, ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                    "invalid_allocation_date", "资产配置报告期缺失或无效: " + item.getFundCode()));
+            return false;
+        }
+        if (current.getAssetAllocationAsOf() != null && asOf.before(current.getAssetAllocationAsOf())) {
+            logs.add(log(taskId, ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                    "older_snapshot", "资产配置报告期早于当前值: " + item.getFundCode()));
+            return false;
+        }
+
+        AllocationNormalization normalization = normalizeAssetAllocations(
+                item.getFundCode().trim(), item.getAssetAllocations());
+        if (normalization.invalid() || normalization.rows().isEmpty()) {
+            logs.add(log(taskId, ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                    "invalid_or_empty_allocations", "资产配置明细无效或为空，保留当前值: " + item.getFundCode()));
+            return false;
+        }
+        FundCurrentDataAggregate.FundDetail incoming = base(item)
+                .assetAllocationAsOf(asOf)
+                .assetAllocationStatus("available")
+                .assetAllocationFetchedAt(fetchedAt)
+                .assetAllocations(normalization.rows())
+                .build();
+        if (sameAssetAllocations(current, incoming)) {
+            return true;
+        }
+        if (!fundDataRepository.replaceAssetAllocationSnapshot(incoming)) {
+            logs.add(log(taskId, ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                    "concurrent_older_snapshot", "资产配置已被并发的新报告期更新，本次不覆盖: " + item.getFundCode()));
+        }
+        return true;
+    }
+
+    private AllocationNormalization normalizeAssetAllocations(
+            String fundCode, List<FundSliceRefreshCallbackCommand.AssetAllocation> source) {
+        if (source == null || source.isEmpty()) {
+            return new AllocationNormalization(List.of(), false);
+        }
+        boolean invalid = false;
+        Map<AssetAllocationKey, FundCurrentDataAggregate.AssetAllocation> byTypeAndName = new LinkedHashMap<>();
+        for (FundSliceRefreshCallbackCommand.AssetAllocation row : source) {
+            if (row == null || blank(row.getAssetType()) || blank(row.getAssetTypeName())
+                    || !ASSET_ALLOCATION_TYPES.contains(row.getAssetType().trim())
+                    || row.getAllocationRatio() == null || row.getAllocationRatio().signum() < 0
+                    || row.getAllocationRatio().compareTo(new java.math.BigDecimal("100")) > 0
+                    || row.getDisplayOrder() == null || row.getDisplayOrder() < 1) {
+                invalid = true;
+                continue;
+            }
+            String assetType = row.getAssetType().trim();
+            String assetTypeName = row.getAssetTypeName().trim();
+            byTypeAndName.put(new AssetAllocationKey(assetType, assetTypeName),
+                    FundCurrentDataAggregate.AssetAllocation.builder()
+                            .fundCode(fundCode)
+                            .assetType(assetType)
+                            .assetTypeName(assetTypeName)
+                            .allocationRatio(row.getAllocationRatio())
+                            .displayOrder(row.getDisplayOrder())
+                            .build());
+        }
+        List<FundCurrentDataAggregate.AssetAllocation> rows = byTypeAndName.values().stream()
+                .sorted(java.util.Comparator
+                        .comparing(FundCurrentDataAggregate.AssetAllocation::getDisplayOrder)
+                        .thenComparing(FundCurrentDataAggregate.AssetAllocation::getAssetType)
+                        .thenComparing(FundCurrentDataAggregate.AssetAllocation::getAssetTypeName))
+                .toList();
+        return new AllocationNormalization(rows, invalid);
+    }
+
     private List<FundCurrentDataAggregate.TopHolding> normalizeHoldings(String fundCode,
                                                                         List<FundSliceRefreshCallbackCommand.TopHolding> source) {
         if (source == null) return List.of();
@@ -505,6 +641,37 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
                     || !decimalEquals(a.getHoldingRatio(), b.getHoldingRatio())
                     || !Objects.equals(trim(a.getQuarterChangeType()), trim(b.getQuarterChangeType()))
                     || !decimalEquals(a.getQuarterChangeValue(), b.getQuarterChangeValue())) return false;
+        }
+        return true;
+    }
+
+    private boolean sameAssetAllocations(FundCurrentDataAggregate.FundDetail left,
+                                         FundCurrentDataAggregate.FundDetail right) {
+        if (!Objects.equals(left.getAssetAllocationAsOf(), right.getAssetAllocationAsOf())
+                || !"available".equals(left.getAssetAllocationStatus())) {
+            return false;
+        }
+        List<FundCurrentDataAggregate.AssetAllocation> leftRows = left.getAssetAllocations() == null
+                ? List.of() : left.getAssetAllocations().stream()
+                .sorted(java.util.Comparator
+                        .comparing(FundCurrentDataAggregate.AssetAllocation::getDisplayOrder)
+                        .thenComparing(FundCurrentDataAggregate.AssetAllocation::getAssetType)
+                        .thenComparing(FundCurrentDataAggregate.AssetAllocation::getAssetTypeName))
+                .toList();
+        List<FundCurrentDataAggregate.AssetAllocation> rightRows = right.getAssetAllocations() == null
+                ? List.of() : right.getAssetAllocations();
+        if (leftRows.size() != rightRows.size()) {
+            return false;
+        }
+        for (int i = 0; i < leftRows.size(); i++) {
+            FundCurrentDataAggregate.AssetAllocation a = leftRows.get(i);
+            FundCurrentDataAggregate.AssetAllocation b = rightRows.get(i);
+            if (!Objects.equals(trim(a.getAssetType()), trim(b.getAssetType()))
+                    || !Objects.equals(trim(a.getAssetTypeName()), trim(b.getAssetTypeName()))
+                    || !decimalEquals(a.getAllocationRatio(), b.getAllocationRatio())
+                    || !Objects.equals(a.getDisplayOrder(), b.getDisplayOrder())) {
+                return false;
+            }
         }
         return true;
     }
@@ -559,6 +726,10 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
         requireTask(taskType, command.getServerTaskId());
         if (!Objects.equals(RESULT_SCHEMAS.get(taskType), command.getSchemaVersion())) throw illegal("不支持的回调契约版本");
         if (blank(command.getIdempotencyKey())) throw illegal("回调缺少幂等键");
+        if (ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH.equals(taskType)
+                && !Objects.equals(command.getServerTaskId() + ":result:1", command.getIdempotencyKey())) {
+            throw illegal("资产配置回调幂等键不符合契约");
+        }
         if (!CALLBACK_STATUSES.contains(command.getStatus())) throw illegal("回调状态非法");
     }
 
@@ -609,6 +780,11 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
         catch (DateTimeParseException ignored) { return null; }
     }
 
+    private LocalDate latestEndedQuarter(LocalDate date) {
+        int firstMonthOfQuarter = ((date.getMonthValue() - 1) / 3) * 3 + 1;
+        return LocalDate.of(date.getYear(), firstMonthOfQuarter, 1).minusDays(1);
+    }
+
     private ProcessingTaskStatusEnumVO toStatus(String status) {
         return switch (status) {
             case "succeeded" -> ProcessingTaskStatusEnumVO.SUCCEEDED;
@@ -650,4 +826,8 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
                                               int batchCount, boolean deduplicated) { }
 
     private record CallbackAcceptanceOutcome(FundRefreshTaskResult result, boolean shouldProcess) { }
+
+    private record AssetAllocationKey(String assetType, String assetTypeName) { }
+
+    private record AllocationNormalization(List<FundCurrentDataAggregate.AssetAllocation> rows, boolean invalid) { }
 }

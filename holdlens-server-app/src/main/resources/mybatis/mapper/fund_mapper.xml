@@ -18,6 +18,8 @@
         <result column="daily_growth_rate" property="dailyGrowthRate"/>
         <result column="top_holdings_as_of" property="topHoldingsAsOf"/>
         <result column="public_holdings_status" property="publicHoldingsStatus"/>
+        <result column="asset_allocation_as_of" property="assetAllocationAsOf"/>
+        <result column="asset_allocation_status" property="assetAllocationStatus"/>
         <result column="one_month_return" property="oneMonthReturn"/>
         <result column="three_months_return" property="threeMonthsReturn"/>
         <result column="six_months_return" property="sixMonthsReturn"/>
@@ -27,6 +29,7 @@
         <result column="purchase_status_fetched_at" property="purchaseStatusFetchedAt"/>
         <result column="period_return_fetched_at" property="periodReturnFetchedAt"/>
         <result column="top_holding_fetched_at" property="topHoldingFetchedAt"/>
+        <result column="asset_allocation_fetched_at" property="assetAllocationFetchedAt"/>
         <result column="last_detail_view_time" property="lastDetailViewTime"/>
         <result column="create_time" property="createTime"/>
         <result column="update_time" property="updateTime"/>
@@ -36,9 +39,10 @@
         id, fund_code, fund_name, fund_type, pinyin_abbr, pinyin_full, buy_status,
         daily_purchase_limit, return_coverage_status, returns_as_of, unit_nav, accumulated_nav,
         daily_growth_rate, top_holdings_as_of, public_holdings_status,
+        asset_allocation_as_of, asset_allocation_status,
         one_month_return, three_months_return, six_months_return, one_year_return,
         three_years_return, catalog_fetched_at, purchase_status_fetched_at,
-        period_return_fetched_at, top_holding_fetched_at, last_detail_view_time,
+        period_return_fetched_at, top_holding_fetched_at, asset_allocation_fetched_at, last_detail_view_time,
         create_time, update_time
     </sql>
 
@@ -106,6 +110,25 @@
         WHERE fund_code = #{fundCode}
     </update>
 
+    <update id="updateAssetAllocationMetadata" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundPO">
+        UPDATE fund
+        SET asset_allocation_as_of = #{assetAllocationAsOf},
+            asset_allocation_status = #{assetAllocationStatus},
+            asset_allocation_fetched_at = #{assetAllocationFetchedAt},
+            update_time = CURRENT_TIMESTAMP
+        WHERE fund_code = #{fundCode}
+          AND (asset_allocation_as_of IS NULL OR asset_allocation_as_of &lt;= #{assetAllocationAsOf})
+    </update>
+
+    <update id="markAssetAllocationUnavailable">
+        UPDATE fund
+        SET asset_allocation_status = 'unavailable',
+            asset_allocation_fetched_at = #{assetAllocationFetchedAt},
+            update_time = CURRENT_TIMESTAMP
+        WHERE fund_code = #{fundCode}
+          AND (asset_allocation_status IS NULL OR asset_allocation_status != 'available')
+    </update>
+
     <update id="updateLastDetailViewTime">
         UPDATE fund SET last_detail_view_time = #{lastDetailViewTime}
         WHERE fund_code IN
@@ -116,6 +139,13 @@
         SELECT <include refid="Base_Column_List"/>
         FROM fund
         WHERE id = #{id}
+    </select>
+
+    <select id="selectAssetAllocationMetadataForUpdate" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM fund
+        WHERE fund_code = #{fundCode}
+        FOR UPDATE
     </select>
 
     <select id="selectByFundCodes" resultMap="BaseResultMap">
@@ -145,6 +175,33 @@
             WHERE f.last_detail_view_time &gt;= #{viewedSince}
         ) targets
         INNER JOIN fund f ON f.fund_code = targets.fund_code
+        ORDER BY targets.fund_code
+    </select>
+
+    <select id="selectAssetAllocationRefreshTargets" resultType="string">
+        SELECT DISTINCT targets.fund_code
+        FROM (
+            SELECT ai.asset_code AS fund_code
+            FROM asset_info ai
+            WHERE ai.asset_kind = 'fund' AND ai.status = 'enabled' AND ai.asset_code IS NOT NULL
+            UNION
+            SELECT ai.asset_code AS fund_code
+            FROM asset_holding ah
+            INNER JOIN asset_info ai ON ai.id = ah.asset_id
+            WHERE ah.status = 'active' AND ai.asset_kind = 'fund' AND ai.status = 'enabled'
+            UNION
+            SELECT f.fund_code
+            FROM fund f
+            WHERE f.last_detail_view_time &gt;= #{viewedSince}
+        ) targets
+        INNER JOIN fund f ON f.fund_code = targets.fund_code
+        WHERE f.asset_allocation_status IS NULL
+           OR f.asset_allocation_status = 'missing'
+           OR (f.asset_allocation_status = 'available'
+               AND (f.asset_allocation_as_of IS NULL OR f.asset_allocation_as_of &lt; #{latestEndedQuarter}))
+           OR (f.asset_allocation_status = 'unavailable'
+               AND (f.asset_allocation_fetched_at IS NULL
+                    OR f.asset_allocation_fetched_at &lt;= #{unavailableRetryBefore}))
         ORDER BY targets.fund_code
     </select>
 

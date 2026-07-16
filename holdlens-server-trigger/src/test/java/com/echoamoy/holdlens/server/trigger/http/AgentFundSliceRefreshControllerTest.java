@@ -44,6 +44,22 @@ public class AgentFundSliceRefreshControllerTest {
         Assert.assertNull(fake.lastTaskType);
         controller.topHoldingCallback("internal", request);
         Assert.assertEquals(ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH, fake.lastTaskType);
+        FundSliceRefreshCallbackRequest.FundItem item = new FundSliceRefreshCallbackRequest.FundItem();
+        item.setFundCode("000001");
+        item.setAssetAllocationAsOf("2026-06-30");
+        item.setAllocationStatus("available");
+        FundSliceRefreshCallbackRequest.AssetAllocation allocation =
+                new FundSliceRefreshCallbackRequest.AssetAllocation();
+        allocation.setAssetType("stock");
+        allocation.setAssetTypeName("股票");
+        allocation.setAllocationRatio(new java.math.BigDecimal("70.0000"));
+        allocation.setDisplayOrder(1);
+        item.setAssetAllocations(List.of(allocation));
+        request.setFunds(List.of(item));
+        controller.assetAllocationCallback("internal", request);
+        Assert.assertEquals(ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH, fake.lastTaskType);
+        Assert.assertEquals("股票", fake.lastCommand.getFunds().get(0)
+                .getAssetAllocations().get(0).getAssetTypeName());
 
         fake.fail = true;
         try {
@@ -62,15 +78,19 @@ public class AgentFundSliceRefreshControllerTest {
 
     private static class FakeCase implements IFundSliceRefreshCase {
         String lastTaskType;
+        FundSliceRefreshCallbackCommand lastCommand;
         boolean fail;
         public FundRefreshTaskResult scheduleCatalog(String trigger) { return null; }
         public FundRefreshTaskResult schedulePurchaseStatus(String trigger) { return null; }
         public FundRefreshTaskResult schedulePeriodReturn(String trigger) { return null; }
         public List<FundRefreshTaskResult> scheduleTopHoldings(String trigger, int batchSize) { return List.of(); }
+        public List<FundRefreshTaskResult> scheduleAssetAllocations(String trigger, int batchSize) { return List.of(); }
         public FundRefreshTaskResult dispatchTopHoldings(List<String> fundCodes, String trigger) { return null; }
+        public FundRefreshTaskResult dispatchAssetAllocations(List<String> fundCodes, String trigger) { return null; }
         public FundRefreshTaskResult handleCallback(String taskType, FundSliceRefreshCallbackCommand command) {
             if (fail) throw new RuntimeException("database unavailable");
             lastTaskType = taskType;
+            lastCommand = command;
             return FundRefreshTaskResult.builder().serverTaskId("task-1").taskType(taskType).status("succeeded").build();
         }
         public int closeTimedOutCallbacks(int timeoutMinutes) { return 0; }

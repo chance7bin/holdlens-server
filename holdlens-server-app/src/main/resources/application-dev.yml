@@ -48,6 +48,7 @@ holdlens:
     fund-purchase-status-refresh-url: http://127.0.0.1:8765/tasks/fund-purchase-status-refresh
     fund-period-return-refresh-url: http://127.0.0.1:8765/tasks/fund-period-return-refresh
     fund-top-holding-refresh-url: http://127.0.0.1:8765/tasks/fund-top-holding-refresh
+    fund-asset-allocation-refresh-url: http://127.0.0.1:8765/tasks/fund-asset-allocation-refresh
     fund-top-holding-refresh:
       detail-stale-days: 15
     server-base-url: http://127.0.0.1:8091
@@ -70,6 +71,10 @@ holdlens:
       enabled: true
       batch-size: 20
       cron: "0 30 2 1,15 * ?"
+    fund-asset-allocation-refresh-schedule:
+      enabled: true
+      cron: "0 30 4 ? * MON"
+      batch-size: 20
     fund-slice-callback-timeout:
       enabled: true
       minutes: 30

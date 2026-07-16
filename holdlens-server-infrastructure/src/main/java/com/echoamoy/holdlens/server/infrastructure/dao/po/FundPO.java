@@ -55,6 +55,10 @@ public class FundPO implements Serializable {
     /** 公开重仓状态：public/no_public_stock_holdings/missing */
     private String publicHoldingsStatus;
 
+    private Date assetAllocationAsOf;
+
+    private String assetAllocationStatus;
+
     /** 近1月涨跌幅 */
     private BigDecimal oneMonthReturn;
 
@@ -77,6 +81,8 @@ public class FundPO implements Serializable {
     private Date periodReturnFetchedAt;
 
     private Date topHoldingFetchedAt;
+
+    private Date assetAllocationFetchedAt;
 
     private Date lastDetailViewTime;
 

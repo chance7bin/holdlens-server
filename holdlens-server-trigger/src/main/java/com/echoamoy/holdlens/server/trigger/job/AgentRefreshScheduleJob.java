@@ -21,6 +21,8 @@ public class AgentRefreshScheduleJob {
     @Value("${holdlens.agent.fund-period-return-refresh-schedule.enabled}") private boolean returnEnabled;
     @Value("${holdlens.agent.fund-top-holding-refresh-schedule.enabled}") private boolean holdingEnabled;
     @Value("${holdlens.agent.fund-top-holding-refresh-schedule.batch-size}") private int holdingBatchSize;
+    @Value("${holdlens.agent.fund-asset-allocation-refresh-schedule.enabled}") private boolean allocationEnabled;
+    @Value("${holdlens.agent.fund-asset-allocation-refresh-schedule.batch-size}") private int allocationBatchSize;
     @Value("${holdlens.agent.fund-slice-callback-timeout.enabled}") private boolean callbackTimeoutEnabled;
     @Value("${holdlens.agent.fund-slice-callback-timeout.minutes}") private int callbackTimeoutMinutes;
     @Value("${holdlens.agent.fund-slice-callback-timeout.processing-warning-minutes:10}") private int callbackProcessingWarningMinutes;
@@ -48,6 +50,16 @@ public class AgentRefreshScheduleJob {
             return;
         }
         fundSliceRefreshCase.scheduleTopHoldings(TRIGGER, holdingBatchSize);
+    }
+
+    @Scheduled(cron="${holdlens.agent.fund-asset-allocation-refresh-schedule.cron}", zone="${holdlens.agent.fund-refresh-schedule-zone}")
+    public void runFundAssetAllocationRefreshSchedule() {
+        if (!allocationEnabled) return;
+        if (allocationBatchSize <= 0) {
+            log.warn("跳过基金资产配置刷新，batch-size 无效 batchSize={}", allocationBatchSize);
+            return;
+        }
+        fundSliceRefreshCase.scheduleAssetAllocations(TRIGGER, allocationBatchSize);
     }
 
     @Scheduled(cron="${holdlens.agent.fund-slice-callback-timeout.cron}", zone="${holdlens.agent.fund-refresh-schedule-zone}")

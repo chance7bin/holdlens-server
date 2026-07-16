@@ -72,6 +72,47 @@ public class FundRefreshSqlStructureTest {
         Assert.assertTrue(callbackMapper.contains("task.status IN ('created', 'dispatched', 'running')"));
     }
 
+    @Test
+    public void assetAllocationBaselineMigrationAndMapperUseIndependentTripleUniqueSnapshot() throws Exception {
+        Path root = projectRoot();
+        String baseline = Files.readString(root.resolve("docs/dev-ops/mysql/sql/holdlens.sql"));
+        String migration = Files.readString(root.resolve(
+                "docs/dev-ops/mysql/sql/migrations/20260716_fund_asset_allocation_refresh.sql"));
+        for (String column : List.of("asset_allocation_as_of", "asset_allocation_status",
+                "asset_allocation_fetched_at")) {
+            Assert.assertTrue("baseline missing " + column, baseline.contains("`" + column + "`"));
+            Assert.assertTrue("migration missing " + column, migration.contains("`" + column + "`"));
+        }
+        String tripleUnique = "(`fund_code`, `asset_type`, `asset_type_name`)";
+        Assert.assertTrue(baseline.contains("CREATE TABLE `fund_asset_allocation`"));
+        Assert.assertTrue(migration.contains("CREATE TABLE `fund_asset_allocation`"));
+        Assert.assertTrue(baseline.contains(tripleUnique));
+        Assert.assertTrue(migration.contains(tripleUnique));
+        Assert.assertTrue(baseline.contains("`allocation_ratio` DECIMAL(12, 4) NOT NULL"));
+        Assert.assertTrue(migration.contains("`allocation_ratio` DECIMAL(12, 4) NOT NULL"));
+        Assert.assertFalse(migration.contains("DROP TABLE"));
+        Assert.assertFalse(migration.contains("fund_top_holding"));
+
+        String mapper = Files.readString(root.resolve(
+                "holdlens-server-app/src/main/resources/mybatis/mapper/fund_asset_allocation_mapper.xml"));
+        Assert.assertTrue(mapper.contains("id=\"insertBatch\""));
+        Assert.assertTrue(mapper.contains("id=\"deleteByFundCode\""));
+        Assert.assertTrue(mapper.contains("id=\"selectByFundCodes\""));
+        Assert.assertTrue(mapper.contains("display_order ASC, asset_type ASC, asset_type_name ASC"));
+
+        String fundMapper = Files.readString(root.resolve(
+                "holdlens-server-app/src/main/resources/mybatis/mapper/fund_mapper.xml"));
+        Assert.assertTrue(fundMapper.contains("id=\"selectAssetAllocationMetadataForUpdate\""));
+        Assert.assertTrue(fundMapper.contains("asset_allocation_as_of &lt;= #{assetAllocationAsOf}"));
+        Assert.assertTrue(fundMapper.contains("f.asset_allocation_status = 'missing'"));
+        Assert.assertTrue(fundMapper.contains("f.asset_allocation_status = 'unavailable'"));
+        Assert.assertTrue(fundMapper.contains("f.asset_allocation_fetched_at &lt;= #{unavailableRetryBefore}"));
+
+        String taskMapper = Files.readString(root.resolve(
+                "holdlens-server-app/src/main/resources/mybatis/mapper/processing_task_mapper.xml"));
+        Assert.assertEquals(2, occurrences(taskMapper, "'fund_asset_allocation_refresh'"));
+    }
+
     private int occurrences(String value, String target) {
         int count = 0;
         int index = 0;

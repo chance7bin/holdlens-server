@@ -44,6 +44,9 @@ public class FundSliceRefreshCallbackCommand {
         private String topHoldingsAsOf;
         private String publicHoldingsStatus;
         private List<TopHolding> topHoldings;
+        private String assetAllocationAsOf;
+        private String allocationStatus;
+        private List<AssetAllocation> assetAllocations;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
@@ -55,6 +58,14 @@ public class FundSliceRefreshCallbackCommand {
         private BigDecimal holdingRatio;
         private String quarterChangeType;
         private BigDecimal quarterChangeValue;
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class AssetAllocation {
+        private String assetType;
+        private String assetTypeName;
+        private BigDecimal allocationRatio;
+        private Integer displayOrder;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor

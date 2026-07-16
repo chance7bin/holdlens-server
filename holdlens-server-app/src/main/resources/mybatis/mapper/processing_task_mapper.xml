@@ -57,7 +57,8 @@
         SELECT <include refid="Base_Column_List"/>
         FROM processing_task
         WHERE task_type IN ('fund_catalog_refresh', 'fund_purchase_status_refresh',
-                            'fund_period_return_refresh', 'fund_top_holding_refresh')
+                            'fund_period_return_refresh', 'fund_top_holding_refresh',
+                            'fund_asset_allocation_refresh')
           AND status IN ('created', 'dispatched', 'running')
           AND update_time &lt; #{cutoff}
           AND NOT EXISTS (
@@ -75,7 +76,8 @@
             update_time = NOW()
         WHERE server_task_id = #{serverTaskId}
           AND task_type IN ('fund_catalog_refresh', 'fund_purchase_status_refresh',
-                            'fund_period_return_refresh', 'fund_top_holding_refresh')
+                            'fund_period_return_refresh', 'fund_top_holding_refresh',
+                            'fund_asset_allocation_refresh')
           AND status IN ('created', 'dispatched', 'running')
           AND update_time &lt; #{cutoff}
           AND NOT EXISTS (

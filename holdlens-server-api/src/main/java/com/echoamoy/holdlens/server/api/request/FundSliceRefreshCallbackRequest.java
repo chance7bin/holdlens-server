@@ -39,6 +39,9 @@ public class FundSliceRefreshCallbackRequest {
         @JsonProperty("top_holdings_as_of") private String topHoldingsAsOf;
         @JsonProperty("public_holdings_status") private String publicHoldingsStatus;
         @JsonProperty("top_holdings") private List<TopHolding> topHoldings;
+        @JsonProperty("asset_allocation_as_of") private String assetAllocationAsOf;
+        @JsonProperty("allocation_status") private String allocationStatus;
+        @JsonProperty("asset_allocations") private List<AssetAllocation> assetAllocations;
     }
 
     @Data
@@ -50,6 +53,14 @@ public class FundSliceRefreshCallbackRequest {
         @JsonProperty("holding_ratio") private BigDecimal holdingRatio;
         @JsonProperty("quarter_change_type") private String quarterChangeType;
         @JsonProperty("quarter_change_value") private BigDecimal quarterChangeValue;
+    }
+
+    @Data
+    public static class AssetAllocation {
+        @JsonProperty("asset_type") private String assetType;
+        @JsonProperty("asset_type_name") private String assetTypeName;
+        @JsonProperty("allocation_ratio") private BigDecimal allocationRatio;
+        @JsonProperty("display_order") private Integer displayOrder;
     }
 
     @Data

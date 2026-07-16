@@ -18,6 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashSet;
@@ -76,6 +78,10 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
         List<String> staleCodes = fundCodes.stream()
                 .filter(code -> needsTopHoldingRefresh(currentDetails.get(code), viewedAt))
                 .toList();
+        List<String> allocationStaleCodes = fundCodes.stream()
+                .filter(code -> currentDetails.get(code) != null)
+                .filter(code -> needsAssetAllocationRefresh(currentDetails.get(code), viewedAt))
+                .toList();
         PortfolioFundDetailResult result = PortfolioFundDetailResult.builder()
                 .userId(userId)
                 .holdings(holdings.stream()
@@ -84,6 +90,7 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                         .toList())
                 .build();
         dispatchTopHoldingRefreshBestEffort(staleCodes);
+        dispatchAssetAllocationRefreshBestEffort(allocationStaleCodes);
         return result;
     }
 
@@ -102,11 +109,15 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
         LocalDateTime viewedAt = LocalDateTime.now(BEIJING_ZONE);
         fundDataRepository.markDetailViewed(Set.of(normalizedCode), viewedAt);
         boolean stale = needsTopHoldingRefresh(detail, viewedAt);
+        boolean allocationStale = needsAssetAllocationRefresh(detail, viewedAt);
         Map<String, StockMarketEntity> stockMarkets = stockMarketRepository
                 .queryByStockKeys(collectStockKeys(Map.of(normalizedCode, detail)));
         PortfolioFundDetailResult.FundDetail result = toFundDetail(normalizedCode, detail, stockMarkets, stale);
         if (stale) {
             dispatchTopHoldingRefreshBestEffort(List.of(normalizedCode));
+        }
+        if (allocationStale) {
+            dispatchAssetAllocationRefreshBestEffort(List.of(normalizedCode));
         }
         return result;
     }
@@ -141,12 +152,15 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                                                              Map<String, StockMarketEntity> stockMarkets,
                                                              boolean refreshing) {
         if (fundCode == null) {
-            return PortfolioFundDetailResult.FundDetail.builder().detailStatus("unavailable").build();
+            return PortfolioFundDetailResult.FundDetail.builder().detailStatus("unavailable")
+                    .assetAllocationStatus("missing").assetAllocations(List.of()).build();
         }
         if (detail == null) {
             return PortfolioFundDetailResult.FundDetail.builder()
                     .fundCode(fundCode)
                     .detailStatus("missing")
+                    .assetAllocationStatus("missing")
+                    .assetAllocations(List.of())
                     .topHoldingRefreshStatus(refreshing ? "refreshing" : "missing")
                     .build();
         }
@@ -164,6 +178,9 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                 .returnCoverageStatus(detail.getReturnCoverageStatus())
                 .topHoldingsAsOf(detail.getTopHoldingsAsOf())
                 .publicHoldingsStatus(detail.getPublicHoldingsStatus())
+                .assetAllocationAsOf(detail.getAssetAllocationAsOf())
+                .assetAllocationStatus(detail.getAssetAllocationStatus() == null
+                        ? "missing" : detail.getAssetAllocationStatus())
                 .oneMonthReturn(detail.getOneMonthReturn())
                 .threeMonthsReturn(detail.getThreeMonthsReturn())
                 .sixMonthsReturn(detail.getSixMonthsReturn())
@@ -173,10 +190,19 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                 .purchaseStatusFetchedAt(DateTimeUtils.toBusinessDate(detail.getPurchaseStatusFetchedAt()))
                 .periodReturnFetchedAt(DateTimeUtils.toBusinessDate(detail.getPeriodReturnFetchedAt()))
                 .topHoldingFetchedAt(DateTimeUtils.toBusinessDate(detail.getTopHoldingFetchedAt()))
+                .assetAllocationFetchedAt(DateTimeUtils.toBusinessDate(detail.getAssetAllocationFetchedAt()))
                 .topHoldingRefreshStatus(refreshing ? "refreshing" : "current")
                 .topHoldings(detail.getTopHoldings() == null ? List.of() : detail.getTopHoldings().stream()
                         .map(topHolding -> toTopHolding(topHolding,
                                 stockMarkets.get(stockKey(topHolding.getStockCode(), normalizeNullable(topHolding.getMarket())))))
+                        .toList())
+                .assetAllocations(detail.getAssetAllocations() == null ? List.of() : detail.getAssetAllocations().stream()
+                        .map(allocation -> PortfolioFundDetailResult.AssetAllocation.builder()
+                                .assetType(allocation.getAssetType())
+                                .assetTypeName(allocation.getAssetTypeName())
+                                .allocationRatio(allocation.getAllocationRatio())
+                                .displayOrder(allocation.getDisplayOrder())
+                                .build())
                         .toList())
                 .build();
     }
@@ -221,6 +247,28 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                 || detail.getTopHoldingFetchedAt().isBefore(now.minus(Math.max(topHoldingStaleDays, 1), ChronoUnit.DAYS));
     }
 
+    private boolean needsAssetAllocationRefresh(FundCurrentDataAggregate.FundDetail detail, LocalDateTime now) {
+        if (detail == null || detail.getAssetAllocationStatus() == null
+                || "missing".equals(detail.getAssetAllocationStatus())) {
+            return true;
+        }
+        if ("unavailable".equals(detail.getAssetAllocationStatus())) {
+            return detail.getAssetAllocationFetchedAt() == null
+                    || !detail.getAssetAllocationFetchedAt().isAfter(now.minusDays(7));
+        }
+        if (!"available".equals(detail.getAssetAllocationStatus())) {
+            return true;
+        }
+        LocalDate asOf = detail.getAssetAllocationAsOf() == null ? null
+                : LocalDate.ofInstant(Instant.ofEpochMilli(detail.getAssetAllocationAsOf().getTime()), BEIJING_ZONE);
+        return asOf == null || asOf.isBefore(latestEndedQuarter(now.toLocalDate()));
+    }
+
+    private LocalDate latestEndedQuarter(LocalDate date) {
+        int firstMonthOfQuarter = ((date.getMonthValue() - 1) / 3) * 3 + 1;
+        return LocalDate.of(date.getYear(), firstMonthOfQuarter, 1).minusDays(1);
+    }
+
     private void dispatchTopHoldingRefreshBestEffort(List<String> staleCodes) {
         if (staleCodes.isEmpty() || threadPoolExecutor == null || fundSliceRefreshCase == null) return;
         try {
@@ -233,6 +281,21 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
             });
         } catch (RejectedExecutionException exception) {
             log.warn("基金详情异步重仓刷新进入线程池失败 fundCodeCount={}", staleCodes.size());
+        }
+    }
+
+    private void dispatchAssetAllocationRefreshBestEffort(List<String> staleCodes) {
+        if (staleCodes.isEmpty() || threadPoolExecutor == null || fundSliceRefreshCase == null) return;
+        try {
+            threadPoolExecutor.execute(() -> {
+                try {
+                    fundSliceRefreshCase.dispatchAssetAllocations(new ArrayList<>(staleCodes), "detail_view");
+                } catch (RuntimeException exception) {
+                    log.warn("基金详情异步资产配置刷新派发失败 fundCodeCount={}", staleCodes.size());
+                }
+            });
+        } catch (RejectedExecutionException exception) {
+            log.warn("基金详情异步资产配置刷新进入线程池失败 fundCodeCount={}", staleCodes.size());
         }
     }
 

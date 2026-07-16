@@ -16,6 +16,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -52,6 +54,186 @@ public class FundSliceRefreshCaseImplTest {
         Assert.assertEquals(20, fixture.port.commands.get(0).getFundCodes().size());
         Assert.assertEquals(20, fixture.port.commands.get(1).getFundCodes().size());
         Assert.assertEquals(1, fixture.port.commands.get(2).getFundCodes().size());
+    }
+
+    @Test
+    public void assetAllocationScheduleUsesIndependentSchemaAndBatchesTargets() throws Exception {
+        Fixture fixture = fixture();
+        for (int i = 1; i <= 41; i++) fixture.funds.allocationTargets.add(String.format("%06d", i));
+
+        Assert.assertEquals(3, fixture.caseImpl.scheduleAssetAllocations("schedule", 20).size());
+        Assert.assertEquals("fund-asset-allocation-refresh-task/v1", fixture.port.commands.get(0).getSchemaVersion());
+        Assert.assertEquals(20, fixture.port.commands.get(0).getFundCodes().size());
+        Assert.assertEquals(1, fixture.port.commands.get(2).getFundCodes().size());
+        Assert.assertNotNull(fixture.funds.latestEndedQuarter);
+        Assert.assertNotNull(fixture.funds.unavailableRetryBefore);
+        ProcessingTaskEntity created = fixture.processing.tasks.values().stream()
+                .filter(task -> ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH.equals(task.getTaskType()))
+                .findFirst().orElseThrow();
+        Assert.assertFalse(created.getTaskParamsJson().contains("asset_allocation_as_of"));
+        Assert.assertFalse(created.getTaskParamsJson().toLowerCase().contains("token"));
+        Assert.assertFalse(created.getTaskParamsJson().contains("amount"));
+        Assert.assertTrue(ProcessingTaskEntity.isFundSliceRefresh(created.getTaskType()));
+    }
+
+    @Test
+    public void assetAllocationReplacesNewPeriodNoopsSameContentAndCorrectsSamePeriod() throws Exception {
+        Fixture fixture = fixture();
+        fixture.funds.current.put("000001", FundCurrentDataAggregate.FundDetail.builder()
+                .fundCode("000001").assetAllocationStatus("missing").assetAllocations(List.of()).build());
+
+        String first = fixture.caseImpl.dispatchAssetAllocations(List.of("000001"), "schedule").getServerTaskId();
+        Assert.assertEquals("succeeded", fixture.caseImpl.handleCallback(
+                ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                callback(first, "fund-asset-allocation-refresh-result/v1", "succeeded",
+                        List.of(allocationItem("000001", "2026-06-30", "72.3500")))).getStatus());
+        Assert.assertEquals(1, fixture.funds.allocationWrites);
+
+        String same = fixture.caseImpl.dispatchAssetAllocations(List.of("000001"), "schedule").getServerTaskId();
+        fixture.caseImpl.handleCallback(ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                callback(same, "fund-asset-allocation-refresh-result/v1", "succeeded",
+                        List.of(allocationItem("000001", "2026-06-30", "72.350"))));
+        Assert.assertEquals(1, fixture.funds.allocationWrites);
+
+        String correction = fixture.caseImpl.dispatchAssetAllocations(List.of("000001"), "schedule").getServerTaskId();
+        fixture.caseImpl.handleCallback(ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                callback(correction, "fund-asset-allocation-refresh-result/v1", "succeeded",
+                        List.of(allocationItem("000001", "2026-06-30", "73.0000"))));
+        Assert.assertEquals(2, fixture.funds.allocationWrites);
+        Assert.assertEquals(0, new BigDecimal("73.0000").compareTo(
+                fixture.funds.lastAllocation.getAssetAllocations().get(0).getAllocationRatio()));
+    }
+
+    @Test
+    public void assetAllocationKeepsDifferentRawNamesForUnknownAndRejectsOldOrEmptySnapshots() throws Exception {
+        Fixture fixture = fixture();
+        fixture.funds.current.put("000001", FundCurrentDataAggregate.FundDetail.builder()
+                .fundCode("000001").assetAllocationAsOf(java.sql.Date.valueOf("2026-06-30"))
+                .assetAllocationStatus("available")
+                .assetAllocations(List.of(FundCurrentDataAggregate.AssetAllocation.builder()
+                        .fundCode("000001").assetType("stock").assetTypeName("股票")
+                        .allocationRatio(new BigDecimal("70")).displayOrder(1).build())).build());
+
+        FundSliceRefreshCallbackCommand.FundItem corrected = allocationItem("000001", "2026-06-30", "72");
+        corrected.setAssetAllocations(List.of(
+                allocation("unknown", "其他资产A", "1.1", 1),
+                allocation("unknown", "其他资产B", "2.2", 2)));
+        String correction = fixture.caseImpl.dispatchAssetAllocations(List.of("000001"), "schedule").getServerTaskId();
+        fixture.caseImpl.handleCallback(ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                callback(correction, "fund-asset-allocation-refresh-result/v1", "succeeded", List.of(corrected)));
+        Assert.assertEquals(2, fixture.funds.lastAllocation.getAssetAllocations().size());
+
+        String older = fixture.caseImpl.dispatchAssetAllocations(List.of("000001"), "schedule").getServerTaskId();
+        Assert.assertEquals("failed", fixture.caseImpl.handleCallback(
+                ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                callback(older, "fund-asset-allocation-refresh-result/v1", "succeeded",
+                        List.of(allocationItem("000001", "2026-03-31", "60")))).getStatus());
+        Assert.assertEquals(1, fixture.funds.allocationWrites);
+
+        FundSliceRefreshCallbackCommand.FundItem empty = allocationItem("000001", "2026-09-30", "60");
+        empty.setAssetAllocations(List.of());
+        String emptyTask = fixture.caseImpl.dispatchAssetAllocations(List.of("000001"), "schedule").getServerTaskId();
+        Assert.assertEquals("failed", fixture.caseImpl.handleCallback(
+                ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                callback(emptyTask, "fund-asset-allocation-refresh-result/v1", "succeeded", List.of(empty))).getStatus());
+        Assert.assertEquals(1, fixture.funds.allocationWrites);
+    }
+
+    @Test
+    public void unavailableAndInflightAreTrustedSuccessWhileUnknownFundMakesPartialFailure() throws Exception {
+        Fixture fixture = fixture();
+        fixture.funds.current.put("000001", FundCurrentDataAggregate.FundDetail.builder()
+                .fundCode("000001").assetAllocationStatus("available")
+                .assetAllocations(List.of(FundCurrentDataAggregate.AssetAllocation.builder()
+                        .assetType("stock").assetTypeName("股票").allocationRatio(BigDecimal.TEN).displayOrder(1).build()))
+                .build());
+        fixture.funds.current.put("000002", FundCurrentDataAggregate.FundDetail.builder()
+                .fundCode("000002").assetAllocationStatus("missing").assetAllocations(List.of()).build());
+
+        String taskId = fixture.caseImpl.dispatchAssetAllocations(List.of("000001", "000002"), "schedule").getServerTaskId();
+        List<FundSliceRefreshCallbackCommand.FundItem> unavailable = List.of(
+                FundSliceRefreshCallbackCommand.FundItem.builder().fundCode("000001")
+                        .allocationStatus("unavailable").assetAllocations(List.of()).build(),
+                FundSliceRefreshCallbackCommand.FundItem.builder().fundCode("000002")
+                        .allocationStatus("unavailable").assetAllocations(List.of()).build());
+        Assert.assertEquals("succeeded", fixture.caseImpl.handleCallback(
+                ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                callback(taskId, "fund-asset-allocation-refresh-result/v1", "succeeded", unavailable)).getStatus());
+        Assert.assertEquals(1, fixture.funds.unavailableWrites);
+        Assert.assertEquals("available", fixture.funds.current.get("000001").getAssetAllocationStatus());
+
+        String partial = fixture.caseImpl.dispatchAssetAllocations(List.of("000002", "999999"), "schedule").getServerTaskId();
+        Assert.assertEquals("partial_failed", fixture.caseImpl.handleCallback(
+                ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                callback(partial, "fund-asset-allocation-refresh-result/v1", "succeeded", List.of(
+                        allocationItem("000002", "2026-06-30", "50"),
+                        allocationItem("999999", "2026-06-30", "50")))).getStatus());
+
+        String inflight = fixture.caseImpl.dispatchAssetAllocations(List.of("000002"), "schedule").getServerTaskId();
+        FundSliceRefreshCallbackCommand inflightCallback = callback(
+                inflight, "fund-asset-allocation-refresh-result/v1", "succeeded", List.of());
+        inflightCallback.setRefreshWarnings(List.of(FundSliceRefreshCallbackCommand.RefreshWarning.builder()
+                .module("fund_asset_allocation_refresh").event("fund_already_inflight")
+                .severity("warning").message("overlap").build()));
+        Assert.assertEquals("succeeded", fixture.caseImpl.handleCallback(
+                ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH, inflightCallback).getStatus());
+    }
+
+    @Test
+    public void assetAllocationRequiresExactIdempotencyKeyAndValidPositiveDisplayOrder() throws Exception {
+        Fixture fixture = fixture();
+        fixture.funds.current.put("000001", FundCurrentDataAggregate.FundDetail.builder()
+                .fundCode("000001").assetAllocationStatus("missing").build());
+        String taskId = fixture.caseImpl.dispatchAssetAllocations(List.of("000001"), "schedule").getServerTaskId();
+        FundSliceRefreshCallbackCommand invalidKey = callback(
+                taskId, "fund-asset-allocation-refresh-result/v1", "succeeded",
+                List.of(allocationItem("000001", "2026-06-30", "50")));
+        invalidKey.setIdempotencyKey(taskId + ":other");
+        try {
+            fixture.caseImpl.handleCallback(ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH, invalidKey);
+            Assert.fail("non-contract idempotency key must be rejected");
+        } catch (RuntimeException expected) {
+            Assert.assertEquals(0, fixture.funds.allocationWrites);
+        }
+
+        String invalidOrderTask = fixture.caseImpl.dispatchAssetAllocations(List.of("000001"), "schedule").getServerTaskId();
+        FundSliceRefreshCallbackCommand.FundItem invalidOrder = allocationItem("000001", "2026-06-30", "50");
+        invalidOrder.getAssetAllocations().get(0).setDisplayOrder(0);
+        Assert.assertEquals("failed", fixture.caseImpl.handleCallback(
+                ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                callback(invalidOrderTask, "fund-asset-allocation-refresh-result/v1", "succeeded",
+                        List.of(invalidOrder))).getStatus());
+
+        String invalidRatioTask = fixture.caseImpl.dispatchAssetAllocations(List.of("000001"), "schedule").getServerTaskId();
+        FundSliceRefreshCallbackCommand.FundItem invalidRatio = allocationItem("000001", "2026-06-30", "100.0001");
+        Assert.assertEquals("failed", fixture.caseImpl.handleCallback(
+                ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                callback(invalidRatioTask, "fund-asset-allocation-refresh-result/v1", "succeeded",
+                        List.of(invalidRatio))).getStatus());
+
+        String invalidTypeTask = fixture.caseImpl.dispatchAssetAllocations(List.of("000001"), "schedule").getServerTaskId();
+        FundSliceRefreshCallbackCommand.FundItem invalidType = allocationItem("000001", "2026-06-30", "50");
+        invalidType.getAssetAllocations().get(0).setAssetType("commodity");
+        Assert.assertEquals("failed", fixture.caseImpl.handleCallback(
+                ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                callback(invalidTypeTask, "fund-asset-allocation-refresh-result/v1", "succeeded",
+                        List.of(invalidType))).getStatus());
+    }
+
+    @Test
+    public void concurrentNewerSnapshotGuardBecomesStaleNoop() throws Exception {
+        Fixture fixture = fixture();
+        fixture.funds.current.put("000001", FundCurrentDataAggregate.FundDetail.builder()
+                .fundCode("000001").assetAllocationAsOf(java.sql.Date.valueOf("2026-03-31"))
+                .assetAllocationStatus("available").assetAllocations(List.of()).build());
+        fixture.funds.replaceAllowed = false;
+        String taskId = fixture.caseImpl.dispatchAssetAllocations(List.of("000001"), "schedule").getServerTaskId();
+
+        Assert.assertEquals("partial_failed", fixture.caseImpl.handleCallback(
+                ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH,
+                callback(taskId, "fund-asset-allocation-refresh-result/v1", "succeeded",
+                        List.of(allocationItem("000001", "2026-06-30", "50")))).getStatus());
+        Assert.assertEquals(0, fixture.funds.allocationWrites);
     }
 
     @Test
@@ -245,6 +427,23 @@ public class FundSliceRefreshCaseImplTest {
         return funds;
     }
 
+    private FundSliceRefreshCallbackCommand.FundItem allocationItem(
+            String fundCode, String asOf, String stockRatio) {
+        return FundSliceRefreshCallbackCommand.FundItem.builder()
+                .fundCode(fundCode)
+                .assetAllocationAsOf(asOf)
+                .allocationStatus("available")
+                .assetAllocations(List.of(allocation("stock", "股票", stockRatio, 1)))
+                .build();
+    }
+
+    private FundSliceRefreshCallbackCommand.AssetAllocation allocation(
+            String assetType, String assetTypeName, String ratio, int displayOrder) {
+        return FundSliceRefreshCallbackCommand.AssetAllocation.builder()
+                .assetType(assetType).assetTypeName(assetTypeName)
+                .allocationRatio(new BigDecimal(ratio)).displayOrder(displayOrder).build();
+    }
+
     private Fixture fixture() throws Exception {
         FundSliceRefreshCaseImpl impl = new FundSliceRefreshCaseImpl();
         FakeProcessing processing = new FakeProcessing();
@@ -334,14 +533,21 @@ public class FundSliceRefreshCaseImplTest {
     private static class FakeFunds implements IFundDataRepository {
         final Map<String, FundCurrentDataAggregate.FundDetail> current = new HashMap<>();
         final List<String> targets = new ArrayList<>();
+        final List<String> allocationTargets = new ArrayList<>();
         final List<Integer> catalogBatchAttempts = new ArrayList<>();
         final List<Integer> catalogBatchSizes = new ArrayList<>();
         int failCatalogBatchIndex;
         int catalogWrites;
         int returnWrites;
         int holdingWrites;
+        int allocationWrites;
+        int unavailableWrites;
         boolean lastClear;
         FundCurrentDataAggregate.FundDetail lastReturn;
+        FundCurrentDataAggregate.FundDetail lastAllocation;
+        LocalDate latestEndedQuarter;
+        LocalDateTime unavailableRetryBefore;
+        boolean replaceAllowed = true;
         public Map<String, FundCurrentDataAggregate.FundDetail> queryCurrentDetails(Set<String> codes) {
             Map<String, FundCurrentDataAggregate.FundDetail> result = new HashMap<>();
             for (String code : codes) if (current.containsKey(code)) result.put(code, current.get(code));
@@ -361,6 +567,26 @@ public class FundSliceRefreshCaseImplTest {
         public boolean updatePeriodReturn(FundCurrentDataAggregate.FundDetail fund) { returnWrites++; lastReturn = fund; return current.containsKey(fund.getFundCode()); }
         public boolean updateTopHoldingSnapshot(FundCurrentDataAggregate.FundDetail fund, boolean clear) { holdingWrites++; lastClear = clear; return current.containsKey(fund.getFundCode()); }
         public List<String> queryTopHoldingRefreshTargets(LocalDateTime since) { return targets; }
+        public List<String> queryAssetAllocationRefreshTargets(LocalDateTime since, LocalDate latestEndedQuarter,
+                                                               LocalDateTime unavailableRetryBefore) {
+            this.latestEndedQuarter = latestEndedQuarter;
+            this.unavailableRetryBefore = unavailableRetryBefore;
+            return allocationTargets;
+        }
+        public boolean replaceAssetAllocationSnapshot(FundCurrentDataAggregate.FundDetail fund) {
+            if (!replaceAllowed) return false;
+            allocationWrites++;
+            lastAllocation = fund;
+            current.put(fund.getFundCode(), fund);
+            return true;
+        }
+        public boolean markAssetAllocationUnavailable(String fundCode, LocalDateTime fetchedAt) {
+            unavailableWrites++;
+            FundCurrentDataAggregate.FundDetail existing = current.get(fundCode);
+            existing.setAssetAllocationStatus("unavailable");
+            existing.setAssetAllocationFetchedAt(fetchedAt);
+            return true;
+        }
         public void markDetailViewed(Collection<String> codes, LocalDateTime at) { }
     }
 }

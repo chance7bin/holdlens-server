@@ -160,6 +160,8 @@ CREATE TABLE `fund` (
     `daily_growth_rate` DECIMAL(12, 4) DEFAULT NULL COMMENT '日增长率（百分点）',
     `top_holdings_as_of` DATE DEFAULT NULL COMMENT '重仓披露日期',
     `public_holdings_status` VARCHAR(50) NOT NULL DEFAULT 'missing' COMMENT '公开重仓状态：public/no_public_stock_holdings/missing',
+    `asset_allocation_as_of` DATE DEFAULT NULL COMMENT '资产配置报告期',
+    `asset_allocation_status` VARCHAR(20) NOT NULL DEFAULT 'missing' COMMENT '资产配置状态：available/unavailable/missing',
     `one_month_return` DECIMAL(12, 4) DEFAULT NULL COMMENT '近1月涨跌幅',
     `three_months_return` DECIMAL(12, 4) DEFAULT NULL COMMENT '近3月涨跌幅',
     `six_months_return` DECIMAL(12, 4) DEFAULT NULL COMMENT '近6月涨跌幅',
@@ -169,12 +171,14 @@ CREATE TABLE `fund` (
     `purchase_status_fetched_at` DATETIME DEFAULT NULL COMMENT '基金申购信息最近成功获取时间',
     `period_return_fetched_at` DATETIME DEFAULT NULL COMMENT '基金阶段收益信息最近成功获取时间',
     `top_holding_fetched_at` DATETIME DEFAULT NULL COMMENT '基金重仓信息最近成功获取时间',
+    `asset_allocation_fetched_at` DATETIME DEFAULT NULL COMMENT '基金资产配置最近认可获取时间',
     `last_detail_view_time` DATETIME DEFAULT NULL COMMENT '基金详情最近查看时间，仅用于公共数据刷新目标',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_fund_fund_code` (`fund_code`),
-    KEY `idx_fund_last_detail_view_time` (`last_detail_view_time`)
+    KEY `idx_fund_last_detail_view_time` (`last_detail_view_time`),
+    KEY `idx_fund_asset_allocation_refresh` (`asset_allocation_status`, `asset_allocation_fetched_at`, `asset_allocation_as_of`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='基金表';
 
 -- ----------------------------
@@ -198,6 +202,24 @@ CREATE TABLE `fund_top_holding` (
     KEY `idx_fund_top_holding_fund_code` (`fund_code`),
     KEY `idx_fund_top_holding_stock_code` (`stock_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='基金当前前十大重仓表';
+
+-- ----------------------------
+-- 基金当前资产配置表
+-- ----------------------------
+DROP TABLE IF EXISTS `fund_asset_allocation`;
+CREATE TABLE `fund_asset_allocation` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '基金资产配置ID',
+    `fund_code` VARCHAR(50) NOT NULL COMMENT '基金代码',
+    `asset_type` VARCHAR(50) NOT NULL COMMENT '标准资产类型',
+    `asset_type_name` VARCHAR(100) NOT NULL COMMENT '数据源原始资产类型名称',
+    `allocation_ratio` DECIMAL(12, 4) NOT NULL COMMENT '配置占比（百分点）',
+    `display_order` INT NOT NULL COMMENT '展示顺序，从1开始',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_fund_asset_allocation_type_name` (`fund_code`, `asset_type`, `asset_type_name`),
+    KEY `idx_fund_asset_allocation_fund_code` (`fund_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='基金当前资产配置表';
 
 -- ----------------------------
 -- 股票当前行情表

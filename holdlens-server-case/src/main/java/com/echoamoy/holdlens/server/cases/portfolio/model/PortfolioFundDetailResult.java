@@ -64,6 +64,8 @@ public class PortfolioFundDetailResult {
         private String returnCoverageStatus;
         private Date topHoldingsAsOf;
         private String publicHoldingsStatus;
+        private Date assetAllocationAsOf;
+        private String assetAllocationStatus;
         private BigDecimal oneMonthReturn;
         private BigDecimal threeMonthsReturn;
         private BigDecimal sixMonthsReturn;
@@ -73,8 +75,10 @@ public class PortfolioFundDetailResult {
         private Date purchaseStatusFetchedAt;
         private Date periodReturnFetchedAt;
         private Date topHoldingFetchedAt;
+        private Date assetAllocationFetchedAt;
         private String topHoldingRefreshStatus;
         private List<TopHolding> topHoldings;
+        private List<AssetAllocation> assetAllocations;
 
     }
 
@@ -95,6 +99,17 @@ public class PortfolioFundDetailResult {
         private String quarterChangeType;
         private BigDecimal quarterChangeValue;
 
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AssetAllocation {
+        private String assetType;
+        private String assetTypeName;
+        private BigDecimal allocationRatio;
+        private Integer displayOrder;
     }
 
 }

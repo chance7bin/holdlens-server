@@ -35,4 +35,12 @@ public class AgentRefreshScheduleController implements IAgentRefreshScheduleServ
         return Response.ok(null);
     }
 
+    @PostMapping("/api/agent/fund-asset-allocation-refresh/schedule-runs")
+    @Override
+    public Response<Void> runFundAssetAllocationRefreshSchedule() {
+        log.info("手动触发基金资产配置刷新调度");
+        agentRefreshScheduleJob.runFundAssetAllocationRefreshSchedule();
+        return Response.ok(null);
+    }
+
 }

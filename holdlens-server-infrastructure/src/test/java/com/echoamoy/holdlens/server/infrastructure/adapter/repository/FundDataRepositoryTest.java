@@ -2,17 +2,22 @@ package com.echoamoy.holdlens.server.infrastructure.adapter.repository;
 
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
 import com.echoamoy.holdlens.server.infrastructure.dao.IFundDao;
+import com.echoamoy.holdlens.server.infrastructure.dao.IFundAssetAllocationDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.IFundTopHoldingDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.FundPO;
+import com.echoamoy.holdlens.server.infrastructure.dao.po.FundAssetAllocationPO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.FundTopHoldingPO;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import org.springframework.transaction.annotation.Transactional;
 
 public class FundDataRepositoryTest {
 
@@ -158,6 +163,115 @@ public class FundDataRepositoryTest {
         Assert.assertFalse(repository.queryExistingFundCodes(List.of("000001", "999999")).contains("999999"));
     }
 
+    @Test
+    public void replaceAssetAllocationSnapshotUpdatesMetadataAndReplacesRowsWithoutTouchingTopHoldings() throws Exception {
+        FundDataRepository repository = new FundDataRepository();
+        FakeFundDao fundDao = new FakeFundDao();
+        FakeFundTopHoldingDao topHoldingDao = new FakeFundTopHoldingDao();
+        FakeFundAssetAllocationDao allocationDao = new FakeFundAssetAllocationDao();
+        fundDao.lockedAssetAllocation = FundPO.builder().fundCode("000001").build();
+        setField(repository, "fundDao", fundDao);
+        setField(repository, "fundTopHoldingDao", topHoldingDao);
+        setField(repository, "fundAssetAllocationDao", allocationDao);
+
+        boolean replaced = repository.replaceAssetAllocationSnapshot(FundCurrentDataAggregate.FundDetail.builder()
+                .fundCode("000001")
+                .assetAllocationAsOf(java.sql.Date.valueOf("2026-06-30"))
+                .assetAllocationStatus("available")
+                .assetAllocationFetchedAt(LocalDateTime.of(2026, 7, 16, 10, 0))
+                .assetAllocations(List.of(
+                        FundCurrentDataAggregate.AssetAllocation.builder()
+                                .assetType("unknown").assetTypeName("其他资产A")
+                                .allocationRatio(new BigDecimal("1.1000")).displayOrder(1).build(),
+                        FundCurrentDataAggregate.AssetAllocation.builder()
+                                .assetType("unknown").assetTypeName("其他资产B")
+                                .allocationRatio(new BigDecimal("2.2000")).displayOrder(2).build()))
+                .build());
+
+        Assert.assertTrue(replaced);
+        Assert.assertEquals("available", fundDao.assetAllocationMetadata.getAssetAllocationStatus());
+        Assert.assertEquals("000001", allocationDao.deletedFundCode);
+        Assert.assertEquals(2, allocationDao.inserted.size());
+        Assert.assertEquals("unknown", allocationDao.inserted.get(0).getAssetType());
+        Assert.assertEquals("其他资产A", allocationDao.inserted.get(0).getAssetTypeName());
+        Assert.assertEquals("其他资产B", allocationDao.inserted.get(1).getAssetTypeName());
+        Assert.assertNull(topHoldingDao.deletedFundCode);
+        Assert.assertTrue(topHoldingDao.inserted.isEmpty());
+    }
+
+    @Test
+    public void queryCurrentDetailsLoadsAllocationsInOneBatchAndMapsStatus() throws Exception {
+        FundDataRepository repository = new FundDataRepository();
+        FakeFundDao fundDao = new FakeFundDao();
+        FakeFundTopHoldingDao topHoldingDao = new FakeFundTopHoldingDao();
+        FakeFundAssetAllocationDao allocationDao = new FakeFundAssetAllocationDao();
+        fundDao.fundItems = List.of(FundPO.builder().fundCode("000001")
+                .assetAllocationStatus("available")
+                .assetAllocationAsOf(java.sql.Date.valueOf("2026-06-30")).build());
+        allocationDao.existing = List.of(FundAssetAllocationPO.builder().fundCode("000001")
+                .assetType("stock").assetTypeName("股票")
+                .allocationRatio(new BigDecimal("70.0000")).displayOrder(1).build());
+        setField(repository, "fundDao", fundDao);
+        setField(repository, "fundTopHoldingDao", topHoldingDao);
+        setField(repository, "fundAssetAllocationDao", allocationDao);
+
+        FundCurrentDataAggregate.FundDetail detail = repository.queryCurrentDetails(
+                java.util.Set.of("000001")).get("000001");
+
+        Assert.assertEquals("available", detail.getAssetAllocationStatus());
+        Assert.assertEquals(1, detail.getAssetAllocations().size());
+        Assert.assertEquals(1, allocationDao.selectCount);
+    }
+
+    @Test
+    public void assetAllocationTargetQueryPassesFreshnessBoundaries() throws Exception {
+        FundDataRepository repository = new FundDataRepository();
+        FakeFundDao fundDao = new FakeFundDao();
+        fundDao.assetAllocationTargets = List.of("000001", "000002");
+        setField(repository, "fundDao", fundDao);
+
+        List<String> result = repository.queryAssetAllocationRefreshTargets(
+                LocalDateTime.of(2026, 4, 17, 10, 0), LocalDate.of(2026, 6, 30),
+                LocalDateTime.of(2026, 7, 9, 10, 0));
+
+        Assert.assertEquals(List.of("000001", "000002"), result);
+        Assert.assertEquals(java.sql.Date.valueOf("2026-06-30"), fundDao.latestEndedQuarter);
+        Assert.assertNotNull(fundDao.unavailableRetryBefore);
+    }
+
+    @Test
+    public void assetAllocationReplacementDeclaresTransactionBoundary() throws Exception {
+        Transactional transactional = FundDataRepository.class
+                .getMethod("replaceAssetAllocationSnapshot", FundCurrentDataAggregate.FundDetail.class)
+                .getAnnotation(Transactional.class);
+        Assert.assertNotNull(transactional);
+        Assert.assertEquals(Exception.class, transactional.rollbackFor()[0]);
+    }
+
+    @Test
+    public void olderConcurrentAssetAllocationCannotDeleteNewerSnapshot() throws Exception {
+        FundDataRepository repository = new FundDataRepository();
+        FakeFundDao fundDao = new FakeFundDao();
+        FakeFundAssetAllocationDao allocationDao = new FakeFundAssetAllocationDao();
+        fundDao.lockedAssetAllocation = FundPO.builder().fundCode("000001")
+                .assetAllocationAsOf(java.sql.Date.valueOf("2026-09-30")).build();
+        setField(repository, "fundDao", fundDao);
+        setField(repository, "fundAssetAllocationDao", allocationDao);
+
+        boolean replaced = repository.replaceAssetAllocationSnapshot(FundCurrentDataAggregate.FundDetail.builder()
+                .fundCode("000001").assetAllocationAsOf(java.sql.Date.valueOf("2026-06-30"))
+                .assetAllocationStatus("available")
+                .assetAllocations(List.of(FundCurrentDataAggregate.AssetAllocation.builder()
+                        .assetType("stock").assetTypeName("股票")
+                        .allocationRatio(BigDecimal.TEN).displayOrder(1).build()))
+                .build());
+
+        Assert.assertFalse(replaced);
+        Assert.assertNull(fundDao.assetAllocationMetadata);
+        Assert.assertNull(allocationDao.deletedFundCode);
+        Assert.assertTrue(allocationDao.inserted.isEmpty());
+    }
+
     private void setField(Object target, String name, Object value) throws Exception {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
@@ -168,14 +282,28 @@ public class FundDataRepositoryTest {
         private FundPO upserted;
         private List<FundPO> catalogBatch = List.of();
         private List<FundPO> fundItems = List.of();
+        private FundPO assetAllocationMetadata;
+        private List<String> assetAllocationTargets = List.of();
+        private java.util.Date latestEndedQuarter;
+        private java.util.Date unavailableRetryBefore;
+        private FundPO lockedAssetAllocation;
 
         @Override public void upsertCatalog(FundPO fundPO) { upserted = fundPO; }
         @Override public void upsertCatalogBatch(List<FundPO> funds) { catalogBatch = funds; }
         @Override public int updatePurchaseStatus(FundPO fundPO) { upserted = fundPO; return 1; }
         @Override public int updatePeriodReturn(FundPO fundPO) { upserted = fundPO; return 1; }
         @Override public int updateTopHoldingMetadata(FundPO fundPO) { upserted = fundPO; return 1; }
+        @Override public int updateAssetAllocationMetadata(FundPO fundPO) { assetAllocationMetadata = fundPO; return 1; }
+        @Override public int markAssetAllocationUnavailable(String fundCode, java.util.Date fetchedAt) { return 1; }
         @Override public int updateLastDetailViewTime(Collection<String> fundCodes, java.util.Date viewedAt) { return fundCodes.size(); }
         @Override public List<String> selectTopHoldingRefreshTargets(java.util.Date viewedSince) { return List.of(); }
+        @Override public List<String> selectAssetAllocationRefreshTargets(
+                java.util.Date viewedSince, java.util.Date latestEndedQuarter,
+                java.util.Date unavailableRetryBefore) {
+            this.latestEndedQuarter = latestEndedQuarter;
+            this.unavailableRetryBefore = unavailableRetryBefore;
+            return assetAllocationTargets;
+        }
 
         @Override
         public FundPO selectById(Long id) {
@@ -183,10 +311,39 @@ public class FundDataRepositoryTest {
         }
 
         @Override
+        public FundPO selectAssetAllocationMetadataForUpdate(String fundCode) {
+            return lockedAssetAllocation;
+        }
+
+        @Override
         public List<FundPO> selectByFundCodes(Collection<String> fundCodes) {
             return fundItems;
         }
 
+    }
+
+    private static class FakeFundAssetAllocationDao implements IFundAssetAllocationDao {
+        private String deletedFundCode;
+        private List<FundAssetAllocationPO> inserted = new ArrayList<>();
+        private List<FundAssetAllocationPO> existing = List.of();
+        private int selectCount;
+
+        @Override
+        public void insertBatch(List<FundAssetAllocationPO> allocations) {
+            inserted.addAll(allocations);
+        }
+
+        @Override
+        public int deleteByFundCode(String fundCode) {
+            deletedFundCode = fundCode;
+            return 1;
+        }
+
+        @Override
+        public List<FundAssetAllocationPO> selectByFundCodes(Collection<String> fundCodes) {
+            selectCount++;
+            return existing;
+        }
     }
 
     private static class FakeFundTopHoldingDao implements IFundTopHoldingDao {

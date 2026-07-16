@@ -35,6 +35,9 @@ public class AgentFundRefreshPort implements IAgentFundSliceRefreshPort, IAgentA
     @Value("${holdlens.agent.fund-top-holding-refresh-url}")
     private String fundTopHoldingRefreshUrl;
 
+    @Value("${holdlens.agent.fund-asset-allocation-refresh-url}")
+    private String fundAssetAllocationRefreshUrl;
+
     @Value("${holdlens.agent.a-share-market-refresh-url}")
     private String aShareMarketRefreshUrl;
 
@@ -43,16 +46,22 @@ public class AgentFundRefreshPort implements IAgentFundSliceRefreshPort, IAgentA
 
     @Override
     public FundRefreshDispatchResultEntity dispatch(FundSliceRefreshDispatchCommandEntity commandEntity) {
+        Map<String, Object> request = buildSliceRequest(commandEntity);
+        ResponseEntity<Map> response = restTemplate.postForEntity(sliceUrl(commandEntity.getTaskType()), request, Map.class);
+        return toDispatchResult(response);
+    }
+
+    private Map<String, Object> buildSliceRequest(FundSliceRefreshDispatchCommandEntity commandEntity) {
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("schema_version", commandEntity.getSchemaVersion());
         request.put("server_task_id", commandEntity.getServerTaskId());
-        if (ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH.equals(commandEntity.getTaskType())) {
+        if (ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH.equals(commandEntity.getTaskType())
+                || ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH.equals(commandEntity.getTaskType())) {
             request.put("fund_codes", commandEntity.getFundCodes());
         }
         request.put("allow_network", commandEntity.getAllowNetwork());
         request.put("callback_url", commandEntity.getCallbackUrl());
-        ResponseEntity<Map> response = restTemplate.postForEntity(sliceUrl(commandEntity.getTaskType()), request, Map.class);
-        return toDispatchResult(response);
+        return request;
     }
 
     private String sliceUrl(String taskType) {
@@ -61,6 +70,7 @@ public class AgentFundRefreshPort implements IAgentFundSliceRefreshPort, IAgentA
             case ProcessingTaskEntity.FUND_PURCHASE_STATUS_REFRESH -> fundPurchaseStatusRefreshUrl;
             case ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH -> fundPeriodReturnRefreshUrl;
             case ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH -> fundTopHoldingRefreshUrl;
+            case ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH -> fundAssetAllocationRefreshUrl;
             default -> throw new IllegalArgumentException("unsupported fund slice task type: " + taskType);
         };
     }

@@ -86,6 +86,8 @@ public class PortfolioFundDetailController implements IPortfolioFundDetailServic
                 .returnCoverageStatus(fundDetail.getReturnCoverageStatus())
                 .topHoldingsAsOf(fundDetail.getTopHoldingsAsOf())
                 .publicHoldingsStatus(fundDetail.getPublicHoldingsStatus())
+                .assetAllocationAsOf(fundDetail.getAssetAllocationAsOf())
+                .assetAllocationStatus(fundDetail.getAssetAllocationStatus())
                 .oneMonthReturn(fundDetail.getOneMonthReturn())
                 .threeMonthsReturn(fundDetail.getThreeMonthsReturn())
                 .sixMonthsReturn(fundDetail.getSixMonthsReturn())
@@ -95,8 +97,10 @@ public class PortfolioFundDetailController implements IPortfolioFundDetailServic
                 .purchaseStatusFetchedAt(fundDetail.getPurchaseStatusFetchedAt())
                 .periodReturnFetchedAt(fundDetail.getPeriodReturnFetchedAt())
                 .topHoldingFetchedAt(fundDetail.getTopHoldingFetchedAt())
+                .assetAllocationFetchedAt(fundDetail.getAssetAllocationFetchedAt())
                 .topHoldingRefreshStatus(fundDetail.getTopHoldingRefreshStatus())
                 .topHoldings(toTopHoldings(fundDetail.getTopHoldings()))
+                .assetAllocations(toAssetAllocations(fundDetail.getAssetAllocations()))
                 .build();
     }
 
@@ -116,6 +120,21 @@ public class PortfolioFundDetailController implements IPortfolioFundDetailServic
                         .holdingRatio(topHolding.getHoldingRatio())
                         .quarterChangeType(topHolding.getQuarterChangeType())
                         .quarterChangeValue(topHolding.getQuarterChangeValue())
+                        .build())
+                .toList();
+    }
+
+    private List<PortfolioFundDetailDTO.AssetAllocation> toAssetAllocations(
+            List<PortfolioFundDetailResult.AssetAllocation> assetAllocations) {
+        if (assetAllocations == null) {
+            return null;
+        }
+        return assetAllocations.stream()
+                .map(allocation -> allocation == null ? null : PortfolioFundDetailDTO.AssetAllocation.builder()
+                        .assetType(allocation.getAssetType())
+                        .assetTypeName(allocation.getAssetTypeName())
+                        .allocationRatio(allocation.getAllocationRatio())
+                        .displayOrder(allocation.getDisplayOrder())
                         .build())
                 .toList();
     }

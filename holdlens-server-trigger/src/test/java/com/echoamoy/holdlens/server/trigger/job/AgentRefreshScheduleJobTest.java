@@ -10,6 +10,7 @@ import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.core.env.PropertySource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.support.CronExpression;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -27,6 +28,7 @@ public class AgentRefreshScheduleJobTest {
         job.runFundPurchaseStatusRefreshSchedule();
         job.runFundPeriodReturnRefreshSchedule();
         job.runFundTopHoldingRefreshSchedule();
+        job.runFundAssetAllocationRefreshSchedule();
         Assert.assertEquals(0, fake.calls);
     }
 
@@ -39,11 +41,14 @@ public class AgentRefreshScheduleJobTest {
         setField(job, "returnEnabled", true);
         setField(job, "holdingEnabled", true);
         setField(job, "holdingBatchSize", 20);
+        setField(job, "allocationEnabled", true);
+        setField(job, "allocationBatchSize", 20);
         job.runFundCatalogRefreshSchedule();
         job.runFundPurchaseStatusRefreshSchedule();
         job.runFundPeriodReturnRefreshSchedule();
         job.runFundTopHoldingRefreshSchedule();
-        Assert.assertEquals(4, fake.calls);
+        job.runFundAssetAllocationRefreshSchedule();
+        Assert.assertEquals(5, fake.calls);
         Assert.assertEquals(20, fake.lastBatchSize);
     }
 
@@ -77,11 +82,13 @@ public class AgentRefreshScheduleJobTest {
         Scheduled purchase = scheduled("runFundPurchaseStatusRefreshSchedule");
         Scheduled periodReturn = scheduled("runFundPeriodReturnRefreshSchedule");
         Scheduled holding = scheduled("runFundTopHoldingRefreshSchedule");
+        Scheduled allocation = scheduled("runFundAssetAllocationRefreshSchedule");
         Scheduled callbackTimeout = scheduled("closeTimedOutCallbacks");
         assertSchedule(catalog, "${holdlens.agent.fund-catalog-refresh-schedule.cron}");
         assertSchedule(purchase, "${holdlens.agent.fund-purchase-status-refresh-schedule.cron}");
         assertSchedule(periodReturn, "${holdlens.agent.fund-period-return-refresh-schedule.cron}");
         assertSchedule(holding, "${holdlens.agent.fund-top-holding-refresh-schedule.cron}");
+        assertSchedule(allocation, "${holdlens.agent.fund-asset-allocation-refresh-schedule.cron}");
         assertSchedule(callbackTimeout, "${holdlens.agent.fund-slice-callback-timeout.cron}");
 
         assertValue("catalogEnabled", "${holdlens.agent.fund-catalog-refresh-schedule.enabled}");
@@ -89,6 +96,8 @@ public class AgentRefreshScheduleJobTest {
         assertValue("returnEnabled", "${holdlens.agent.fund-period-return-refresh-schedule.enabled}");
         assertValue("holdingEnabled", "${holdlens.agent.fund-top-holding-refresh-schedule.enabled}");
         assertValue("holdingBatchSize", "${holdlens.agent.fund-top-holding-refresh-schedule.batch-size}");
+        assertValue("allocationEnabled", "${holdlens.agent.fund-asset-allocation-refresh-schedule.enabled}");
+        assertValue("allocationBatchSize", "${holdlens.agent.fund-asset-allocation-refresh-schedule.batch-size}");
         assertValue("callbackTimeoutEnabled", "${holdlens.agent.fund-slice-callback-timeout.enabled}");
         assertValue("callbackTimeoutMinutes", "${holdlens.agent.fund-slice-callback-timeout.minutes}");
         assertValue("callbackProcessingWarningMinutes", "${holdlens.agent.fund-slice-callback-timeout.processing-warning-minutes:10}");
@@ -106,6 +115,10 @@ public class AgentRefreshScheduleJobTest {
         Assert.assertEquals(false, properties.getProperty("holdlens.agent.fund-purchase-status-refresh-schedule.enabled"));
         Assert.assertEquals(false, properties.getProperty("holdlens.agent.fund-period-return-refresh-schedule.enabled"));
         Assert.assertEquals(false, properties.getProperty("holdlens.agent.fund-top-holding-refresh-schedule.enabled"));
+        Assert.assertEquals(false, properties.getProperty("holdlens.agent.fund-asset-allocation-refresh-schedule.enabled"));
+        Assert.assertEquals(20, properties.getProperty("holdlens.agent.fund-asset-allocation-refresh-schedule.batch-size"));
+        Assert.assertNotNull(CronExpression.parse((String) properties.getProperty(
+                "holdlens.agent.fund-asset-allocation-refresh-schedule.cron")));
         Assert.assertEquals(false, properties.getProperty("holdlens.agent.fund-slice-callback-timeout.enabled"));
         Assert.assertEquals(10, properties.getProperty("holdlens.agent.fund-slice-callback-timeout.processing-warning-minutes"));
     }
@@ -155,7 +168,9 @@ public class AgentRefreshScheduleJobTest {
         public FundRefreshTaskResult schedulePurchaseStatus(String trigger) { calls++; return null; }
         public FundRefreshTaskResult schedulePeriodReturn(String trigger) { calls++; return null; }
         public List<FundRefreshTaskResult> scheduleTopHoldings(String trigger, int batchSize) { calls++; lastBatchSize = batchSize; return List.of(); }
+        public List<FundRefreshTaskResult> scheduleAssetAllocations(String trigger, int batchSize) { calls++; lastBatchSize = batchSize; return List.of(); }
         public FundRefreshTaskResult dispatchTopHoldings(List<String> fundCodes, String trigger) { return null; }
+        public FundRefreshTaskResult dispatchAssetAllocations(List<String> fundCodes, String trigger) { return null; }
         public FundRefreshTaskResult handleCallback(String taskType, FundSliceRefreshCallbackCommand command) { return null; }
         public int closeTimedOutCallbacks(int timeoutMinutes) { lastCallbackTimeoutMinutes = timeoutMinutes; return 0; }
         public int warnSlowCatalogCallbacks(int warningMinutes) { lastProcessingWarningMinutes = warningMinutes; return 0; }

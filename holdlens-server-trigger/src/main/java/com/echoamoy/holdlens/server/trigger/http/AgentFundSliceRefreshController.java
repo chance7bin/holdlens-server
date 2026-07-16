@@ -47,6 +47,12 @@ public class AgentFundSliceRefreshController implements IAgentFundSliceRefreshSe
                                                            @RequestBody FundSliceRefreshCallbackRequest request) {
         return callback(header, ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH, request);
     }
+    @PostMapping("/internal/agent/fund-asset-allocation-refresh/callback")
+    public Response<FundRefreshTaskDTO> assetAllocationCallback(
+            @RequestHeader(value="X-HoldLens-Agent-Callback", required=false) String header,
+            @RequestBody FundSliceRefreshCallbackRequest request) {
+        return callback(header, ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH, request);
+    }
 
     private Response<FundRefreshTaskDTO> callback(String header, String taskType, FundSliceRefreshCallbackRequest request) {
         if (!callbackHeaderValue.equals(header)) {
@@ -90,6 +96,11 @@ public class AgentFundSliceRefreshController implements IAgentFundSliceRefreshSe
                         FundSliceRefreshCallbackCommand.TopHolding.builder().rankNo(h.getRankNo()).stockName(h.getStockName())
                                 .stockCode(h.getStockCode()).market(h.getMarket()).holdingRatio(h.getHoldingRatio())
                                 .quarterChangeType(h.getQuarterChangeType()).quarterChangeValue(h.getQuarterChangeValue()).build()).toList())
+                .assetAllocationAsOf(f.getAssetAllocationAsOf()).allocationStatus(f.getAllocationStatus())
+                .assetAllocations(f.getAssetAllocations() == null ? List.of() : f.getAssetAllocations().stream().map(a ->
+                        FundSliceRefreshCallbackCommand.AssetAllocation.builder()
+                                .assetType(a.getAssetType()).assetTypeName(a.getAssetTypeName())
+                                .allocationRatio(a.getAllocationRatio()).displayOrder(a.getDisplayOrder()).build()).toList())
                 .build();
     }
 

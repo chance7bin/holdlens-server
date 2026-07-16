@@ -10,7 +10,9 @@ public interface IFundSliceRefreshCase {
     FundRefreshTaskResult schedulePurchaseStatus(String trigger);
     FundRefreshTaskResult schedulePeriodReturn(String trigger);
     List<FundRefreshTaskResult> scheduleTopHoldings(String trigger, int batchSize);
+    List<FundRefreshTaskResult> scheduleAssetAllocations(String trigger, int batchSize);
     FundRefreshTaskResult dispatchTopHoldings(List<String> fundCodes, String trigger);
+    FundRefreshTaskResult dispatchAssetAllocations(List<String> fundCodes, String trigger);
     FundRefreshTaskResult handleCallback(String taskType, FundSliceRefreshCallbackCommand command);
     int closeTimedOutCallbacks(int timeoutMinutes);
     default int warnSlowCatalogCallbacks(int warningMinutes) { return 0; }

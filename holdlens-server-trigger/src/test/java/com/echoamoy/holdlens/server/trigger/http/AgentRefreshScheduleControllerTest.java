@@ -45,9 +45,32 @@ public class AgentRefreshScheduleControllerTest {
         Assert.assertEquals(1, job.fundRunCount);
     }
 
+    @Test
+    public void testRunFundAssetAllocationRefreshSchedule() {
+        CountingAgentRefreshScheduleJob job = new CountingAgentRefreshScheduleJob();
+        AgentRefreshScheduleController controller = new AgentRefreshScheduleController(job);
+
+        Response<Void> response = controller.runFundAssetAllocationRefreshSchedule();
+
+        Assert.assertEquals("0000", response.getCode());
+        Assert.assertEquals("成功", response.getInfo());
+        Assert.assertNull(response.getData());
+        Assert.assertEquals(1, job.fundAssetAllocationRunCount);
+    }
+
+    @Test
+    public void testFundAssetAllocationRefreshScheduleMapping() throws Exception {
+        Method method = AgentRefreshScheduleController.class.getMethod("runFundAssetAllocationRefreshSchedule");
+        PostMapping mapping = method.getAnnotation(PostMapping.class);
+
+        Assert.assertNotNull(mapping);
+        Assert.assertArrayEquals(new String[]{"/api/agent/fund-asset-allocation-refresh/schedule-runs"}, mapping.value());
+    }
+
     private static class CountingAgentRefreshScheduleJob extends AgentRefreshScheduleJob {
         private int fundCatalogRunCount;
         private int fundRunCount;
+        private int fundAssetAllocationRunCount;
 
         @Override
         public void runFundCatalogRefreshSchedule() {
@@ -57,6 +80,11 @@ public class AgentRefreshScheduleControllerTest {
         @Override
         public void runFundTopHoldingRefreshSchedule() {
             fundRunCount++;
+        }
+
+        @Override
+        public void runFundAssetAllocationRefreshSchedule() {
+            fundAssetAllocationRunCount++;
         }
     }
 

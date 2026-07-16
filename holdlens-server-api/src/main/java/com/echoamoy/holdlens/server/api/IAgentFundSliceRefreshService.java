@@ -9,4 +9,5 @@ public interface IAgentFundSliceRefreshService {
     Response<FundRefreshTaskDTO> purchaseStatusCallback(String callbackHeader, FundSliceRefreshCallbackRequest request);
     Response<FundRefreshTaskDTO> periodReturnCallback(String callbackHeader, FundSliceRefreshCallbackRequest request);
     Response<FundRefreshTaskDTO> topHoldingCallback(String callbackHeader, FundSliceRefreshCallbackRequest request);
+    Response<FundRefreshTaskDTO> assetAllocationCallback(String callbackHeader, FundSliceRefreshCallbackRequest request);
 }

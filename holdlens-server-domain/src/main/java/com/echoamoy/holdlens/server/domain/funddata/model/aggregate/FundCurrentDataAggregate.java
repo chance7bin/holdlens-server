@@ -43,6 +43,8 @@ public class FundCurrentDataAggregate {
         private BigDecimal dailyGrowthRate;
         private Date topHoldingsAsOf;
         private String publicHoldingsStatus;
+        private Date assetAllocationAsOf;
+        private String assetAllocationStatus;
         private BigDecimal oneMonthReturn;
         private BigDecimal threeMonthsReturn;
         private BigDecimal sixMonthsReturn;
@@ -52,9 +54,11 @@ public class FundCurrentDataAggregate {
         private LocalDateTime purchaseStatusFetchedAt;
         private LocalDateTime periodReturnFetchedAt;
         private LocalDateTime topHoldingFetchedAt;
+        private LocalDateTime assetAllocationFetchedAt;
         private LocalDateTime lastDetailViewTime;
         private LocalDateTime updateTime;
         private List<TopHolding> topHoldings;
+        private List<AssetAllocation> assetAllocations;
     }
 
     @Data
@@ -70,6 +74,18 @@ public class FundCurrentDataAggregate {
         private BigDecimal holdingRatio;
         private String quarterChangeType;
         private BigDecimal quarterChangeValue;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AssetAllocation {
+        private String fundCode;
+        private String assetType;
+        private String assetTypeName;
+        private BigDecimal allocationRatio;
+        private Integer displayOrder;
     }
 
     @Data
