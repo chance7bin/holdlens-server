@@ -171,3 +171,22 @@ ocr review --audience agent --background "<业务背景>" --commit <commit>
 - 验证方式：`ocr llm test` 成功返回 DeepSeek provider；`ocr review --audience agent ...` 命令退出码为 0，并输出审查意见或无问题摘要。
 - 适用范围 / 注意事项：授权范围仅限本仓库代码审查所需的 Git diff、文件路径和必要业务背景；仍不得读取或发送 `.env`、`credentials*`、`secrets*`、SSH/GPG/云厂商/GitHub CLI 等敏感文件或凭据目录。若 `ocr llm test` 显示的 provider 不再是 DeepSeek，或 review 范围包含敏感文件，应重新向用户确认。
 - 记录时间：2026-06-25
+
+### app 模块测试被 Surefire 配置跳过时独立运行 JUnit 4
+
+- 触发场景：在 `holdlens-server-app` 新增或执行 JUnit 4 测试。
+- 症状：即使 Maven 命令传入 `-DskipTests=false`，`maven-surefire-plugin:2.6` 仍输出 `Tests are skipped`，测试代码只完成编译但没有执行。
+- 根因：`holdlens-server-app/pom.xml` 在 Surefire 插件配置中硬编码了 `<skipTests>true</skipTests>`，命令行参数不能覆盖该执行配置。
+- 已验证解法：先通过 Maven Reactor 完成生产代码和测试代码编译，再构建 app 的 test scope 依赖 classpath，最后使用 JDK 17 的 `JUnitCore` 独立运行指定测试。
+
+```bash
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home PATH=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home/bin:$PATH mvn -pl holdlens-server-app -am -DskipTests=false -Dtest=CorsConfigTest -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home PATH=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home/bin:$PATH mvn -q -pl holdlens-server-app dependency:build-classpath -Dmdep.includeScope=test -Dmdep.outputFile=/private/tmp/holdlens-app-test-classpath
+HOLDLENS_TEST_CP="$(tr -d '\n' < /private/tmp/holdlens-app-test-classpath)"
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home PATH=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home/bin:$PATH java -cp "holdlens-server-app/target/test-classes:holdlens-server-app/target/classes:holdlens-server-trigger/target/classes:holdlens-server-infrastructure/target/classes:holdlens-server-case/target/classes:holdlens-server-domain/target/classes:holdlens-server-api/target/classes:holdlens-server-types/target/classes:$HOLDLENS_TEST_CP" org.junit.runner.JUnitCore com.echoamoy.holdlens.server.config.CorsConfigTest
+```
+
+- 下次优先动作：确认 Maven 日志中目标 app 测试是否实际运行；若只编译后显示 `Tests are skipped`，不要误报测试通过，改用上述独立 JUnit 方式。
+- 验证方式：`JUnitCore` 输出目标测试数量并以 `OK (...)` 结束；本次 `CorsConfigTest` 5 个测试通过。
+- 适用范围 / 注意事项：适用于当前 app 模块的 JUnit 4 测试；不要为了单个任务擅自改变全项目默认跳过 app 测试的构建策略。测试依赖或模块列表变化时需同步调整 classpath。
+- 记录时间：2026-07-22
