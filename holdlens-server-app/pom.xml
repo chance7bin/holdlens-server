@@ -127,7 +127,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <mainClass>com.echoamoy.Application</mainClass>
+                    <mainClass>com.echoamoy.holdlens.server.Application</mainClass>
                     <layout>JAR</layout>
                 </configuration>
             </plugin>

@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.echoamoy.holdlens.server.infrastructure.dao.IMarketDetailDao">
+
+    <resultMap id="FundNavMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.FundNavHistoryPO">
+        <id column="id" property="id"/><result column="fund_code" property="fundCode"/>
+        <result column="nav_date" property="navDate"/><result column="unit_nav" property="unitNav"/>
+        <result column="accumulated_nav" property="accumulatedNav"/>
+        <result column="daily_growth_rate" property="dailyGrowthRate"/>
+        <result column="source_as_of" property="sourceAsOf"/><result column="fetched_at" property="fetchedAt"/>
+        <result column="create_time" property="createTime"/><result column="update_time" property="updateTime"/>
+    </resultMap>
+    <resultMap id="StockBarMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.StockPriceBarPO">
+        <id column="id" property="id"/><result column="stock_code" property="stockCode"/>
+        <result column="market" property="market"/><result column="granularity" property="granularity"/>
+        <result column="bar_time" property="barTime"/><result column="open_price" property="open"/>
+        <result column="high_price" property="high"/><result column="low_price" property="low"/>
+        <result column="close_price" property="close"/><result column="volume" property="volume"/>
+        <result column="currency" property="currency"/><result column="source_as_of" property="sourceAsOf"/>
+        <result column="fetched_at" property="fetchedAt"/><result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+    <resultMap id="ProfileMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.StockCompanyProfilePO">
+        <id column="id" property="id"/><result column="stock_code" property="stockCode"/>
+        <result column="market" property="market"/><result column="company_name" property="companyName"/>
+        <result column="industry" property="industry"/><result column="business_summary" property="businessSummary"/>
+        <result column="company_profile" property="companyProfile"/><result column="website" property="website"/>
+        <result column="source_as_of" property="sourceAsOf"/><result column="fetched_at" property="fetchedAt"/>
+        <result column="create_time" property="createTime"/><result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <insert id="upsertFundNavHistory">
+        INSERT INTO fund_nav_history
+        (fund_code, nav_date, unit_nav, accumulated_nav, daily_growth_rate, source_as_of, fetched_at)
+        VALUES
+        <foreach collection="points" item="p" separator=",">
+            (#{p.fundCode}, #{p.navDate}, #{p.unitNav}, #{p.accumulatedNav}, #{p.dailyGrowthRate}, #{p.sourceAsOf}, #{p.fetchedAt})
+        </foreach>
+        ON DUPLICATE KEY UPDATE unit_nav=VALUES(unit_nav), accumulated_nav=VALUES(accumulated_nav),
+            daily_growth_rate=VALUES(daily_growth_rate), source_as_of=VALUES(source_as_of),
+            fetched_at=VALUES(fetched_at), update_time=CURRENT_TIMESTAMP
+    </insert>
+
+    <insert id="upsertStockPriceBars">
+        INSERT INTO stock_price_bar
+        (stock_code, market, granularity, bar_time, open_price, high_price, low_price, close_price,
+         volume, currency, source_as_of, fetched_at)
+        VALUES
+        <foreach collection="bars" item="b" separator=",">
+            (#{b.stockCode}, #{b.market}, #{b.granularity}, #{b.barTime}, #{b.open}, #{b.high}, #{b.low},
+             #{b.close}, #{b.volume}, #{b.currency}, #{b.sourceAsOf}, #{b.fetchedAt})
+        </foreach>
+        ON DUPLICATE KEY UPDATE open_price=VALUES(open_price), high_price=VALUES(high_price),
+            low_price=VALUES(low_price), close_price=VALUES(close_price), volume=VALUES(volume),
+            currency=VALUES(currency), source_as_of=VALUES(source_as_of), fetched_at=VALUES(fetched_at),
+            update_time=CURRENT_TIMESTAMP
+    </insert>
+
+    <insert id="upsertStockCompanyProfile" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.StockCompanyProfilePO">
+        INSERT INTO stock_company_profile
+        (stock_code, market, company_name, industry, business_summary, company_profile, website, source_as_of, fetched_at)
+        VALUES (#{stockCode}, #{market}, #{companyName}, #{industry}, #{businessSummary}, #{companyProfile},
+                #{website}, #{sourceAsOf}, #{fetchedAt})
+        ON DUPLICATE KEY UPDATE company_name=VALUES(company_name), industry=VALUES(industry),
+            business_summary=VALUES(business_summary), company_profile=VALUES(company_profile), website=VALUES(website),
+            source_as_of=VALUES(source_as_of), fetched_at=VALUES(fetched_at), update_time=CURRENT_TIMESTAMP
+    </insert>
+
+    <select id="selectFundNavHistory" resultMap="FundNavMap">
+        SELECT * FROM fund_nav_history WHERE fund_code=#{fundCode}
+        <if test="startDate != null">AND nav_date &gt;= #{startDate}</if>
+        ORDER BY nav_date ASC
+    </select>
+    <select id="selectLatestFundNavDate" resultType="java.util.Date">
+        SELECT MAX(nav_date) FROM fund_nav_history WHERE fund_code=#{fundCode}
+    </select>
+    <select id="selectStockPriceBars" resultMap="StockBarMap">
+        SELECT * FROM stock_price_bar WHERE stock_code=#{stockCode} AND market=#{market} AND granularity=#{granularity}
+        <if test="startTime != null">AND bar_time &gt;= #{startTime}</if>
+        ORDER BY bar_time ASC
+    </select>
+    <select id="selectLatestStockBarTime" resultType="java.util.Date">
+        SELECT MAX(bar_time) FROM stock_price_bar
+        WHERE stock_code=#{stockCode} AND market=#{market} AND granularity=#{granularity}
+    </select>
+    <select id="selectStockCompanyProfile" resultMap="ProfileMap">
+        SELECT * FROM stock_company_profile WHERE stock_code=#{stockCode} AND market=#{market} LIMIT 1
+    </select>
+</mapper>

@@ -23,6 +23,7 @@ public class ProcessingTaskEntity {
     public static final String FUND_ASSET_ALLOCATION_REFRESH = "fund_asset_allocation_refresh";
     public static final String A_SHARE_MARKET_REFRESH = "a_share_market_refresh";
     public static final String US_STOCK_MARKET_REFRESH = "us_stock_market_refresh";
+    public static final String MARKET_DETAIL_DATA_REFRESH = "market_detail_data_refresh";
 
     public static boolean isFundSliceRefresh(String taskType) {
         return FUND_CATALOG_REFRESH.equals(taskType)
