@@ -320,6 +320,11 @@ public class FundDataRepositoryTest {
             return fundItems;
         }
 
+        @Override
+        public List<FundPO> search(String keyword, int limit) {
+            return fundItems;
+        }
+
     }
 
     private static class FakeFundAssetAllocationDao implements IFundAssetAllocationDao {

@@ -17,4 +17,8 @@ public interface IStockMarketRepository {
 
     Set<String> queryExistingStockKeys(Collection<String> stockKeys);
 
+    default List<StockMarketEntity> search(String keyword, String market, int limit) { return List.of(); }
+
+    default StockMarketEntity queryOne(String stockCode, String market) { return null; }
+
 }

@@ -142,5 +142,15 @@ public class StockMarketRepositoryTest {
         public List<StockMarketPO> selectByStockKeys(Collection<String> stockKeys) {
             return stockMarkets;
         }
+
+        @Override
+        public List<StockMarketPO> search(String keyword, String market, int limit) {
+            return stockMarkets;
+        }
+
+        @Override
+        public StockMarketPO selectOne(String stockCode, String market) {
+            return stockMarkets.isEmpty() ? null : stockMarkets.get(0);
+        }
     }
 }

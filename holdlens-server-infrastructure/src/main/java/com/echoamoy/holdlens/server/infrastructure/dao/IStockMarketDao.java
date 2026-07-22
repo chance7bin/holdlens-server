@@ -16,4 +16,9 @@ public interface IStockMarketDao {
 
     List<StockMarketPO> selectByStockKeys(@Param("stockKeys") Collection<String> stockKeys);
 
+    List<StockMarketPO> search(@Param("keyword") String keyword, @Param("market") String market,
+                               @Param("limit") int limit);
+
+    StockMarketPO selectOne(@Param("stockCode") String stockCode, @Param("market") String market);
+
 }

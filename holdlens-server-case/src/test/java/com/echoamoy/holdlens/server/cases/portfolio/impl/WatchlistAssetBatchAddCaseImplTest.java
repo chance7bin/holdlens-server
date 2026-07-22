@@ -23,6 +23,29 @@ import java.util.Set;
 public class WatchlistAssetBatchAddCaseImplTest {
 
     @Test
+    public void batchAddAcceptsAssetRefAndRejectsConflictingLegacyFields() throws Exception {
+        WatchlistAssetBatchAddCaseImpl batchAddCase = newCase(
+                new FakeFundDataRepository(Set.of("000001")),
+                new FakeStockMarketRepository(Set.of("DEMO#US_STOCK")));
+
+        WatchlistAssetBatchAddResult result = batchAddCase.batchAdd(WatchlistAssetBatchAddCommand.builder()
+                .userId(1001L)
+                .items(List.of(
+                        WatchlistAssetBatchAddCommand.Item.builder().assetKind("stock")
+                                .assetRef("stock:US_STOCK:DEMO").build(),
+                        WatchlistAssetBatchAddCommand.Item.builder().assetKind("fund")
+                                .assetRef("fund:000001").assetCode("999999").build()))
+                .build());
+
+        FakePortfolioRepository portfolioRepository = getField(batchAddCase, "portfolioRepository");
+        Assert.assertEquals(1, portfolioRepository.watchlistAssets.size());
+        Assert.assertEquals("US_STOCK", portfolioRepository.watchlistAssets.get(0).getMarket());
+        Assert.assertEquals(1, result.getInvalidItems().size());
+        Assert.assertEquals("fund:000001", result.getInvalidItems().get(0).getAssetRef());
+        Assert.assertEquals("ASSET_REF_CONFLICT", result.getInvalidItems().get(0).getReasonCode());
+    }
+
+    @Test
     public void batchAddDeduplicatesValidatesExistingPublicAssetsAndReturnsOnlyInvalidItems() throws Exception {
         FakeFundDataRepository fundDataRepository = new FakeFundDataRepository(Set.of("000001"));
         FakeStockMarketRepository stockMarketRepository = new FakeStockMarketRepository(Set.of("600000#", "000001#SH"));

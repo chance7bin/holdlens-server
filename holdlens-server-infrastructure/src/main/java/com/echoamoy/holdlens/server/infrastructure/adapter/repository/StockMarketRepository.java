@@ -65,6 +65,17 @@ public class StockMarketRepository implements IStockMarketRepository {
         return result;
     }
 
+    @Override
+    public List<StockMarketEntity> search(String keyword, String market, int limit) {
+        return stockMarketDao.search(keyword, market, limit).stream().map(this::toEntity).toList();
+    }
+
+    @Override
+    public StockMarketEntity queryOne(String stockCode, String market) {
+        StockMarketPO po = stockMarketDao.selectOne(stockCode, market);
+        return po == null ? null : toEntity(po);
+    }
+
     private StockMarketPO toPO(StockMarketEntity market) {
         return StockMarketPO.builder()
                 .id(market.getId())

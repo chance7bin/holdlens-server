@@ -122,4 +122,25 @@
         </foreach>
     </select>
 
+    <select id="search" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM stock_market
+        WHERE status = 'active'
+          AND (stock_code LIKE CONCAT('%', #{keyword}, '%')
+               OR stock_name LIKE CONCAT('%', #{keyword}, '%'))
+        <if test="market != null and market != ''">
+          AND market = #{market}
+        </if>
+        ORDER BY CASE WHEN stock_code = #{keyword} THEN 0 ELSE 1 END, stock_code ASC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectOne" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM stock_market
+        WHERE stock_code = #{stockCode}
+          AND market = #{market}
+        LIMIT 1
+    </select>
+
 </mapper>

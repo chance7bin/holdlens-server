@@ -36,4 +36,6 @@ public interface IFundDataRepository {
 
     default void markDetailViewed(Collection<String> fundCodes, LocalDateTime viewedAt) { }
 
+    default List<FundCurrentDataAggregate.FundDetail> search(String keyword, int limit) { return List.of(); }
+
 }

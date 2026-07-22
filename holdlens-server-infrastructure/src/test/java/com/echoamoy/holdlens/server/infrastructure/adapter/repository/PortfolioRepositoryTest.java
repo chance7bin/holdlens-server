@@ -8,6 +8,7 @@ import org.junit.Test;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 public class PortfolioRepositoryTest {
@@ -97,6 +98,16 @@ public class PortfolioRepositoryTest {
 
         @Override
         public List<AssetInfoPO> selectByUserIdAndAssetName(Long userId, String assetName) {
+            return List.of();
+        }
+
+        @Override
+        public List<AssetInfoPO> selectEnabledByUserId(Long userId, String assetKind) {
+            return List.of();
+        }
+
+        @Override
+        public List<AssetInfoPO> selectWatchlistedByIdentities(Long userId, Collection<String> identityKeys) {
             return List.of();
         }
     }

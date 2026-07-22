@@ -21,13 +21,13 @@ public class PortfolioFundDetailController implements IPortfolioFundDetailServic
 
     @GetMapping("/api/portfolio/assets/fund-details")
     @Override
-    public Response<PortfolioFundDetailDTO> queryPortfolioFundDetails(@RequestParam Long userId) {
+    public Response<PortfolioFundDetailDTO> queryPortfolioFundDetails(@RequestParam("userId") Long userId) {
         return Response.ok(toDTO(portfolioFundDetailCase.queryPortfolioFundDetails(userId)));
     }
 
     @GetMapping("/api/funds/{fundCode}")
     @Override
-    public Response<PortfolioFundDetailDTO.FundDetail> queryFundDetail(@PathVariable String fundCode) {
+    public Response<PortfolioFundDetailDTO.FundDetail> queryFundDetail(@PathVariable("fundCode") String fundCode) {
         return Response.ok(toFundDetail(portfolioFundDetailCase.queryFundDetail(fundCode)));
     }
 

@@ -150,6 +150,13 @@ public class FundDataRepository implements IFundDataRepository {
         fundDao.updateLastDetailViewTime(fundCodes, toDate(viewedAt));
     }
 
+    @Override
+    public List<FundCurrentDataAggregate.FundDetail> search(String keyword, int limit) {
+        return fundDao.search(keyword, limit).stream()
+                .map(po -> toFundDetail(po, List.of(), List.of()))
+                .toList();
+    }
+
     private Map<String, List<FundTopHoldingPO>> groupTopHoldings(Collection<String> fundCodes) {
         List<FundTopHoldingPO> topHoldingPOList = fundTopHoldingDao.selectByFundCodes(fundCodes);
         Map<String, List<FundTopHoldingPO>> result = new LinkedHashMap<>();

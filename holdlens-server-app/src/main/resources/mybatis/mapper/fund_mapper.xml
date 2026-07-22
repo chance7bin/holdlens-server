@@ -205,4 +205,15 @@
         ORDER BY targets.fund_code
     </select>
 
+    <select id="search" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM fund
+        WHERE fund_code LIKE CONCAT('%', #{keyword}, '%')
+           OR fund_name LIKE CONCAT('%', #{keyword}, '%')
+           OR pinyin_abbr LIKE CONCAT('%', #{keyword}, '%')
+           OR pinyin_full LIKE CONCAT('%', #{keyword}, '%')
+        ORDER BY CASE WHEN fund_code = #{keyword} THEN 0 ELSE 1 END, fund_code ASC
+        LIMIT #{limit}
+    </select>
+
 </mapper>

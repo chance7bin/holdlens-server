@@ -62,4 +62,26 @@
         ORDER BY id DESC
     </select>
 
+    <select id="selectEnabledByUserId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM asset_info
+        WHERE user_id = #{userId}
+          AND status = 'enabled'
+        <if test="assetKind != null and assetKind != ''">
+          AND asset_kind = #{assetKind}
+        </if>
+        ORDER BY id DESC
+    </select>
+
+    <select id="selectWatchlistedByIdentities" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM asset_info
+        WHERE user_id = #{userId}
+          AND status = 'enabled'
+          AND CONCAT(asset_kind, '#', asset_code) IN
+        <foreach collection="identityKeys" item="identityKey" open="(" separator="," close=")">
+            #{identityKey}
+        </foreach>
+    </select>
+
 </mapper>

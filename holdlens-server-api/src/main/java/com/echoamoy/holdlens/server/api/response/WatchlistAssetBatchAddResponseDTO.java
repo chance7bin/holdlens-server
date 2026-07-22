@@ -31,6 +31,8 @@ public class WatchlistAssetBatchAddResponseDTO implements Serializable {
 
         private String assetKind;
 
+        private String assetRef;
+
         private String assetCode;
 
         private String market;

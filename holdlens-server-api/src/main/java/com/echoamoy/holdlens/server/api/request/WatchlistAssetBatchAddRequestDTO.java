@@ -36,6 +36,8 @@ public class WatchlistAssetBatchAddRequestDTO implements Serializable {
 
         private String assetKind;
 
+        private String assetRef;
+
         private String assetCode;
 
         private String assetName;

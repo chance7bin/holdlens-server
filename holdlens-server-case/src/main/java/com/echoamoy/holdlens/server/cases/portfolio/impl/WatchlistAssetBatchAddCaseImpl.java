@@ -5,6 +5,7 @@ import com.echoamoy.holdlens.server.cases.portfolio.model.WatchlistAssetBatchAdd
 import com.echoamoy.holdlens.server.cases.portfolio.model.WatchlistAssetBatchAddResult;
 import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundDataRepository;
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
+import com.echoamoy.holdlens.server.domain.marketasset.model.valobj.MarketAssetRefVO;
 import com.echoamoy.holdlens.server.domain.portfolio.adapter.repository.IPortfolioRepository;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.WatchlistAssetEntity;
 import com.echoamoy.holdlens.server.domain.stockdata.adapter.repository.IStockMarketRepository;
@@ -97,6 +98,10 @@ public class WatchlistAssetBatchAddCaseImpl implements IWatchlistAssetBatchAddCa
                     plan.getInvalidItems().add(toInvalidItem(item, "STOCK_NOT_FOUND", "股票不存在"));
                     continue;
                 }
+                if (isBlank(stockMarket.getStockName())) {
+                    plan.getInvalidItems().add(toInvalidItem(item, "ASSET_NAME_MISSING", "股票公开名称缺失"));
+                    continue;
+                }
                 plan.getWatchlistAssets().add(toWatchlistAsset(item, stockMarket.getStockName()));
                 continue;
             }
@@ -107,23 +112,43 @@ public class WatchlistAssetBatchAddCaseImpl implements IWatchlistAssetBatchAddCa
 
     private NormalizedItem normalize(Long userId, int index, WatchlistAssetBatchAddCommand.Item item) {
         if (item == null) {
-            return invalid(index, null, null, null, "ITEM_REQUIRED", "自选资产项不能为空");
+            return invalid(index, null, null, null, null, "ITEM_REQUIRED", "自选资产项不能为空");
         }
         String assetKind = normalizeKind(item.getAssetKind());
         String assetCode = normalizeNullable(item.getAssetCode());
         String assetName = normalizeNullable(item.getAssetName());
         String market = normalizeNullable(item.getMarket());
 
+        if (!isBlank(item.getAssetRef())) {
+            try {
+                MarketAssetRefVO ref = MarketAssetRefVO.parse(assetKind, item.getAssetRef());
+                if (assetCode != null && !assetCode.equals(ref.getAssetCode())) {
+                    return invalid(index, item.getAssetKind(), item.getAssetRef(), item.getAssetCode(), item.getMarket(),
+                            "ASSET_REF_CONFLICT", "assetRef 与兼容资产代码冲突");
+                }
+                if (market != null && ref.getMarket() != null && !market.equalsIgnoreCase(ref.getMarket())) {
+                    return invalid(index, item.getAssetKind(), item.getAssetRef(), item.getAssetCode(), item.getMarket(),
+                            "ASSET_REF_CONFLICT", "assetRef 与兼容市场冲突");
+                }
+                assetKind = ref.getAssetKind();
+                assetCode = ref.getAssetCode();
+                market = ref.getMarket();
+            } catch (IllegalArgumentException exception) {
+                return invalid(index, item.getAssetKind(), item.getAssetRef(), item.getAssetCode(), item.getMarket(),
+                        "ASSET_REF_INVALID", exception.getMessage());
+            }
+        }
+
         if (isBlank(assetKind)) {
-            return invalid(index, item.getAssetKind(), item.getAssetCode(), item.getMarket(),
+            return invalid(index, item.getAssetKind(), item.getAssetRef(), item.getAssetCode(), item.getMarket(),
                     "ASSET_KIND_REQUIRED", "资产类型不能为空");
         }
         if (!ASSET_KIND_FUND.equals(assetKind) && !ASSET_KIND_STOCK.equals(assetKind)) {
-            return invalid(index, item.getAssetKind(), item.getAssetCode(), item.getMarket(),
+            return invalid(index, item.getAssetKind(), item.getAssetRef(), item.getAssetCode(), item.getMarket(),
                     "ASSET_KIND_UNSUPPORTED", "仅支持基金或股票资产");
         }
         if (isBlank(assetCode)) {
-            return invalid(index, item.getAssetKind(), item.getAssetCode(), item.getMarket(),
+            return invalid(index, item.getAssetKind(), item.getAssetRef(), item.getAssetCode(), item.getMarket(),
                     "ASSET_CODE_REQUIRED", "资产代码不能为空");
         }
 
@@ -131,6 +156,7 @@ public class WatchlistAssetBatchAddCaseImpl implements IWatchlistAssetBatchAddCa
                 .index(index)
                 .userId(userId)
                 .originalAssetKind(item.getAssetKind())
+                .originalAssetRef(item.getAssetRef())
                 .originalAssetCode(item.getAssetCode())
                 .originalMarket(item.getMarket())
                 .assetKind(assetKind)
@@ -176,6 +202,7 @@ public class WatchlistAssetBatchAddCaseImpl implements IWatchlistAssetBatchAddCa
         return WatchlistAssetBatchAddResult.InvalidItem.builder()
                 .index(item.getIndex())
                 .assetKind(item.getOriginalAssetKind())
+                .assetRef(item.getOriginalAssetRef())
                 .assetCode(item.getOriginalAssetCode())
                 .market(item.getOriginalMarket())
                 .reasonCode(reasonCode)
@@ -183,12 +210,13 @@ public class WatchlistAssetBatchAddCaseImpl implements IWatchlistAssetBatchAddCa
                 .build();
     }
 
-    private NormalizedItem invalid(int index, String assetKind, String assetCode, String market,
+    private NormalizedItem invalid(int index, String assetKind, String assetRef, String assetCode, String market,
                                    String reasonCode, String reason) {
         return NormalizedItem.builder()
                 .invalidItem(WatchlistAssetBatchAddResult.InvalidItem.builder()
                         .index(index)
                         .assetKind(assetKind)
+                        .assetRef(assetRef)
                         .assetCode(assetCode)
                         .market(market)
                         .reasonCode(reasonCode)
@@ -251,6 +279,8 @@ public class WatchlistAssetBatchAddCaseImpl implements IWatchlistAssetBatchAddCa
         private Long userId;
 
         private String originalAssetKind;
+
+        private String originalAssetRef;
 
         private String originalAssetCode;
 

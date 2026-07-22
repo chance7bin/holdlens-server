@@ -10,7 +10,9 @@
 
 ## 2. 决策
 
-用户可以通过 `POST /api/watchlist/assets/batch-add` 将基金或股票批量加入自选。
+用户可以通过 `POST /api/watchlist/assets/batch-add` 将基金或股票批量加入自选，并通过独立查询接口读取自选列表和搜索既有公开资产。
+
+server 对客户端签发稳定的 `assetRef`：基金当前编码为 `fund:{fundCode}`，股票当前编码为 `stock:{market}:{stockCode}`。客户端必须把它视为不透明字符串，只能原样传递和比较，不得自行解析、拼装或推导市场。该引用是 API 层业务引用，不写入 `asset_info`，server 解析后仍按既有公开资产业务键校验目标。
 
 批量加入自选时只写入或保持 `asset_info`，表达用户维度的自选资产关系。该流程不写入 `fund`，不写入 `stock_market`，也不创建或触发基金详情刷新、股票行情刷新任务。
 
@@ -19,11 +21,11 @@
 - 基金：`fund` 中必须已存在对应 `fund_code`。
 - 股票：`stock_market` 中必须已存在对应 `stock_code + market` 组合。
 
-股票 `market` 暂时允许为空。为空时只匹配 `stock_market` 中同样为空 market 的股票记录；存在同代码非空 market 记录并不代表空 market 导入项有效。
+新客户端通过 `assetRef` 添加股票时必须包含明确的 `A_SHARE` 或 `US_STOCK` 市场，避免依赖空 market 推断。为兼容旧调用方，一个兼容周期内仍接受没有 `assetRef` 的旧 `assetCode + market` 请求；旧请求的 `market` 为空时，只匹配 `stock_market` 中同样为空 market 的股票记录。
 
-本次决策不调整 `asset_info` 表结构。`asset_info` 继续沿用现有 `asset_code`、`asset_name`、`asset_kind`、`asset_type` 和 `market` 等字段；唯一身份继续使用当前表结构支持的 `user_id + asset_code + asset_kind`。后续如果要把 `asset_info` 改成引用统一资产目录、公开数据表，或让 `market` 参与自选唯一身份，应通过单独 ADR/OpenSpec change 处理。
+本次决策不调整 `asset_info` 表结构。`asset_info` 继续沿用现有 `asset_code`、`asset_name`、`asset_kind`、`asset_type` 和 `market` 等字段；唯一身份继续使用当前表结构支持的 `user_id + asset_code + asset_kind`。`assetRef` 只在 API 边界生成和解析，不等同于数据库多态外键。后续如果要把 `asset_info` 改成引用统一资产目录、公开数据表，或让 `market` 参与自选唯一身份，应通过单独 ADR/OpenSpec change 处理。
 
-请求不要求传入资产名称，也不得用 `asset_code` 作为占位名称。展示名称优先来自已存在的公开基金/股票数据；如果写入 `asset_info.asset_name`，也必须避免用代码伪装名称。
+新客户端请求只提交 `assetKind + assetRef`，不提交资产名称或市场。兼容旧请求不要求传入资产名称，也不得用 `asset_code` 作为占位名称。展示名称和行情必须优先来自已存在的公开基金/股票数据；如果写入 `asset_info.asset_name`，也必须避免用代码伪装名称。
 
 响应只返回 `invalidItems`。未出现在 `invalidItems` 中的输入项，都表示处理后已经处于“已加入自选”状态；接口不区分新建和已存在，也不向前端暴露刷新任务 ID、刷新调度状态或刷新失败摘要。
 
@@ -44,6 +46,9 @@
 ## 4. 影响
 
 - 新接口语义应统一为批量加入自选，路径为 `POST /api/watchlist/assets/batch-add`。
+- 自选列表和统一搜索只聚合既有 `asset_info`、`fund` 与 `stock_market`，不得注册公开数据或触发刷新。
+- API 层应集中生成和解析 `assetRef`，并校验 `assetKind`、市场与公开资产业务键一致。
+- 新客户端使用 `assetKind + assetRef`；旧 `assetCode/assetName/market` 请求只作为显式兼容路径保留。
 - 相关命名应避免持仓导入或公开数据导入暗示，统一使用 `WatchlistAsset` 和 `BatchAdd` 语义。
 - Case 层需要在写入 `asset_info` 前查询 `fund` 或 `stock_market`，不存在的输入项进入 `invalidItems`。
 - 批量加入自选不注册基金/股票刷新目标，不触发刷新任务，也不把刷新失败作为响应或日志语义。

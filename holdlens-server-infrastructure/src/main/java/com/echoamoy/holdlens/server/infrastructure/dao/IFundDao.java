@@ -39,4 +39,6 @@ public interface IFundDao {
                                                      @Param("latestEndedQuarter") java.util.Date latestEndedQuarter,
                                                      @Param("unavailableRetryBefore") java.util.Date unavailableRetryBefore);
 
+    List<FundPO> search(@Param("keyword") String keyword, @Param("limit") int limit);
+
 }

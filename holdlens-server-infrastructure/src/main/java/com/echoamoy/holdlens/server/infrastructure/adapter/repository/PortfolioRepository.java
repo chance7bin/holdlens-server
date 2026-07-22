@@ -14,6 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.annotation.Resource;
 import java.util.List;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Repository
 public class PortfolioRepository implements IPortfolioRepository {
@@ -51,6 +54,25 @@ public class PortfolioRepository implements IPortfolioRepository {
         AssetInfoPO assetInfoPO = assetInfoDao.selectByUserIdAndAssetCodeAndAssetKind(
                 userId, assetCode, assetKind);
         return assetInfoPO == null ? null : toWatchlistAssetEntity(assetInfoPO);
+    }
+
+    @Override
+    public List<WatchlistAssetEntity> queryWatchlistAssets(Long userId, String assetKind) {
+        return assetInfoDao.selectEnabledByUserId(userId, assetKind).stream()
+                .map(this::toWatchlistAssetEntity)
+                .toList();
+    }
+
+    @Override
+    public Set<String> queryWatchlistedIdentityKeys(Long userId, Collection<String> identityKeys) {
+        if (identityKeys == null || identityKeys.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> result = new LinkedHashSet<>();
+        for (AssetInfoPO po : assetInfoDao.selectWatchlistedByIdentities(userId, identityKeys)) {
+            result.add(po.getAssetKind() + "#" + po.getAssetCode());
+        }
+        return result;
     }
 
     private PortfolioHoldingEntity toEntity(AssetHoldingPO holdingPO) {

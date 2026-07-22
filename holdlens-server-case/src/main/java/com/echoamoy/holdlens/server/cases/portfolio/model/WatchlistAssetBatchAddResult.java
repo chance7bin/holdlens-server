@@ -26,6 +26,8 @@ public class WatchlistAssetBatchAddResult {
 
         private String assetKind;
 
+        private String assetRef;
+
         private String assetCode;
 
         private String market;

@@ -21,4 +21,9 @@ public interface IAssetInfoDao {
 
     List<AssetInfoPO> selectByUserIdAndAssetName(@Param("userId") Long userId, @Param("assetName") String assetName);
 
+    List<AssetInfoPO> selectEnabledByUserId(@Param("userId") Long userId, @Param("assetKind") String assetKind);
+
+    List<AssetInfoPO> selectWatchlistedByIdentities(@Param("userId") Long userId,
+                                                    @Param("identityKeys") java.util.Collection<String> identityKeys);
+
 }
