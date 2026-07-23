@@ -161,14 +161,14 @@
     <select id="selectTopHoldingRefreshTargets" resultType="string">
         SELECT DISTINCT targets.fund_code
         FROM (
-            SELECT ai.asset_code AS fund_code
-            FROM asset_info ai
-            WHERE ai.asset_kind = 'fund' AND ai.status = 'enabled' AND ai.asset_code IS NOT NULL
+            SELECT f.fund_code
+            FROM watchlist_item wi
+            INNER JOIN fund f ON wi.asset_kind = 'FUND' AND f.id = wi.asset_id
             UNION
-            SELECT ai.asset_code AS fund_code
-            FROM asset_holding ah
-            INNER JOIN asset_info ai ON ai.id = ah.asset_id
-            WHERE ah.status = 'active' AND ai.asset_kind = 'fund' AND ai.status = 'enabled'
+            SELECT f.fund_code
+            FROM asset_record ar
+            INNER JOIN fund f ON ar.asset_kind = 'FUND' AND f.id = ar.asset_id
+            WHERE ar.status = 'ACTIVE' AND ar.asset_id IS NOT NULL
             UNION
             SELECT f.fund_code
             FROM fund f
@@ -181,14 +181,14 @@
     <select id="selectAssetAllocationRefreshTargets" resultType="string">
         SELECT DISTINCT targets.fund_code
         FROM (
-            SELECT ai.asset_code AS fund_code
-            FROM asset_info ai
-            WHERE ai.asset_kind = 'fund' AND ai.status = 'enabled' AND ai.asset_code IS NOT NULL
+            SELECT f.fund_code
+            FROM watchlist_item wi
+            INNER JOIN fund f ON wi.asset_kind = 'FUND' AND f.id = wi.asset_id
             UNION
-            SELECT ai.asset_code AS fund_code
-            FROM asset_holding ah
-            INNER JOIN asset_info ai ON ai.id = ah.asset_id
-            WHERE ah.status = 'active' AND ai.asset_kind = 'fund' AND ai.status = 'enabled'
+            SELECT f.fund_code
+            FROM asset_record ar
+            INNER JOIN fund f ON ar.asset_kind = 'FUND' AND f.id = ar.asset_id
+            WHERE ar.status = 'ACTIVE' AND ar.asset_id IS NOT NULL
             UNION
             SELECT f.fund_code
             FROM fund f

@@ -25,21 +25,14 @@ public class PortfolioFundDetailResult {
     @AllArgsConstructor
     public static class HoldingDetail {
 
-        private Long holdingId;
-        private Long accountId;
-        private String accountName;
-        private String accountType;
-        private Long assetId;
+        private Long recordId;
+        private String assetRef;
         private String assetCode;
         private String assetName;
         private String assetKind;
         private String assetType;
-        private String assetCategory;
-        private String holdingSource;
         private BigDecimal amount;
         private String currency;
-        private String amountDisplay;
-        private String amountMissingReason;
         private String status;
         private FundDetail fundDetail;
 

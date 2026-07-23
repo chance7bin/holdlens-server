@@ -52,3 +52,4 @@
 - `TEXT` JSON 字段当前按 `String` 映射 → 简单、无额外依赖；后续如需结构化解析，应在 Repository 或 Domain 转换层处理。
 - decimal 字段使用 `BigDecimal` → 保持金额和比例精度，但调用方需要自行处理空值。
 - 只提供 select 查询 → 满足当前“先实现映射和简单查询”的目标，写入和事务一致性留给后续明确业务流程的 change。
+> 历史变更说明：本文记录的旧账户/持仓表映射已由 `replace-account-holdings-with-asset-records` 替代，不再属于当前运行时模型。

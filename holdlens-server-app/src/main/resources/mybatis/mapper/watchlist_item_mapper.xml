@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.echoamoy.holdlens.server.infrastructure.dao.IWatchlistItemDao">
+    <resultMap id="ViewResultMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.WatchlistItemPO">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="asset_kind" property="assetKind"/>
+        <result column="asset_id" property="assetId"/>
+        <result column="asset_code" property="assetCode"/>
+        <result column="asset_name" property="assetName"/>
+        <result column="asset_type" property="assetType"/>
+        <result column="market" property="market"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+    <sql id="ViewColumns">
+        wi.id, wi.user_id, wi.asset_kind, wi.asset_id,
+        CASE WHEN wi.asset_kind = 'FUND' THEN f.fund_code ELSE sm.stock_code END AS asset_code,
+        CASE WHEN wi.asset_kind = 'FUND' THEN f.fund_name ELSE sm.stock_name END AS asset_name,
+        CASE WHEN wi.asset_kind = 'FUND' THEN f.fund_type ELSE '普通股票' END AS asset_type,
+        CASE WHEN wi.asset_kind = 'STOCK' THEN sm.market ELSE NULL END AS market,
+        wi.create_time
+    </sql>
+    <sql id="ViewFrom">
+        FROM watchlist_item wi
+        LEFT JOIN fund f ON wi.asset_kind = 'FUND' AND f.id = wi.asset_id
+        LEFT JOIN stock_market sm ON wi.asset_kind = 'STOCK' AND sm.id = wi.asset_id
+    </sql>
+    <insert id="upsert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO watchlist_item (user_id, asset_kind, asset_id)
+        VALUES (#{userId}, #{assetKind}, #{assetId})
+        ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)
+    </insert>
+    <delete id="delete">
+        DELETE FROM watchlist_item WHERE user_id = #{userId} AND asset_kind = #{assetKind} AND asset_id = #{assetId}
+    </delete>
+    <select id="selectOneByPublicIdentity" resultMap="ViewResultMap">
+        SELECT <include refid="ViewColumns"/> <include refid="ViewFrom"/>
+        WHERE wi.user_id = #{userId} AND wi.asset_kind = #{assetKind}
+          AND ((wi.asset_kind = 'FUND' AND f.fund_code = #{assetCode})
+            OR (wi.asset_kind = 'STOCK' AND sm.stock_code = #{assetCode}
+                AND (#{market} IS NULL OR sm.market = #{market})))
+        LIMIT 1
+    </select>
+    <select id="selectByUser" resultMap="ViewResultMap">
+        SELECT <include refid="ViewColumns"/> <include refid="ViewFrom"/>
+        WHERE wi.user_id = #{userId}
+        <if test="assetKind != null and assetKind != ''">AND wi.asset_kind = #{assetKind}</if>
+        ORDER BY wi.id DESC
+    </select>
+    <select id="selectByPublicIdentities" resultMap="ViewResultMap">
+        SELECT <include refid="ViewColumns"/> <include refid="ViewFrom"/>
+        WHERE wi.user_id = #{userId}
+          AND CASE WHEN wi.asset_kind = 'FUND'
+              THEN CONCAT('fund#', f.fund_code)
+              ELSE CONCAT('stock#', sm.stock_code, '#', sm.market)
+          END IN
+        <foreach collection="identityKeys" item="identityKey" open="(" separator="," close=")">#{identityKey}</foreach>
+    </select>
+</mapper>

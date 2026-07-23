@@ -15,94 +15,141 @@ CREATE DATABASE IF NOT EXISTS holdlens
 USE holdlens;
 
 -- ----------------------------
--- 资产账户表
--- ----------------------------
-DROP TABLE IF EXISTS `asset_account`;
-CREATE TABLE `asset_account` (
-    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '账户ID',
-    `user_id` BIGINT NOT NULL COMMENT '用户ID',
-    `account_name` VARCHAR(100) NOT NULL COMMENT '账户名称',
-    `account_type` VARCHAR(20) NOT NULL DEFAULT 'unknown' COMMENT '账户类型：fund/stock/unknown',
-    `status` VARCHAR(20) NOT NULL DEFAULT 'enabled' COMMENT '状态：enabled/disabled/deleted',
-    `remark` VARCHAR(500) DEFAULT NULL COMMENT '备注',
-    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_asset_account_user_name` (`user_id`, `account_name`),
-    KEY `idx_asset_account_user_id` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='资产账户表';
-
--- ----------------------------
--- 资产主数据表
--- ----------------------------
-DROP TABLE IF EXISTS `asset_info`;
-CREATE TABLE `asset_info` (
-    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '资产ID',
-    `user_id` BIGINT NOT NULL COMMENT '用户ID',
-    `asset_code` VARCHAR(50) DEFAULT NULL COMMENT '资产代码',
-    `asset_name` VARCHAR(200) NOT NULL COMMENT '资产名称',
-    `asset_kind` VARCHAR(20) NOT NULL DEFAULT 'unknown' COMMENT '资产大类：fund/stock/cash/unknown',
-    `asset_type` VARCHAR(100) DEFAULT NULL COMMENT '资产类型：ETF/LOF/开放式基金/普通股票等',
-    `market` VARCHAR(20) DEFAULT NULL COMMENT '市场标识：SH/SZ/HK/US等',
-    `status` VARCHAR(20) NOT NULL DEFAULT 'enabled' COMMENT '状态：enabled/disabled/deleted',
-    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_asset_info_user_code_kind` (`user_id`, `asset_code`, `asset_kind`),
-    KEY `idx_asset_info_user_name` (`user_id`, `asset_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='资产主数据表';
-
--- ----------------------------
--- 当前持仓表
--- ----------------------------
-DROP TABLE IF EXISTS `asset_holding`;
-CREATE TABLE `asset_holding` (
-    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '持仓ID',
-    `user_id` BIGINT NOT NULL COMMENT '用户ID',
-    `account_id` BIGINT NOT NULL COMMENT '账户ID',
-    `asset_id` BIGINT NOT NULL COMMENT '资产ID',
-    `asset_category` VARCHAR(100) DEFAULT NULL COMMENT '资产分类',
-    `holding_source` VARCHAR(30) NOT NULL DEFAULT 'unknown' COMMENT '持仓来源账户类型：fund_account/stock_account/unknown',
-    `amount` DECIMAL(20, 4) DEFAULT NULL COMMENT '持仓金额',
-    `currency` VARCHAR(3) NOT NULL DEFAULT 'CNY' COMMENT '币种',
-    `amount_display` VARCHAR(100) DEFAULT NULL COMMENT '原始展示金额',
-    `amount_missing_reason` VARCHAR(30) DEFAULT NULL COMMENT '金额缺失原因',
-    `missing_reasons_json` TEXT DEFAULT NULL COMMENT '字段级缺失原因JSON',
-    `status` VARCHAR(20) NOT NULL DEFAULT 'active' COMMENT '状态：active/closed/deleted',
-    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_asset_holding_account_asset` (`user_id`, `account_id`, `asset_id`),
-    KEY `idx_asset_holding_user_id` (`user_id`),
-    KEY `idx_asset_holding_asset_id` (`asset_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='当前持仓表';
-
--- ----------------------------
--- 持仓变更记录表
+-- 资产目录与资产记录
 -- ----------------------------
 DROP TABLE IF EXISTS `asset_holding_change`;
-CREATE TABLE `asset_holding_change` (
-    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '变更记录ID',
-    `user_id` BIGINT NOT NULL COMMENT '用户ID',
-    `holding_id` BIGINT DEFAULT NULL COMMENT '持仓ID',
-    `account_id` BIGINT NOT NULL COMMENT '账户ID',
-    `asset_id` BIGINT NOT NULL COMMENT '资产ID',
-    `change_type` VARCHAR(30) NOT NULL COMMENT '变更类型：create/update/delete/import/ocr/agent',
-    `before_amount` DECIMAL(20, 4) DEFAULT NULL COMMENT '变更前金额',
-    `after_amount` DECIMAL(20, 4) DEFAULT NULL COMMENT '变更后金额',
-    `currency` VARCHAR(3) NOT NULL DEFAULT 'CNY' COMMENT '币种',
-    `change_reason` VARCHAR(500) DEFAULT NULL COMMENT '变更原因',
-    `source_type` VARCHAR(30) NOT NULL DEFAULT 'manual' COMMENT '来源类型：manual/file_import/ocr/agent/api_sync',
-    `source_ref_id` VARCHAR(100) DEFAULT NULL COMMENT '来源引用ID',
-    `operator_id` BIGINT DEFAULT NULL COMMENT '操作人ID',
+DROP TABLE IF EXISTS `asset_holding`;
+DROP TABLE IF EXISTS `asset_info`;
+DROP TABLE IF EXISTS `asset_account`;
+DROP TABLE IF EXISTS `asset_record_change`;
+DROP TABLE IF EXISTS `watchlist_item`;
+DROP TABLE IF EXISTS `asset_record`;
+DROP TABLE IF EXISTS `asset_catalog`;
+DROP TABLE IF EXISTS `exchange_rate`;
+
+CREATE TABLE `asset_catalog` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '资产目录ID',
+    `user_id` BIGINT DEFAULT NULL COMMENT '用户ID；系统目录为空',
+    `parent_id` BIGINT DEFAULT NULL COMMENT '父目录ID',
+    `catalog_code` VARCHAR(50) DEFAULT NULL COMMENT '系统目录稳定编码；用户目录为空',
+    `catalog_name` VARCHAR(100) NOT NULL COMMENT '目录名称',
+    `catalog_scope` VARCHAR(20) NOT NULL COMMENT '目录范围：SYSTEM/USER',
+    `balance_direction` VARCHAR(20) NOT NULL COMMENT '金额方向：ADD/SUBTRACT',
+    `sort_order` INT NOT NULL DEFAULT 0 COMMENT '展示顺序',
+    `status` VARCHAR(20) NOT NULL DEFAULT 'ENABLED' COMMENT '状态：ENABLED/DELETED',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
-    KEY `idx_asset_holding_change_user_id` (`user_id`),
-    KEY `idx_asset_holding_change_holding_id` (`holding_id`),
-    KEY `idx_asset_holding_change_asset_id` (`asset_id`),
-    KEY `idx_asset_holding_change_source_ref_id` (`source_ref_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='持仓变更记录表';
+    UNIQUE KEY `uk_asset_catalog_code` (`catalog_code`),
+    KEY `idx_asset_catalog_user_status` (`user_id`, `status`),
+    KEY `idx_asset_catalog_parent_status` (`parent_id`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='资产目录';
+
+CREATE TABLE `asset_record` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '资产记录ID',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `catalog_id` BIGINT NOT NULL COMMENT '资产目录ID',
+    `record_name` VARCHAR(200) NOT NULL COMMENT '记录名称',
+    `asset_kind` VARCHAR(20) DEFAULT NULL COMMENT '公共标的类型：FUND/STOCK',
+    `asset_id` BIGINT DEFAULT NULL COMMENT 'fund.id 或 stock_market.id',
+    `amount` DECIMAL(20, 4) NOT NULL DEFAULT 0 COMMENT '用户确认的当前原币金额',
+    `currency` VARCHAR(3) NOT NULL COMMENT '原币币种',
+    `remark` VARCHAR(500) DEFAULT NULL COMMENT '用户备注',
+    `status` VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE/ARCHIVED/DELETED',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_asset_record_user_status` (`user_id`, `status`),
+    KEY `idx_asset_record_user_catalog_status` (`user_id`, `catalog_id`, `status`),
+    KEY `idx_asset_record_user_asset_status` (`user_id`, `asset_kind`, `asset_id`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户资产记录';
+
+CREATE TABLE `asset_record_change` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '资产记录变更ID',
+    `operation_id` VARCHAR(64) NOT NULL COMMENT '同一原子操作标识',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `record_id` BIGINT NOT NULL COMMENT '资产记录ID',
+    `change_type` VARCHAR(30) NOT NULL COMMENT 'CREATE/UPDATE_AMOUNT/SPLIT_OUT/SPLIT_IN/ARCHIVE/RESTORE/DELETE',
+    `before_amount` DECIMAL(20, 4) DEFAULT NULL COMMENT '变更前金额',
+    `after_amount` DECIMAL(20, 4) DEFAULT NULL COMMENT '变更后金额',
+    `currency` VARCHAR(3) NOT NULL COMMENT '金额币种',
+    `before_status` VARCHAR(20) DEFAULT NULL COMMENT '变更前状态',
+    `after_status` VARCHAR(20) DEFAULT NULL COMMENT '变更后状态',
+    `operator_id` BIGINT DEFAULT NULL COMMENT '操作人ID',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_asset_record_change_user_record` (`user_id`, `record_id`, `id`),
+    KEY `idx_asset_record_change_operation` (`operation_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='只追加资产记录变更历史';
+
+CREATE TABLE `watchlist_item` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '自选关系ID',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `asset_kind` VARCHAR(20) NOT NULL COMMENT '公共标的类型：FUND/STOCK',
+    `asset_id` BIGINT NOT NULL COMMENT 'fund.id 或 stock_market.id',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_watchlist_item_user_asset` (`user_id`, `asset_kind`, `asset_id`),
+    KEY `idx_watchlist_item_user_kind` (`user_id`, `asset_kind`, `id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户自选公共资产关系';
+
+CREATE TABLE `exchange_rate` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '当前汇率ID',
+    `base_currency` VARCHAR(3) NOT NULL COMMENT '基准币种；当前仅允许外币',
+    `quote_currency` VARCHAR(3) NOT NULL COMMENT '报价币种；当前固定CNY',
+    `rate` DECIMAL(24, 10) NOT NULL COMMENT '1单位基准币种兑换报价币种数量',
+    `source` VARCHAR(100) DEFAULT NULL COMMENT '汇率来源',
+    `source_as_of` DATETIME DEFAULT NULL COMMENT '来源数据时点',
+    `fetched_at` DATETIME DEFAULT NULL COMMENT '获取时间',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_exchange_rate_pair` (`base_currency`, `quote_currency`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='当前汇率';
+
+INSERT INTO `asset_catalog`
+    (`user_id`, `parent_id`, `catalog_code`, `catalog_name`, `catalog_scope`, `balance_direction`, `sort_order`, `status`)
+VALUES
+    (NULL, NULL, 'CASH', '现金', 'SYSTEM', 'ADD', 10, 'ENABLED'),
+    (NULL, NULL, 'BANK_CARD', '储蓄卡', 'SYSTEM', 'ADD', 20, 'ENABLED'),
+    (NULL, NULL, 'VIRTUAL_BALANCE', '虚拟余额', 'SYSTEM', 'ADD', 30, 'ENABLED'),
+    (NULL, NULL, 'INVESTMENT_ASSET', '投资资产', 'SYSTEM', 'ADD', 40, 'ENABLED'),
+    (NULL, NULL, 'CLAIM', '债权', 'SYSTEM', 'ADD', 50, 'ENABLED'),
+    (NULL, NULL, 'LIABILITY', '负债', 'SYSTEM', 'SUBTRACT', 60, 'ENABLED')
+ON DUPLICATE KEY UPDATE
+    `catalog_name` = VALUES(`catalog_name`),
+    `balance_direction` = VALUES(`balance_direction`),
+    `sort_order` = VALUES(`sort_order`),
+    `status` = 'ENABLED';
+
+SET @investment_asset_catalog_id := (
+    SELECT `id` FROM `asset_catalog` WHERE `catalog_code` = 'INVESTMENT_ASSET' LIMIT 1
+);
+
+INSERT INTO `asset_catalog`
+    (`user_id`, `parent_id`, `catalog_code`, `catalog_name`, `catalog_scope`, `balance_direction`, `sort_order`, `status`)
+VALUES
+    (NULL, @investment_asset_catalog_id, 'FUND', '基金', 'SYSTEM', 'ADD', 10, 'ENABLED'),
+    (NULL, @investment_asset_catalog_id, 'STOCK', '股票', 'SYSTEM', 'ADD', 20, 'ENABLED')
+ON DUPLICATE KEY UPDATE
+    `parent_id` = VALUES(`parent_id`),
+    `catalog_name` = VALUES(`catalog_name`),
+    `balance_direction` = VALUES(`balance_direction`),
+    `sort_order` = VALUES(`sort_order`),
+    `status` = 'ENABLED';
+
+INSERT INTO `exchange_rate`
+    (`base_currency`, `quote_currency`, `rate`, `source`, `source_as_of`, `fetched_at`)
+VALUES
+    ('USD', 'CNY', 7.2000000000, 'system_seed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    ('HKD', 'CNY', 0.9200000000, 'system_seed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    ('JPY', 'CNY', 0.0480000000, 'system_seed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON DUPLICATE KEY UPDATE
+    `rate` = VALUES(`rate`),
+    `source` = VALUES(`source`),
+    `source_as_of` = VALUES(`source_as_of`),
+    `fetched_at` = VALUES(`fetched_at`),
+    `update_time` = CURRENT_TIMESTAMP;
 
 -- ----------------------------
 -- 处理任务表

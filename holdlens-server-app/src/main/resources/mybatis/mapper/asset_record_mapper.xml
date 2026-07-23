@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.echoamoy.holdlens.server.infrastructure.dao.IAssetRecordDao">
+    <resultMap id="BaseResultMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.AssetRecordPO">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="catalog_id" property="catalogId"/>
+        <result column="catalog_code" property="catalogCode"/>
+        <result column="balance_direction" property="balanceDirection"/>
+        <result column="record_name" property="recordName"/>
+        <result column="asset_kind" property="assetKind"/>
+        <result column="asset_id" property="assetId"/>
+        <result column="asset_ref" property="assetRef"/>
+        <result column="amount" property="amount"/>
+        <result column="currency" property="currency"/>
+        <result column="remark" property="remark"/>
+        <result column="status" property="status"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+    <sql id="JoinedColumns">
+        ar.id, ar.user_id, ar.catalog_id, ac.catalog_code, ac.balance_direction, ar.record_name,
+        ar.asset_kind, ar.asset_id,
+        CASE
+            WHEN ar.asset_kind = 'FUND' AND f.id IS NOT NULL THEN CONCAT('fund:', f.fund_code)
+            WHEN ar.asset_kind = 'STOCK' AND sm.id IS NOT NULL THEN CONCAT('stock:', sm.market, ':', sm.stock_code)
+            ELSE NULL
+        END AS asset_ref,
+        ar.amount, ar.currency, ar.remark, ar.status, ar.create_time, ar.update_time
+    </sql>
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO asset_record (user_id, catalog_id, record_name, asset_kind, asset_id, amount, currency, remark, status)
+        VALUES (#{userId}, #{catalogId}, #{recordName}, #{assetKind}, #{assetId}, #{amount}, #{currency}, #{remark}, #{status})
+    </insert>
+    <select id="selectByUserAndId" resultMap="BaseResultMap">
+        SELECT <include refid="JoinedColumns"/> FROM asset_record ar
+        INNER JOIN asset_catalog ac ON ac.id = ar.catalog_id
+        LEFT JOIN fund f ON ar.asset_kind = 'FUND' AND f.id = ar.asset_id
+        LEFT JOIN stock_market sm ON ar.asset_kind = 'STOCK' AND sm.id = ar.asset_id
+        WHERE ar.user_id = #{userId} AND ar.id = #{id}
+    </select>
+    <select id="selectByUserAndIdForUpdate" resultMap="BaseResultMap">
+        SELECT <include refid="JoinedColumns"/> FROM asset_record ar
+        INNER JOIN asset_catalog ac ON ac.id = ar.catalog_id
+        LEFT JOIN fund f ON ar.asset_kind = 'FUND' AND f.id = ar.asset_id
+        LEFT JOIN stock_market sm ON ar.asset_kind = 'STOCK' AND sm.id = ar.asset_id
+        WHERE ar.user_id = #{userId} AND ar.id = #{id}
+        FOR UPDATE
+    </select>
+    <select id="selectActiveByUserId" resultMap="BaseResultMap">
+        SELECT <include refid="JoinedColumns"/> FROM asset_record ar
+        INNER JOIN asset_catalog ac ON ac.id = ar.catalog_id
+        LEFT JOIN fund f ON ar.asset_kind = 'FUND' AND f.id = ar.asset_id
+        LEFT JOIN stock_market sm ON ar.asset_kind = 'STOCK' AND sm.id = ar.asset_id
+        WHERE ar.user_id = #{userId} AND ar.status = 'ACTIVE'
+        ORDER BY ar.id DESC
+    </select>
+    <select id="countActiveByCatalog" resultType="int">
+        SELECT COUNT(*) FROM asset_record WHERE user_id = #{userId} AND catalog_id = #{catalogId} AND status = 'ACTIVE'
+    </select>
+    <update id="updateMutable">
+        UPDATE asset_record SET record_name = #{recordName}, amount = #{amount}, remark = #{remark}, status = #{status},
+            update_time = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND user_id = #{userId}
+    </update>
+</mapper>

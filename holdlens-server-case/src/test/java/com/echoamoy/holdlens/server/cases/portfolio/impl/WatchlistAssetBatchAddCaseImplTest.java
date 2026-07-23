@@ -48,40 +48,42 @@ public class WatchlistAssetBatchAddCaseImplTest {
     @Test
     public void batchAddDeduplicatesValidatesExistingPublicAssetsAndReturnsOnlyInvalidItems() throws Exception {
         FakeFundDataRepository fundDataRepository = new FakeFundDataRepository(Set.of("000001"));
-        FakeStockMarketRepository stockMarketRepository = new FakeStockMarketRepository(Set.of("600000#", "000001#SH"));
+        FakeStockMarketRepository stockMarketRepository = new FakeStockMarketRepository(Set.of("600000#A_SHARE", "000001#A_SHARE"));
         WatchlistAssetBatchAddCaseImpl batchAddCase = newCase(fundDataRepository, stockMarketRepository);
 
         WatchlistAssetBatchAddResult result = batchAddCase.batchAdd(WatchlistAssetBatchAddCommand.builder()
                 .userId(1001L)
                 .items(List.of(
                         item("fund", "000001", null, null),
-                        item("stock", "600000", null, null),
-                        item("stock", "600000", null, null),
-                        item("stock", "000001", "测试股票", "SH"),
-                        item("stock", "000001", "测试股票2", "SZ"),
+                        item("stock", "600000", null, "A_SHARE"),
+                        item("stock", "600000", null, "A_SHARE"),
+                        item("stock", "000001", "测试股票", "A_SHARE"),
+                        item("stock", "000001", "测试股票2", "US_STOCK"),
                         item("fund", "999999", null, null),
-                        item("stock", "300000", null, null),
+                        item("stock", "300000", null, "A_SHARE"),
                         item("bond", "123456", null, null),
                         item("fund", " ", null, null)))
                 .build());
 
         FakePortfolioRepository portfolioRepository = getField(batchAddCase, "portfolioRepository");
 
-        Assert.assertEquals(result.getInvalidItems().toString(), 4, result.getInvalidItems().size());
-        Assert.assertEquals(Integer.valueOf(5), result.getInvalidItems().get(0).getIndex());
-        Assert.assertEquals("FUND_NOT_FOUND", result.getInvalidItems().get(0).getReasonCode());
-        Assert.assertEquals(Integer.valueOf(6), result.getInvalidItems().get(1).getIndex());
-        Assert.assertEquals("STOCK_NOT_FOUND", result.getInvalidItems().get(1).getReasonCode());
-        Assert.assertEquals(Integer.valueOf(7), result.getInvalidItems().get(2).getIndex());
-        Assert.assertEquals("ASSET_KIND_UNSUPPORTED", result.getInvalidItems().get(2).getReasonCode());
-        Assert.assertEquals(Integer.valueOf(8), result.getInvalidItems().get(3).getIndex());
-        Assert.assertEquals("ASSET_CODE_REQUIRED", result.getInvalidItems().get(3).getReasonCode());
+        Assert.assertEquals(result.getInvalidItems().toString(), 5, result.getInvalidItems().size());
+        Assert.assertEquals(Integer.valueOf(4), result.getInvalidItems().get(0).getIndex());
+        Assert.assertEquals("STOCK_NOT_FOUND", result.getInvalidItems().get(0).getReasonCode());
+        Assert.assertEquals(Integer.valueOf(5), result.getInvalidItems().get(1).getIndex());
+        Assert.assertEquals("FUND_NOT_FOUND", result.getInvalidItems().get(1).getReasonCode());
+        Assert.assertEquals(Integer.valueOf(6), result.getInvalidItems().get(2).getIndex());
+        Assert.assertEquals("STOCK_NOT_FOUND", result.getInvalidItems().get(2).getReasonCode());
+        Assert.assertEquals(Integer.valueOf(7), result.getInvalidItems().get(3).getIndex());
+        Assert.assertEquals("ASSET_KIND_UNSUPPORTED", result.getInvalidItems().get(3).getReasonCode());
+        Assert.assertEquals(Integer.valueOf(8), result.getInvalidItems().get(4).getIndex());
+        Assert.assertEquals("ASSET_CODE_REQUIRED", result.getInvalidItems().get(4).getReasonCode());
 
         Assert.assertEquals(3, portfolioRepository.watchlistAssets.size());
         Assert.assertEquals("公开基金000001", portfolioRepository.watchlistAssets.get(0).getAssetName());
         Assert.assertEquals("公开股票600000", portfolioRepository.watchlistAssets.get(1).getAssetName());
         Assert.assertEquals("公开股票000001", portfolioRepository.watchlistAssets.get(2).getAssetName());
-        Assert.assertNull(portfolioRepository.watchlistAssets.get(1).getMarket());
+        Assert.assertEquals("A_SHARE", portfolioRepository.watchlistAssets.get(1).getMarket());
         Assert.assertTrue(stockMarketRepository.registeredQuoteTargets.isEmpty());
     }
 
@@ -103,6 +105,20 @@ public class WatchlistAssetBatchAddCaseImplTest {
         Assert.assertTrue(result.getInvalidItems().isEmpty());
         Assert.assertEquals(1, portfolioRepository.watchlistAssets.size());
         Assert.assertTrue(stockMarketRepository.registeredQuoteTargets.isEmpty());
+    }
+
+    @Test
+    public void removeDeletesOnlyInternalWatchlistRelation() throws Exception {
+        WatchlistAssetBatchAddCaseImpl batchAddCase = newCase(
+                new FakeFundDataRepository(Set.of("000001")),
+                new FakeStockMarketRepository(Set.of()));
+
+        batchAddCase.remove(1001L, "fund", "fund:000001");
+
+        FakePortfolioRepository portfolioRepository = getField(batchAddCase, "portfolioRepository");
+        Assert.assertEquals("fund", portfolioRepository.deletedKind);
+        Assert.assertNotNull(portfolioRepository.deletedAssetId);
+        Assert.assertTrue(portfolioRepository.watchlistAssets.isEmpty());
     }
 
     private WatchlistAssetBatchAddCommand.Item item(String assetKind, String assetCode, String assetName, String market) {
@@ -138,6 +154,8 @@ public class WatchlistAssetBatchAddCaseImplTest {
 
     private static class FakePortfolioRepository implements IPortfolioRepository {
         private final List<WatchlistAssetEntity> watchlistAssets = new ArrayList<>();
+        private String deletedKind;
+        private Long deletedAssetId;
 
         @Override
         public List<PortfolioHoldingEntity> queryCurrentHoldings(Long userId) {
@@ -147,6 +165,12 @@ public class WatchlistAssetBatchAddCaseImplTest {
         @Override
         public void upsertWatchlistAssets(List<WatchlistAssetEntity> watchlistAssets) {
             this.watchlistAssets.addAll(watchlistAssets);
+        }
+
+        @Override
+        public void deleteWatchlistAsset(Long userId, String assetKind, Long assetId) {
+            this.deletedKind = assetKind;
+            this.deletedAssetId = assetId;
         }
 
         @Override
@@ -168,6 +192,7 @@ public class WatchlistAssetBatchAddCaseImplTest {
             for (String fundCode : fundCodes) {
                 if (existingFundCodes.contains(fundCode)) {
                     result.put(fundCode, FundCurrentDataAggregate.FundDetail.builder()
+                            .id((long) Math.abs(fundCode.hashCode()) + 1)
                             .fundCode(fundCode)
                             .fundName("公开基金" + fundCode)
                             .build());
@@ -218,9 +243,11 @@ public class WatchlistAssetBatchAddCaseImplTest {
                 if (existingStockKeys.contains(stockKey)) {
                     String[] parts = stockKey.split("#", -1);
                     result.put(stockKey, StockMarketEntity.builder()
+                            .id((long) Math.abs(stockKey.hashCode()) + 1)
                             .stockCode(parts[0])
                             .market(parts.length > 1 && !parts[1].isEmpty() ? parts[1] : null)
                             .stockName("公开股票" + parts[0])
+                            .status(StockMarketEntity.STATUS_ACTIVE)
                             .build());
                 }
             }

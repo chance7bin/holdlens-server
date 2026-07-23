@@ -17,6 +17,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.annotation.Resource;
 import java.util.ArrayList;
@@ -33,7 +34,6 @@ public class WatchlistAssetBatchAddCaseImpl implements IWatchlistAssetBatchAddCa
 
     private static final String ASSET_KIND_FUND = "fund";
     private static final String ASSET_KIND_STOCK = "stock";
-    private static final String STATUS_ENABLED = "enabled";
 
     @Resource
     private IPortfolioRepository portfolioRepository;
@@ -45,6 +45,7 @@ public class WatchlistAssetBatchAddCaseImpl implements IWatchlistAssetBatchAddCa
     private IStockMarketRepository stockMarketRepository;
 
     @Override
+    @Transactional
     public WatchlistAssetBatchAddResult batchAdd(WatchlistAssetBatchAddCommand command) {
         if (command == null || command.getUserId() == null) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "用户ID不能为空");
@@ -56,6 +57,31 @@ public class WatchlistAssetBatchAddCaseImpl implements IWatchlistAssetBatchAddCa
         return WatchlistAssetBatchAddResult.builder()
                 .invalidItems(plan.getInvalidItems())
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public void remove(Long userId, String assetKind, String assetRef) {
+        if (userId == null || userId <= 0) {
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "用户ID不合法");
+        }
+        MarketAssetRefVO ref = MarketAssetRefVO.parse(assetKind, assetRef);
+        Long assetId;
+        if (ASSET_KIND_FUND.equals(ref.getAssetKind())) {
+            FundCurrentDataAggregate.FundDetail fund = fundDataRepository.queryCurrentDetails(Set.of(ref.getAssetCode()))
+                    .get(ref.getAssetCode());
+            if (fund == null || fund.getId() == null) {
+                throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "基金不存在");
+            }
+            assetId = fund.getId();
+        } else {
+            StockMarketEntity stock = stockMarketRepository.queryOne(ref.getAssetCode(), ref.getMarket());
+            if (stock == null || stock.getId() == null) {
+                throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "股票不存在");
+            }
+            assetId = stock.getId();
+        }
+        portfolioRepository.deleteWatchlistAsset(userId, ref.getAssetKind(), assetId);
     }
 
     private BatchAddPlan buildBatchAddPlan(WatchlistAssetBatchAddCommand command) {
@@ -89,7 +115,7 @@ public class WatchlistAssetBatchAddCaseImpl implements IWatchlistAssetBatchAddCa
                     plan.getInvalidItems().add(toInvalidItem(item, "FUND_NOT_FOUND", "基金不存在"));
                     continue;
                 }
-                plan.getWatchlistAssets().add(toWatchlistAsset(item, fundDetail.getFundName()));
+                plan.getWatchlistAssets().add(toWatchlistAsset(item, fundDetail.getId(), fundDetail.getFundName()));
                 continue;
             }
             if (ASSET_KIND_STOCK.equals(item.getAssetKind())) {
@@ -98,11 +124,15 @@ public class WatchlistAssetBatchAddCaseImpl implements IWatchlistAssetBatchAddCa
                     plan.getInvalidItems().add(toInvalidItem(item, "STOCK_NOT_FOUND", "股票不存在"));
                     continue;
                 }
+                if (!StockMarketEntity.STATUS_ACTIVE.equals(stockMarket.getStatus())) {
+                    plan.getInvalidItems().add(toInvalidItem(item, "STOCK_INACTIVE", "股票已停用"));
+                    continue;
+                }
                 if (isBlank(stockMarket.getStockName())) {
                     plan.getInvalidItems().add(toInvalidItem(item, "ASSET_NAME_MISSING", "股票公开名称缺失"));
                     continue;
                 }
-                plan.getWatchlistAssets().add(toWatchlistAsset(item, stockMarket.getStockName()));
+                plan.getWatchlistAssets().add(toWatchlistAsset(item, stockMarket.getId(), stockMarket.getStockName()));
                 continue;
             }
         }
@@ -151,6 +181,19 @@ public class WatchlistAssetBatchAddCaseImpl implements IWatchlistAssetBatchAddCa
             return invalid(index, item.getAssetKind(), item.getAssetRef(), item.getAssetCode(), item.getMarket(),
                     "ASSET_CODE_REQUIRED", "资产代码不能为空");
         }
+        if (ASSET_KIND_STOCK.equals(assetKind) && isBlank(market)) {
+            return invalid(index, item.getAssetKind(), item.getAssetRef(), item.getAssetCode(), item.getMarket(),
+                    "MARKET_REQUIRED", "股票市场不能为空");
+        }
+        if (ASSET_KIND_STOCK.equals(assetKind)
+                && !MarketAssetRefVO.MARKET_A_SHARE.equalsIgnoreCase(market)
+                && !MarketAssetRefVO.MARKET_US_STOCK.equalsIgnoreCase(market)) {
+            return invalid(index, item.getAssetKind(), item.getAssetRef(), item.getAssetCode(), item.getMarket(),
+                    "MARKET_UNSUPPORTED", "股票市场不支持");
+        }
+        if (ASSET_KIND_STOCK.equals(assetKind)) {
+            market = market.toUpperCase(Locale.ROOT);
+        }
 
         return NormalizedItem.builder()
                 .index(index)
@@ -163,7 +206,8 @@ public class WatchlistAssetBatchAddCaseImpl implements IWatchlistAssetBatchAddCa
                 .assetCode(assetCode)
                 .assetName(assetName)
                 .market(market)
-                .identityKey(userId + "#" + assetKind + "#" + assetCode)
+                .identityKey(userId + "#" + assetKind + "#" + assetCode
+                        + (ASSET_KIND_STOCK.equals(assetKind) ? "#" + market : ""))
                 .build();
     }
 
@@ -187,14 +231,14 @@ public class WatchlistAssetBatchAddCaseImpl implements IWatchlistAssetBatchAddCa
         return result;
     }
 
-    private WatchlistAssetEntity toWatchlistAsset(NormalizedItem item, String publicAssetName) {
+    private WatchlistAssetEntity toWatchlistAsset(NormalizedItem item, Long assetId, String publicAssetName) {
         return WatchlistAssetEntity.builder()
                 .userId(item.getUserId())
+                .assetId(assetId)
                 .assetCode(item.getAssetCode())
                 .assetName(firstNonBlank(publicAssetName, item.getAssetName()))
                 .assetKind(item.getAssetKind())
                 .market(item.getMarket())
-                .status(STATUS_ENABLED)
                 .build();
     }
 

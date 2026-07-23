@@ -130,7 +130,7 @@ public class PortfolioFundDetailCaseImplTest {
             return List.of(
                     PortfolioHoldingEntity.builder()
                             .userId(userId)
-                            .holdingId(1L)
+                            .recordId(1L)
                             .assetCode("000001")
                             .assetName("测试基金")
                             .amount(new BigDecimal("123.45"))
@@ -138,7 +138,7 @@ public class PortfolioFundDetailCaseImplTest {
                             .build(),
                     PortfolioHoldingEntity.builder()
                             .userId(userId)
-                            .holdingId(2L)
+                            .recordId(2L)
                             .assetCode("161725")
                             .assetName("缺失基金")
                             .status("active")

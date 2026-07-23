@@ -81,3 +81,4 @@ Case 先查询指定用户启用的 `asset_info`，再按 kind 批量读取 `fun
 ## Open Questions
 
 当前无待确认事项。接口路径、引用格式、兼容策略、默认顺序和非目标已由契约固定，可以直接实现。
+> 历史变更说明：本文的旧自选存储实现已由 `replace-account-holdings-with-asset-records` 替代；当前自选使用 `watchlist_item` 和公共标的技术 ID，外部 `assetRef` 契约继续有效。

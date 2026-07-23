@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.echoamoy.holdlens.server.infrastructure.dao.IExchangeRateDao">
+    <resultMap id="BaseResultMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.ExchangeRatePO">
+        <id column="id" property="id"/>
+        <result column="base_currency" property="baseCurrency"/>
+        <result column="quote_currency" property="quoteCurrency"/>
+        <result column="rate" property="rate"/>
+        <result column="source" property="source"/>
+        <result column="source_as_of" property="sourceAsOf"/>
+        <result column="fetched_at" property="fetchedAt"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+    <sql id="Columns">id, base_currency, quote_currency, rate, source, source_as_of, fetched_at, create_time, update_time</sql>
+    <insert id="upsert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO exchange_rate (base_currency, quote_currency, rate, source, source_as_of, fetched_at)
+        VALUES (#{baseCurrency}, #{quoteCurrency}, #{rate}, #{source}, #{sourceAsOf}, #{fetchedAt})
+        ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), rate = VALUES(rate), source = VALUES(source),
+            source_as_of = VALUES(source_as_of), fetched_at = VALUES(fetched_at), update_time = CURRENT_TIMESTAMP
+    </insert>
+    <select id="selectOne" resultMap="BaseResultMap">
+        SELECT <include refid="Columns"/> FROM exchange_rate
+        WHERE base_currency = #{baseCurrency} AND quote_currency = #{quoteCurrency}
+    </select>
+    <select id="selectByBases" resultMap="BaseResultMap">
+        SELECT <include refid="Columns"/> FROM exchange_rate
+        WHERE quote_currency = #{quoteCurrency} AND base_currency IN
+        <foreach collection="baseCurrencies" item="currency" open="(" separator="," close=")">#{currency}</foreach>
+    </select>
+</mapper>

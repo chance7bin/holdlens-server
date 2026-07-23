@@ -18,6 +18,9 @@ public class WatchlistAssetEntity {
 
     private Long userId;
 
+    /** 内部公共基金或股票技术主键。 */
+    private Long assetId;
+
     private String assetCode;
 
     private String assetName;
@@ -27,7 +30,5 @@ public class WatchlistAssetEntity {
     private String assetType;
 
     private String market;
-
-    private String status;
 
 }

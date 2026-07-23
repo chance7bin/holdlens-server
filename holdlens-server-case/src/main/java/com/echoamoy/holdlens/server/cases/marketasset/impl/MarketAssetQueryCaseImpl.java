@@ -97,13 +97,18 @@ public class MarketAssetQueryCaseImpl implements IMarketAssetQueryCase {
         }
         Set<String> identities = new LinkedHashSet<>();
         for (MarketAssetQueryResult.Item item : candidates) {
-            identities.add(item.getAssetKind() + "#" + item.getCode());
+            identities.add(watchlistIdentity(item));
         }
         Set<String> watchlisted = portfolioRepository.queryWatchlistedIdentityKeys(userId, identities);
         for (MarketAssetQueryResult.Item item : candidates) {
-            item.setWatchlisted(watchlisted.contains(item.getAssetKind() + "#" + item.getCode()));
+            item.setWatchlisted(watchlisted.contains(watchlistIdentity(item)));
         }
         return MarketAssetQueryResult.Search.builder().items(candidates).build();
+    }
+
+    private String watchlistIdentity(MarketAssetQueryResult.Item item) {
+        return item.getAssetKind() + "#" + item.getCode()
+                + (MarketAssetRefVO.KIND_STOCK.equals(item.getAssetKind()) ? "#" + item.getMarket() : "");
     }
 
     @Override
@@ -119,7 +124,8 @@ public class MarketAssetQueryCaseImpl implements IMarketAssetQueryCase {
         if (stock == null) {
             throw illegal("股票不存在");
         }
-        boolean watchlisted = portfolioRepository.queryWatchlistAsset(userId, ref.getAssetCode(), ref.getAssetKind()) != null;
+        boolean watchlisted = portfolioRepository.queryWatchlistAsset(
+                userId, ref.getAssetCode(), ref.getAssetKind(), ref.getMarket()) != null;
         return MarketAssetQueryResult.StockDetail.builder()
                 .assetKind(ref.getAssetKind()).assetRef(ref.value()).code(stock.getStockCode())
                 .name(stock.getStockName()).market(stock.getMarket()).marketLabel(marketLabel(stock.getMarket()))

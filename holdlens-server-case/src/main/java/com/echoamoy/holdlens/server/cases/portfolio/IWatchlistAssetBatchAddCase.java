@@ -10,4 +10,8 @@ public interface IWatchlistAssetBatchAddCase {
 
     WatchlistAssetBatchAddResult batchAdd(WatchlistAssetBatchAddCommand command);
 
+    default void remove(Long userId, String assetKind, String assetRef) {
+        throw new UnsupportedOperationException();
+    }
+
 }

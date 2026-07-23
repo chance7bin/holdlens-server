@@ -8,6 +8,8 @@ import com.echoamoy.holdlens.server.cases.portfolio.IWatchlistAssetBatchAddCase;
 import com.echoamoy.holdlens.server.cases.portfolio.model.WatchlistAssetBatchAddCommand;
 import com.echoamoy.holdlens.server.cases.portfolio.model.WatchlistAssetBatchAddResult;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -32,6 +34,14 @@ public class WatchlistAssetController implements IWatchlistAssetService {
     @Override
     public Response<WatchlistAssetBatchAddResponseDTO> batchAdd(@Valid @RequestBody WatchlistAssetBatchAddRequestDTO request) {
         return Response.ok(toResponseDTO(watchlistAssetBatchAddCase.batchAdd(toCommand(request))));
+    }
+
+    @DeleteMapping("/api/watchlist/assets")
+    @Override
+    public Response<Void> remove(@RequestParam Long userId, @RequestParam String assetKind,
+                                 @RequestParam String assetRef) {
+        watchlistAssetBatchAddCase.remove(userId, assetKind, assetRef);
+        return Response.ok(null);
     }
 
     private WatchlistAssetBatchAddCommand toCommand(WatchlistAssetBatchAddRequestDTO request) {

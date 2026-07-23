@@ -11,4 +11,6 @@ public interface IWatchlistAssetService {
 
     Response<WatchlistAssetBatchAddResponseDTO> batchAdd(WatchlistAssetBatchAddRequestDTO request);
 
+    Response<Void> remove(Long userId, String assetKind, String assetRef);
+
 }

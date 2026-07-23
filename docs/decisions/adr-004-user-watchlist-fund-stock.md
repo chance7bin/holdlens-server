@@ -1,58 +1,23 @@
-# ADR-004 用户自选基金/股票
+# ADR-004：用户基金与股票自选
 
-> 自选与持仓相互独立、只允许自选既有公共基金/股票等业务边界继续有效；以 `asset_info` 保存自选关系的存储决策已由 [ADR-005](adr-005-asset-record-and-watchlist-model.md) 替代。
+> 状态：业务边界保留，存储决策由 [ADR-005](adr-005-asset-record-and-watchlist-model.md) 替代。
 
-## 1. 背景
+## 保留的决策
 
-账号资产第一版需要支持用户把基金或股票加入自选。该能力只表达“用户关注了某只已知基金或股票”，不表达当前持仓。
+- 自选只表示用户关注既有公共基金或股票，不代表用户持有该资产。
+- 加入、查询和移除自选不得创建或修改资产记录，不得注册公共数据，不得触发刷新任务。
+- server 向客户端签发 `assetRef`；客户端必须将其视为不透明字符串。基金当前编码为 `fund:{fundCode}`，股票当前编码为 `stock:{market}:{stockCode}`。
+- 新请求只提交 `assetKind + assetRef`。server 必须校验引用格式、类型和公共标的存在性；请求内重复与重复加入按幂等成功处理。
+- 自选列表和搜索状态必须按用户隔离，展示名称与行情实时读取 `fund`、`stock_market`。
 
-加入自选的输入只有资产代码、资产大类和可选市场，不包含账户、金额、币种、持仓来源或变更原因，因此不能形成可审计的当前持仓事实。
+## 被替代的存储决策
 
-公开基金信息和股票行情由 `fund`、`stock_market` 及对应刷新任务维护。用户自选能力不负责发现新基金/股票，不负责注册公开数据刷新目标，也不负责触发刷新任务。
+自 ADR-005 起，自选关系保存到 `watchlist_item`，内部唯一身份为 `user_id + asset_kind + asset_id`。API 层解析或签发 `assetRef`，客户端不得接触 `fund.id` 或 `stock_market.id`。
 
-## 2. 决策
+`asset_kind` 只允许 `FUND`、`STOCK`，`asset_id` 分别引用对应公共表。公共数据刷新必须保持技术 ID 稳定；自选关系本身不保存代码、名称、市场、金额、币种或目录。
 
-用户可以通过 `POST /api/watchlist/assets/batch-add` 将基金或股票批量加入自选，并通过独立查询接口读取自选列表和搜索既有公开资产。
+## 结果
 
-server 对客户端签发稳定的 `assetRef`：基金当前编码为 `fund:{fundCode}`，股票当前编码为 `stock:{market}:{stockCode}`。客户端必须把它视为不透明字符串，只能原样传递和比较，不得自行解析、拼装或推导市场。该引用是 API 层业务引用，不写入 `asset_info`，server 解析后仍按既有公开资产业务键校验目标。
-
-批量加入自选时只写入或保持 `asset_info`，表达用户维度的自选资产关系。该流程不写入 `fund`，不写入 `stock_market`，也不创建或触发基金详情刷新、股票行情刷新任务。
-
-加入自选前必须校验目标公开资产已经存在：
-
-- 基金：`fund` 中必须已存在对应 `fund_code`。
-- 股票：`stock_market` 中必须已存在对应 `stock_code + market` 组合。
-
-新客户端通过 `assetRef` 添加股票时必须包含明确的 `A_SHARE` 或 `US_STOCK` 市场，避免依赖空 market 推断。为兼容旧调用方，一个兼容周期内仍接受没有 `assetRef` 的旧 `assetCode + market` 请求；旧请求的 `market` 为空时，只匹配 `stock_market` 中同样为空 market 的股票记录。
-
-本次决策不调整 `asset_info` 表结构。`asset_info` 继续沿用现有 `asset_code`、`asset_name`、`asset_kind`、`asset_type` 和 `market` 等字段；唯一身份继续使用当前表结构支持的 `user_id + asset_code + asset_kind`。`assetRef` 只在 API 边界生成和解析，不等同于数据库多态外键。后续如果要把 `asset_info` 改成引用统一资产目录、公开数据表，或让 `market` 参与自选唯一身份，应通过单独 ADR/OpenSpec change 处理。
-
-新客户端请求只提交 `assetKind + assetRef`，不提交资产名称或市场。兼容旧请求不要求传入资产名称，也不得用 `asset_code` 作为占位名称。展示名称和行情必须优先来自已存在的公开基金/股票数据；如果写入 `asset_info.asset_name`，也必须避免用代码伪装名称。
-
-响应只返回 `invalidItems`。未出现在 `invalidItems` 中的输入项，都表示处理后已经处于“已加入自选”状态；接口不区分新建和已存在，也不向前端暴露刷新任务 ID、刷新调度状态或刷新失败摘要。
-
-同一个请求内重复提交同一资产时，重复项按幂等成功处理，不进入 `invalidItems`。后端应按当前 `asset_info` 唯一身份去重或 upsert，避免让前端承担严格去重职责。
-
-`invalidItems.index` 使用请求数组的 0 基下标，便于前端直接映射原始输入；如果需要展示“第几行”，由前端自行转换。
-
-批量加入自选流程不写 `asset_holding`，也不写 `asset_holding_change`。后续如果用户确认账户、金额和来源，再通过独立持仓导入或持仓维护用例创建当前持仓。
-
-## 3. 取舍原因
-
-用户自选资产是用户维度事实，公开基金/股票数据是全局公开数据事实。批量加入自选只负责建立用户与已存在公开资产之间的关系，不负责发现新资产、注册刷新目标或触发刷新任务。
-
-要求公开数据表中已存在目标资产，可以避免一次用户操作同时改变用户事实、公开数据 universe 和后台任务状态，降低接口副作用和排查成本。
-
-暂时保留 `asset_info` 的自然业务身份，是为了避免在本次语义收敛中同时引入表结构迁移和多态引用约束。`asset_kind + ref_id` 指向基金或股票公开表虽然能减少部分字段冗余，但普通数据库外键无法直接约束这种多态引用，且公开数据表的生命周期仍不等同于用户自选关系。
-
-## 4. 影响
-
-- 新接口语义应统一为批量加入自选，路径为 `POST /api/watchlist/assets/batch-add`。
-- 自选列表和统一搜索只聚合既有 `asset_info`、`fund` 与 `stock_market`，不得注册公开数据或触发刷新。
-- API 层应集中生成和解析 `assetRef`，并校验 `assetKind`、市场与公开资产业务键一致。
-- 新客户端使用 `assetKind + assetRef`；旧 `assetCode/assetName/market` 请求只作为显式兼容路径保留。
-- 相关命名应避免持仓导入或公开数据导入暗示，统一使用 `WatchlistAsset` 和 `BatchAdd` 语义。
-- Case 层需要在写入 `asset_info` 前查询 `fund` 或 `stock_market`，不存在的输入项进入 `invalidItems`。
-- 批量加入自选不注册基金/股票刷新目标，不触发刷新任务，也不把刷新失败作为响应或日志语义。
-- `asset_info` 的用户隔离和现有唯一身份必须保留。
-- 股票市场为空时可以加入自选，但只匹配 `stock_market` 中空 market 的既有记录；该记录后续能否刷新行情仍由独立刷新能力决定。
+- 同一代码在不同股票市场可通过不同 `stock_market.id` 分别加入自选。
+- 移除自选只删除关系，不影响相同标的资产记录。
+- 基金刷新目标由自选基金和具体基金资产记录取去重并集；未细分基金金额不产生公共刷新目标。

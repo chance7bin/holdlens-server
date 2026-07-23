@@ -52,6 +52,10 @@ public class FundRefreshSqlStructureTest {
         Assert.assertTrue(mapper.contains("id=\"updatePeriodReturn\""));
         Assert.assertTrue(mapper.contains("id=\"updateTopHoldingMetadata\""));
         Assert.assertTrue(mapper.contains("id=\"selectTopHoldingRefreshTargets\""));
+        Assert.assertTrue(mapper.contains("FROM watchlist_item wi"));
+        Assert.assertTrue(mapper.contains("FROM asset_record ar"));
+        Assert.assertFalse(mapper.contains("FROM asset_info"));
+        Assert.assertFalse(mapper.contains("FROM asset_holding"));
         Assert.assertFalse(mapper.contains("id=\"upsert\""));
         Assert.assertFalse(mapper.contains("id=\"upsertTarget\""));
         Assert.assertFalse(mapper.contains("id=\"selectRefreshTargetsAfterId\""));

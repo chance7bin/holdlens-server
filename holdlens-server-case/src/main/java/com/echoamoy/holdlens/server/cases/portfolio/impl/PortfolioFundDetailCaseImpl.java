@@ -127,21 +127,14 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                                                                     Map<String, StockMarketEntity> stockMarkets,
                                                                     boolean refreshing) {
         return PortfolioFundDetailResult.HoldingDetail.builder()
-                .holdingId(holding.getHoldingId())
-                .accountId(holding.getAccountId())
-                .accountName(holding.getAccountName())
-                .accountType(holding.getAccountType())
-                .assetId(holding.getAssetId())
+                .recordId(holding.getRecordId())
+                .assetRef(holding.getAssetRef())
                 .assetCode(holding.getAssetCode())
                 .assetName(holding.getAssetName())
                 .assetKind(holding.getAssetKind())
                 .assetType(holding.getAssetType())
-                .assetCategory(holding.getAssetCategory())
-                .holdingSource(holding.getHoldingSource())
                 .amount(holding.getAmount())
                 .currency(holding.getCurrency())
-                .amountDisplay(holding.getAmountDisplay())
-                .amountMissingReason(holding.getAmountMissingReason())
                 .status(holding.getStatus())
                 .fundDetail(toFundDetail(holding.fundCodeOrNull(), fundDetail, stockMarkets, refreshing))
                 .build();

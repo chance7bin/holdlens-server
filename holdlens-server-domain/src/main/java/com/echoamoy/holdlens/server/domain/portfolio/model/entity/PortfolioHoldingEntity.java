@@ -14,22 +14,15 @@ import java.math.BigDecimal;
 public class PortfolioHoldingEntity {
 
     private Long userId;
-    private Long holdingId;
-    private Long accountId;
-    private String accountName;
-    private String accountType;
+    private Long recordId;
     private Long assetId;
+    private String assetRef;
     private String assetCode;
     private String assetName;
     private String assetKind;
     private String assetType;
-    private String assetCategory;
-    private String holdingSource;
     private BigDecimal amount;
     private String currency;
-    private String amountDisplay;
-    private String amountMissingReason;
-    private String missingReasonsJson;
     private String status;
 
     public String fundCodeOrNull() {

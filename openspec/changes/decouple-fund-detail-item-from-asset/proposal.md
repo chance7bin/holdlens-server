@@ -23,3 +23,4 @@
 - 生产代码、初始化 DDL 和 Mapper 中使用 `fund` 表名，不再使用 `fund_detail_item`。
 - `fund` 以 `fund_code` 唯一保存基金当前公开信息。
 - OpenSpec 严格校验通过，相关 Maven 测试通过。
+> 历史变更说明：本文涉及的旧用户资产表边界已由 `replace-account-holdings-with-asset-records` 替代；基金公共数据独立边界继续有效。

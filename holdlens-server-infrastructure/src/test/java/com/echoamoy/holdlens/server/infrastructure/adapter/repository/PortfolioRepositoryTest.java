@@ -1,8 +1,8 @@
 package com.echoamoy.holdlens.server.infrastructure.adapter.repository;
 
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.WatchlistAssetEntity;
-import com.echoamoy.holdlens.server.infrastructure.dao.IAssetInfoDao;
-import com.echoamoy.holdlens.server.infrastructure.dao.po.AssetInfoPO;
+import com.echoamoy.holdlens.server.infrastructure.dao.IWatchlistItemDao;
+import com.echoamoy.holdlens.server.infrastructure.dao.po.WatchlistItemPO;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -14,50 +14,36 @@ import java.util.List;
 public class PortfolioRepositoryTest {
 
     @Test
-    public void upsertWatchlistAssetsMapsWatchlistAssetToAssetInfo() throws Exception {
+    public void upsertWatchlistAssetsPersistsOnlyInternalPublicAssetReference() throws Exception {
         PortfolioRepository repository = new PortfolioRepository();
-        FakeAssetInfoDao assetInfoDao = new FakeAssetInfoDao();
-        setField(repository, "assetInfoDao", assetInfoDao);
+        FakeWatchlistItemDao dao = new FakeWatchlistItemDao();
+        setField(repository, "watchlistItemDao", dao);
 
         repository.upsertWatchlistAssets(List.of(WatchlistAssetEntity.builder()
-                .userId(1001L)
-                .assetCode("000001")
-                .assetKind("fund")
-                .assetName("测试基金")
-                .market(null)
-                .status("enabled")
-                .build()));
+                .userId(1001L).assetId(88L).assetCode("000001").assetKind("fund")
+                .assetName("测试基金").build()));
 
-        AssetInfoPO po = assetInfoDao.upserted.get(0);
+        WatchlistItemPO po = dao.upserted.get(0);
         Assert.assertEquals(Long.valueOf(1001L), po.getUserId());
-        Assert.assertEquals("000001", po.getAssetCode());
-        Assert.assertEquals("fund", po.getAssetKind());
-        Assert.assertEquals("测试基金", po.getAssetName());
-        Assert.assertNull(po.getMarket());
+        Assert.assertEquals(Long.valueOf(88L), po.getAssetId());
+        Assert.assertEquals("FUND", po.getAssetKind());
+        Assert.assertNull(po.getAssetCode());
+        Assert.assertNull(po.getAssetName());
     }
 
     @Test
-    public void queryWatchlistAssetUsesExistingAssetInfoIdentityWithoutChangingTableStructure() throws Exception {
+    public void queryStockWatchlistIdentityIncludesMarket() throws Exception {
         PortfolioRepository repository = new PortfolioRepository();
-        FakeAssetInfoDao assetInfoDao = new FakeAssetInfoDao();
-        assetInfoDao.selected = AssetInfoPO.builder()
-                .id(1L)
-                .userId(1001L)
-                .assetCode("600000")
-                .assetKind("stock")
-                .market(null)
-                .build();
-        setField(repository, "assetInfoDao", assetInfoDao);
+        FakeWatchlistItemDao dao = new FakeWatchlistItemDao();
+        dao.selected = WatchlistItemPO.builder().id(1L).userId(1001L).assetId(9L)
+                .assetCode("DEMO").assetName("示例股票").assetKind("STOCK").market("US_STOCK").build();
+        setField(repository, "watchlistItemDao", dao);
 
-        WatchlistAssetEntity entity = repository.queryWatchlistAsset(1001L, "600000", "stock");
+        WatchlistAssetEntity entity = repository.queryWatchlistAsset(1001L, "DEMO", "stock", "US_STOCK");
 
-        Assert.assertEquals("600000", entity.getAssetCode());
-        Assert.assertEquals(Long.valueOf(1001L), assetInfoDao.userId);
-        Assert.assertEquals("600000", assetInfoDao.assetCode);
-        Assert.assertEquals("stock", assetInfoDao.assetKind);
-
-        repository.queryWatchlistAsset(1001L, "600000", "stock");
-        Assert.assertEquals("stock", assetInfoDao.assetKind);
+        Assert.assertEquals(Long.valueOf(9L), entity.getAssetId());
+        Assert.assertEquals("stock", entity.getAssetKind());
+        Assert.assertEquals("US_STOCK", dao.market);
     }
 
     private void setField(Object target, String name, Object value) throws Exception {
@@ -66,50 +52,22 @@ public class PortfolioRepositoryTest {
         field.set(target, value);
     }
 
-    private static class FakeAssetInfoDao implements IAssetInfoDao {
-        private final List<AssetInfoPO> upserted = new ArrayList<>();
-        private AssetInfoPO selected;
-        private Long userId;
-        private String assetCode;
-        private String assetKind;
+    private static class FakeWatchlistItemDao implements IWatchlistItemDao {
+        private final List<WatchlistItemPO> upserted = new ArrayList<>();
+        private WatchlistItemPO selected;
+        private String market;
 
+        @Override public void upsert(WatchlistItemPO item) { upserted.add(item); }
+        @Override public int delete(Long userId, String assetKind, Long assetId) { return 0; }
         @Override
-        public void upsertWatchlistAsset(AssetInfoPO assetInfoPO) {
-            upserted.add(assetInfoPO);
-        }
-
-        @Override
-        public AssetInfoPO selectById(Long id) {
-            return null;
-        }
-
-        @Override
-        public List<AssetInfoPO> selectByUserId(Long userId) {
-            return List.of();
-        }
-
-        @Override
-        public AssetInfoPO selectByUserIdAndAssetCodeAndAssetKind(Long userId, String assetCode, String assetKind) {
-            this.userId = userId;
-            this.assetCode = assetCode;
-            this.assetKind = assetKind;
+        public WatchlistItemPO selectOneByPublicIdentity(Long userId, String assetKind, String assetCode, String market) {
+            this.market = market;
             return selected;
         }
-
+        @Override public List<WatchlistItemPO> selectByUser(Long userId, String assetKind) { return List.of(); }
         @Override
-        public List<AssetInfoPO> selectByUserIdAndAssetName(Long userId, String assetName) {
-            return List.of();
-        }
-
-        @Override
-        public List<AssetInfoPO> selectEnabledByUserId(Long userId, String assetKind) {
-            return List.of();
-        }
-
-        @Override
-        public List<AssetInfoPO> selectWatchlistedByIdentities(Long userId, Collection<String> identityKeys) {
+        public List<WatchlistItemPO> selectByPublicIdentities(Long userId, Collection<String> identityKeys) {
             return List.of();
         }
     }
-
 }

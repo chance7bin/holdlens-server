@@ -36,3 +36,4 @@
 - 影响 Infrastructure 层：保留 `asset_info` upsert/查询能力，补充或复用 `fund_detail_item`、`stock_market_current` 存在性查询能力；不得在本用例中 upsert 公开数据目标。
 - 不影响数据库表结构：本变更暂不调整 `asset_info`、`fund_detail_item`、`stock_market_current` DDL。
 - 影响测试：需要覆盖批量添加幂等、无效项返回、基金/股票不存在校验、空 market 股票匹配、不会注册刷新目标、不会触发刷新任务。
+> 历史变更说明：本变更中的旧自选存储模型已由 `replace-account-holdings-with-asset-records` 替代；当前实现使用 `watchlist_item`，本文仅保留原变更审计上下文。
