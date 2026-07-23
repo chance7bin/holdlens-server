@@ -1,5 +1,7 @@
 # ADR-001 Server 领域边界划分
 
+> `portfolio`、`funddata`、`processing` 的领域边界继续有效；本 ADR 中 `asset_account`、`asset_info`、`asset_holding` 的具体模型建议已由 [ADR-005](adr-005-asset-record-and-watchlist-model.md) 替代。
+
 ## 1. 背景
 
 HoldLens 的目标是“看清你的真实持仓”。当前仓库按运行时职责拆分为两个项目：
