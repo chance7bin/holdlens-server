@@ -9,5 +9,7 @@ public interface IMarketAssetService {
 
     Response<MarketAssetDTO.Search> search(Long userId, String keyword, String assetKind, String market, Integer limit);
 
+    Response<MarketAssetDTO.Detail> queryDetail(Long userId, String assetKind, String assetRef);
+
     Response<MarketAssetDTO.StockDetail> queryStockDetail(Long userId, String assetRef);
 }

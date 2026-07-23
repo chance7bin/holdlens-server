@@ -111,7 +111,7 @@ INSERT INTO `asset_catalog`
     (`user_id`, `parent_id`, `catalog_code`, `catalog_name`, `catalog_scope`, `balance_direction`, `sort_order`, `status`)
 VALUES
     (NULL, NULL, 'CASH', '现金', 'SYSTEM', 'ADD', 10, 'ENABLED'),
-    (NULL, NULL, 'BANK_CARD', '储蓄卡', 'SYSTEM', 'ADD', 20, 'ENABLED'),
+    (NULL, NULL, 'BANK_CARD', '银行卡', 'SYSTEM', 'ADD', 20, 'ENABLED'),
     (NULL, NULL, 'VIRTUAL_BALANCE', '虚拟余额', 'SYSTEM', 'ADD', 30, 'ENABLED'),
     (NULL, NULL, 'INVESTMENT_ASSET', '投资资产', 'SYSTEM', 'ADD', 40, 'ENABLED'),
     (NULL, NULL, 'CLAIM', '债权', 'SYSTEM', 'ADD', 50, 'ENABLED'),

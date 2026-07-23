@@ -4,6 +4,8 @@ import com.echoamoy.holdlens.server.api.IMarketAssetService;
 import com.echoamoy.holdlens.server.api.dto.MarketAssetDTO;
 import com.echoamoy.holdlens.server.api.response.Response;
 import com.echoamoy.holdlens.server.cases.marketasset.IMarketAssetQueryCase;
+import com.echoamoy.holdlens.server.cases.marketasset.IMarketAssetDetailCase;
+import com.echoamoy.holdlens.server.cases.marketasset.model.MarketAssetDetailResult;
 import com.echoamoy.holdlens.server.cases.marketasset.model.MarketAssetQueryResult;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +18,7 @@ import java.util.List;
 public class MarketAssetController implements IMarketAssetService {
 
     @Resource private IMarketAssetQueryCase marketAssetQueryCase;
+    @Resource private IMarketAssetDetailCase marketAssetDetailCase;
 
     @Override
     @GetMapping("/api/watchlist/assets")
@@ -39,18 +42,34 @@ public class MarketAssetController implements IMarketAssetService {
     }
 
     @Override
+    @GetMapping("/api/market-assets/detail")
+    public Response<MarketAssetDTO.Detail> queryDetail(@RequestParam("userId") Long userId,
+                                                        @RequestParam("assetKind") String assetKind,
+                                                        @RequestParam("assetRef") String assetRef) {
+        MarketAssetDetailResult result = marketAssetDetailCase.queryDetail(userId, assetKind, assetRef);
+        return Response.ok(MarketAssetDTO.Detail.builder().assetKind(result.getAssetKind())
+                .assetRef(result.getAssetRef()).watchlisted(result.getWatchlisted())
+                .fund(FundDetailDtoMapper.toDTO(result.getFund())).stock(toStockDetail(result.getStock())).build());
+    }
+
+    @Override
     @GetMapping("/api/stocks/detail")
     public Response<MarketAssetDTO.StockDetail> queryStockDetail(@RequestParam("userId") Long userId,
                                                                   @RequestParam("assetRef") String assetRef) {
         MarketAssetQueryResult.StockDetail r = marketAssetQueryCase.queryStockDetail(userId, assetRef);
-        return Response.ok(MarketAssetDTO.StockDetail.builder()
+        return Response.ok(toStockDetail(r));
+    }
+
+    private MarketAssetDTO.StockDetail toStockDetail(MarketAssetQueryResult.StockDetail r) {
+        if (r == null) return null;
+        return MarketAssetDTO.StockDetail.builder()
                 .assetKind(r.getAssetKind()).assetRef(r.getAssetRef()).code(r.getCode()).name(r.getName())
                 .market(r.getMarket()).marketLabel(r.getMarketLabel()).currency(r.getCurrency())
                 .latestPrice(r.getLatestPrice()).changeAmount(r.getChangeAmount()).changePercent(r.getChangePercent())
                 .openPrice(r.getOpenPrice()).highPrice(r.getHighPrice()).lowPrice(r.getLowPrice())
                 .previousClose(r.getPreviousClose()).volume(r.getVolume()).volumeUnit(r.getVolumeUnit())
                 .peRatio(r.getPeRatio()).totalMarketValue(r.getTotalMarketValue()).quoteAsOf(r.getQuoteAsOf())
-                .delayNotice(r.getDelayNotice()).watchlisted(r.getWatchlisted()).build());
+                .delayNotice(r.getDelayNotice()).watchlisted(r.getWatchlisted()).build();
     }
 
     private List<MarketAssetDTO.Item> toItems(List<MarketAssetQueryResult.Item> items) {

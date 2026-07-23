@@ -11,6 +11,8 @@
         <result column="asset_kind" property="assetKind"/>
         <result column="asset_id" property="assetId"/>
         <result column="asset_ref" property="assetRef"/>
+        <result column="asset_code" property="assetCode"/>
+        <result column="asset_market" property="assetMarket"/>
         <result column="amount" property="amount"/>
         <result column="currency" property="currency"/>
         <result column="remark" property="remark"/>
@@ -26,6 +28,12 @@
             WHEN ar.asset_kind = 'STOCK' AND sm.id IS NOT NULL THEN CONCAT('stock:', sm.market, ':', sm.stock_code)
             ELSE NULL
         END AS asset_ref,
+        CASE
+            WHEN ar.asset_kind = 'FUND' THEN f.fund_code
+            WHEN ar.asset_kind = 'STOCK' THEN sm.stock_code
+            ELSE NULL
+        END AS asset_code,
+        CASE WHEN ar.asset_kind = 'STOCK' THEN sm.market ELSE NULL END AS asset_market,
         ar.amount, ar.currency, ar.remark, ar.status, ar.create_time, ar.update_time
     </sql>
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">

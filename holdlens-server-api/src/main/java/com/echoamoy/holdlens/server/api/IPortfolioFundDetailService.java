@@ -1,5 +1,6 @@
 package com.echoamoy.holdlens.server.api;
 
+import com.echoamoy.holdlens.server.api.dto.FundDetailDTO;
 import com.echoamoy.holdlens.server.api.dto.PortfolioFundDetailDTO;
 import com.echoamoy.holdlens.server.api.response.Response;
 
@@ -16,6 +17,6 @@ public interface IPortfolioFundDetailService {
     /**
      * 查询基金目录中的单只基金详情；缺失或陈旧重仓只触发异步刷新，不阻塞当前响应。
      */
-    Response<PortfolioFundDetailDTO.FundDetail> queryFundDetail(String fundCode);
+    Response<FundDetailDTO> queryFundDetail(String fundCode);
 
 }

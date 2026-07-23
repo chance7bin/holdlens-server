@@ -29,6 +29,13 @@ public class MarketApiContractMappingTest {
         assertRequestParam(search, 3, "market");
         assertRequestParam(search, 4, "limit");
 
+        Method unifiedDetail = MarketAssetController.class.getMethod(
+                "queryDetail", Long.class, String.class, String.class);
+        assertGet(unifiedDetail, "/api/market-assets/detail");
+        assertRequestParam(unifiedDetail, 0, "userId");
+        assertRequestParam(unifiedDetail, 1, "assetKind");
+        assertRequestParam(unifiedDetail, 2, "assetRef");
+
         Method detail = MarketAssetController.class.getMethod("queryStockDetail", Long.class, String.class);
         assertGet(detail, "/api/stocks/detail");
         assertRequestParam(detail, 0, "userId");

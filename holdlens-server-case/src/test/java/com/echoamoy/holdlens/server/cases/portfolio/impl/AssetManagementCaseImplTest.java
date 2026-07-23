@@ -47,6 +47,8 @@ public class AssetManagementCaseImplTest {
         Assert.assertEquals(Long.valueOf(101L), record.getId());
         Assert.assertEquals("公开示例基金", record.getRecordName());
         Assert.assertEquals("fund:000001", record.getAssetRef());
+        Assert.assertEquals("000001", record.getAssetCode());
+        Assert.assertNull(record.getAssetMarket());
         Assert.assertEquals(Long.valueOf(88L), record.getAssetId());
         Assert.assertEquals(1, portfolio.changes.size());
         Assert.assertEquals(AssetRecordChangeEntity.CREATE, portfolio.changes.get(0).getChangeType());
@@ -98,6 +100,33 @@ public class AssetManagementCaseImplTest {
                 .amount(BigDecimal.ONE).currency("USD").build());
     }
 
+    @Test
+    public void createsUserCatalogBelowSystemBankCardWhenParentHasNoRecords() {
+        portfolio.catalog = AssetCatalogEntity.builder().id(2L).catalogCode("BANK_CARD")
+                .catalogName("银行卡").catalogScope(AssetCatalogEntity.SCOPE_SYSTEM)
+                .balanceDirection(AssetCatalogEntity.DIRECTION_ADD).status(AssetCatalogEntity.STATUS_ENABLED).build();
+
+        AssetCatalogEntity created = assetCase.createCatalog(AssetManagementCommand.CreateCatalog.builder()
+                .userId(1L).parentId(2L).catalogName("招商银行")
+                .balanceDirection(AssetCatalogEntity.DIRECTION_ADD).build());
+
+        Assert.assertEquals(Long.valueOf(1L), created.getUserId());
+        Assert.assertEquals(Long.valueOf(2L), created.getParentId());
+        Assert.assertEquals(AssetCatalogEntity.SCOPE_USER, created.getCatalogScope());
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void rejectsChildCatalogWhenParentHasActiveDirectRecords() {
+        portfolio.catalog = AssetCatalogEntity.builder().id(2L).catalogCode("BANK_CARD")
+                .catalogName("银行卡").catalogScope(AssetCatalogEntity.SCOPE_SYSTEM)
+                .balanceDirection(AssetCatalogEntity.DIRECTION_ADD).status(AssetCatalogEntity.STATUS_ENABLED).build();
+        portfolio.activeRecordCount = 1;
+
+        assetCase.createCatalog(AssetManagementCommand.CreateCatalog.builder()
+                .userId(1L).parentId(2L).catalogName("招商银行")
+                .balanceDirection(AssetCatalogEntity.DIRECTION_ADD).build());
+    }
+
     private void setField(Object target, String name, Object value) throws Exception {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
@@ -111,11 +140,14 @@ public class AssetManagementCaseImplTest {
                 .status(AssetCatalogEntity.STATUS_ENABLED).build();
         private AssetRecordEntity record;
         private int childCount;
+        private int activeRecordCount;
         private long nextId = 101L;
         private final List<AssetRecordChangeEntity> changes = new ArrayList<>();
 
         @Override public AssetCatalogEntity queryVisibleCatalog(Long userId, Long catalogId) { return catalog; }
         @Override public int countEnabledChildren(Long userId, Long catalogId) { return childCount; }
+        @Override public int countActiveRecords(Long userId, Long catalogId) { return activeRecordCount; }
+        @Override public void insertCatalog(AssetCatalogEntity value) { value.assignId(nextId++); catalog = value; }
         @Override public void insertRecord(AssetRecordEntity value) { value.assignId(nextId++); record = value; }
         @Override public AssetRecordEntity queryRecordForUpdate(Long userId, Long recordId) { return record; }
         @Override public void updateRecord(AssetRecordEntity value) { record = value; }

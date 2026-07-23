@@ -22,6 +22,8 @@ public class AssetRecordPO {
     private String assetKind;
     private Long assetId;
     private String assetRef;
+    private String assetCode;
+    private String assetMarket;
     private BigDecimal amount;
     private String currency;
     private String remark;

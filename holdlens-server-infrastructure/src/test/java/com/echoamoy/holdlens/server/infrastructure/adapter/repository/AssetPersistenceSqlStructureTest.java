@@ -19,6 +19,8 @@ public class AssetPersistenceSqlStructureTest {
 
         Assert.assertTrue(catalog.contains("user_id = #{userId}"));
         Assert.assertTrue(record.contains("ar.user_id = #{userId}"));
+        Assert.assertTrue(record.contains("END AS asset_code"));
+        Assert.assertTrue(record.contains("END AS asset_market"));
         Assert.assertTrue(record.contains("FOR UPDATE"));
         Assert.assertTrue(history.contains("<insert id=\"insertBatch\">"));
         Assert.assertFalse(history.contains("<update"));
@@ -43,6 +45,7 @@ public class AssetPersistenceSqlStructureTest {
         Assert.assertTrue(ddl.contains("CREATE TABLE `watchlist_item`"));
         Assert.assertTrue(ddl.contains("CREATE TABLE `exchange_rate`"));
         Assert.assertTrue(ddl.contains("'INVESTMENT_ASSET', '投资资产'"));
+        Assert.assertTrue(ddl.contains("'BANK_CARD', '银行卡'"));
         Assert.assertTrue(ddl.contains("'FUND', '基金'"));
         Assert.assertTrue(ddl.contains("'STOCK', '股票'"));
         Assert.assertFalse(ddl.contains("CREATE TABLE `asset_account`"));

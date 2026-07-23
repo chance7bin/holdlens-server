@@ -28,7 +28,23 @@ public class AssetControllerTest {
         Assert.assertEquals("0000", response.getCode());
         Assert.assertEquals("fund:000001", response.getData().getAssetRef());
         Assert.assertEquals("fund", response.getData().getAssetKind());
+        Assert.assertEquals("000001", response.getData().getFund().getAssetCode());
+        Assert.assertNull(response.getData().getStock());
         Assert.assertThrows(NoSuchFieldException.class, () -> AssetDTO.Record.class.getDeclaredField("assetId"));
+    }
+
+    @Test
+    public void createStockRecordExposesOnlyStockIdentity() {
+        AssetController controller = new AssetController(new FakeAssetCase());
+
+        AssetDTO.Record record = controller.createRecord(AssetRequestDTO.CreateRecord.builder()
+                .userId(1L).catalogId(6L).assetRef("stock:US_STOCK:DEMO")
+                .amount(BigDecimal.TEN).currency("USD").build()).getData();
+
+        Assert.assertNull(record.getFund());
+        Assert.assertEquals("DEMO", record.getStock().getAssetCode());
+        Assert.assertEquals("US_STOCK", record.getStock().getAssetMarket());
+        Assert.assertEquals("美股", record.getStock().getAssetMarketLabel());
     }
 
     private static class FakeAssetCase implements IAssetManagementCase {
@@ -39,8 +55,15 @@ public class AssetControllerTest {
         @Override public List<AssetRecordEntity> queryRecords(Long userId) { return List.of(); }
         @Override
         public AssetRecordEntity createRecord(AssetManagementCommand.CreateRecord command) {
+            if (command.getAssetRef() != null && command.getAssetRef().startsWith("stock:")) {
+                return AssetRecordEntity.builder().id(11L).catalogId(6L).catalogCode("STOCK")
+                        .recordName("示例股票").assetKind("STOCK").assetId(99L)
+                        .assetRef("stock:US_STOCK:DEMO").assetCode("DEMO").assetMarket("US_STOCK")
+                        .amount(command.getAmount()).currency(command.getCurrency()).status("ACTIVE").build();
+            }
             return AssetRecordEntity.builder().id(10L).catalogId(5L).catalogCode("FUND")
                     .recordName("示例基金").assetKind("FUND").assetId(88L).assetRef("fund:000001")
+                    .assetCode("000001")
                     .amount(command.getAmount()).currency(command.getCurrency()).status("ACTIVE").build();
         }
         @Override public AssetRecordEntity updateRecordDetails(AssetManagementCommand.UpdateDetails command) { return null; }

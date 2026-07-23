@@ -1,6 +1,6 @@
 package com.echoamoy.holdlens.server.trigger.http;
 
-import com.echoamoy.holdlens.server.api.dto.PortfolioFundDetailDTO;
+import com.echoamoy.holdlens.server.api.dto.FundDetailDTO;
 import com.echoamoy.holdlens.server.cases.portfolio.IPortfolioFundDetailCase;
 import com.echoamoy.holdlens.server.cases.portfolio.model.PortfolioFundDetailResult;
 import org.junit.Assert;
@@ -18,7 +18,7 @@ public class PortfolioFundDetailControllerTest {
         PortfolioFundDetailController controller = new PortfolioFundDetailController();
         set(controller, "portfolioFundDetailCase", new FakeCase());
 
-        PortfolioFundDetailDTO.FundDetail detail = controller.queryFundDetail("000001").getData();
+        FundDetailDTO detail = controller.queryFundDetail("000001").getData();
 
         Assert.assertEquals(Date.valueOf("2026-06-30"), detail.getAssetAllocationAsOf());
         Assert.assertEquals("available", detail.getAssetAllocationStatus());

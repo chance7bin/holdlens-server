@@ -222,6 +222,7 @@ public class PortfolioRepository implements IPortfolioRepository {
         return AssetRecordEntity.builder().id(po.getId()).userId(po.getUserId()).catalogId(po.getCatalogId())
                 .catalogCode(po.getCatalogCode()).balanceDirection(po.getBalanceDirection()).recordName(po.getRecordName())
                 .assetKind(po.getAssetKind()).assetId(po.getAssetId()).assetRef(po.getAssetRef())
+                .assetCode(po.getAssetCode()).assetMarket(po.getAssetMarket())
                 .amount(po.getAmount()).currency(po.getCurrency())
                 .remark(po.getRemark()).status(po.getStatus()).createTime(toLocal(po.getCreateTime()))
                 .updateTime(toLocal(po.getUpdateTime())).build();

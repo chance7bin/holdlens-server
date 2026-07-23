@@ -33,12 +33,26 @@ public final class AssetDTO {
         private String recordName;
         private String assetKind;
         private String assetRef;
+        private FundAsset fund;
+        private StockAsset stock;
         private BigDecimal amount;
         private String currency;
         private String remark;
         private String status;
         private LocalDateTime createTime;
         private LocalDateTime updateTime;
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class FundAsset {
+        private String assetCode;
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class StockAsset {
+        private String assetCode;
+        private String assetMarket;
+        private String assetMarketLabel;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor

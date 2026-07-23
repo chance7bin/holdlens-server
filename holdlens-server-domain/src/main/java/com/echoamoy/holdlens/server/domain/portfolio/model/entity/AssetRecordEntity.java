@@ -30,6 +30,8 @@ public class AssetRecordEntity {
     private String assetKind;
     private Long assetId;
     private String assetRef;
+    private String assetCode;
+    private String assetMarket;
     private BigDecimal amount;
     private String currency;
     private String remark;
@@ -49,8 +51,10 @@ public class AssetRecordEntity {
         this.balanceDirection = AssetCatalogEntity.requireDirection(balanceDirection);
     }
 
-    public void attachAssetRef(String assetRef) {
+    public void attachAssetIdentity(String assetRef, String assetCode, String assetMarket) {
         this.assetRef = assetRef;
+        this.assetCode = assetCode;
+        this.assetMarket = assetMarket;
     }
 
     public static AssetRecordEntity create(Long userId, Long catalogId, String recordName, String assetKind,

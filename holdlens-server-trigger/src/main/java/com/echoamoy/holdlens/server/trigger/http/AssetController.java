@@ -154,9 +154,31 @@ public class AssetController implements IAssetService {
         return AssetDTO.Record.builder().id(entity.getId()).catalogId(entity.getCatalogId())
                 .catalogCode(entity.getCatalogCode()).recordName(entity.getRecordName())
                 .assetKind(entity.getAssetKind() == null ? null : entity.getAssetKind().toLowerCase(Locale.ROOT))
-                .assetRef(entity.getAssetRef()).amount(entity.getAmount()).currency(entity.getCurrency())
+                .assetRef(entity.getAssetRef()).fund(toFundAsset(entity)).stock(toStockAsset(entity))
+                .amount(entity.getAmount()).currency(entity.getCurrency())
                 .remark(entity.getRemark()).status(entity.getStatus()).createTime(entity.getCreateTime())
                 .updateTime(entity.getUpdateTime()).build();
+    }
+
+    private AssetDTO.FundAsset toFundAsset(AssetRecordEntity entity) {
+        if (!AssetRecordEntity.KIND_FUND.equals(entity.getAssetKind()) || entity.getAssetCode() == null) {
+            return null;
+        }
+        return AssetDTO.FundAsset.builder().assetCode(entity.getAssetCode()).build();
+    }
+
+    private AssetDTO.StockAsset toStockAsset(AssetRecordEntity entity) {
+        if (!AssetRecordEntity.KIND_STOCK.equals(entity.getAssetKind()) || entity.getAssetCode() == null) {
+            return null;
+        }
+        return AssetDTO.StockAsset.builder().assetCode(entity.getAssetCode())
+                .assetMarket(entity.getAssetMarket()).assetMarketLabel(marketLabel(entity.getAssetMarket())).build();
+    }
+
+    private String marketLabel(String market) {
+        if ("A_SHARE".equals(market)) return "A股";
+        if ("US_STOCK".equals(market)) return "美股";
+        return null;
     }
 
     private AssetDTO.Summary toSummary(AssetSummaryEntity entity) {

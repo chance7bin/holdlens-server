@@ -26,6 +26,15 @@ public final class MarketAssetDTO {
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class Detail implements Serializable {
+        private String assetKind;
+        private String assetRef;
+        private Boolean watchlisted;
+        private FundDetailDTO fund;
+        private StockDetail stock;
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class Item implements Serializable {
         private String assetKind;
         private String assetRef;

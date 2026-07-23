@@ -107,7 +107,7 @@ public class AssetManagementCaseImpl implements IAssetManagementCase {
         AssetRecordEntity record = AssetRecordEntity.create(command.getUserId(), catalog.getId(), identity.name,
                 identity.kind, identity.assetId, command.getAmount(), command.getCurrency(), command.getRemark());
         record.attachCatalogContext(catalog.getCatalogCode(), catalog.getBalanceDirection());
-        record.attachAssetRef(identity.assetRef);
+        record.attachAssetIdentity(identity.assetRef, identity.assetCode, identity.assetMarket);
         portfolioRepository.insertRecord(record);
         portfolioRepository.insertRecordChanges(List.of(change(UUID.randomUUID().toString(), record,
                 AssetRecordChangeEntity.CREATE, null, record.getAmount(), null, record.getStatus())));
@@ -168,7 +168,7 @@ public class AssetManagementCaseImpl implements IAssetManagementCase {
                 targetIdentity.name, source.getAssetKind(), targetIdentity.assetId, splitAmount,
                 source.getCurrency(), command.getRemark());
         target.attachCatalogContext(source.getCatalogCode(), source.getBalanceDirection());
-        target.attachAssetRef(targetIdentity.assetRef);
+        target.attachAssetIdentity(targetIdentity.assetRef, targetIdentity.assetCode, targetIdentity.assetMarket);
 
         portfolioRepository.insertRecord(target);
         portfolioRepository.updateRecord(source);
@@ -280,8 +280,8 @@ public class AssetManagementCaseImpl implements IAssetManagementCase {
         if (parent.getParentId() != null) throw new IllegalStateException("资产目录最多两级");
         if (hasChildren) throw new IllegalStateException("有子目录的一级目录不能移动到其他目录下");
         if (!direction.equals(parent.getBalanceDirection())) throw new IllegalArgumentException("父子目录金额方向必须一致");
-        if (parent.isSystem() && !AssetCatalogEntity.CODE_INVESTMENT_ASSET.equals(parent.getCatalogCode())) {
-            throw new IllegalStateException("系统叶子目录不能增加用户子目录");
+        if (portfolioRepository.countActiveRecords(userId, parentId) > 0) {
+            throw new IllegalStateException("存在活跃资产记录的目录不能增加子目录");
         }
         if (movingCatalogId != null && parent.getId().equals(movingCatalogId)) {
             throw new IllegalArgumentException("目录不能成为自己的子目录");
@@ -290,17 +290,17 @@ public class AssetManagementCaseImpl implements IAssetManagementCase {
 
     private RecordIdentity resolveRecordIdentity(AssetCatalogEntity catalog, String assetRef, String requestedName) {
         if (catalog.isFundCatalog()) {
-            if (isBlank(assetRef)) return new RecordIdentity(AssetRecordEntity.KIND_FUND, null, null,
+            if (isBlank(assetRef)) return new RecordIdentity(AssetRecordEntity.KIND_FUND, null, null, null, null,
                     isBlank(requestedName) ? "未细分基金" : requestedName.trim());
             return resolveConcreteIdentity(AssetRecordEntity.KIND_FUND, assetRef);
         }
         if (catalog.isStockCatalog()) {
-            if (isBlank(assetRef)) return new RecordIdentity(AssetRecordEntity.KIND_STOCK, null, null,
+            if (isBlank(assetRef)) return new RecordIdentity(AssetRecordEntity.KIND_STOCK, null, null, null, null,
                     isBlank(requestedName) ? "未细分股票" : requestedName.trim());
             return resolveConcreteIdentity(AssetRecordEntity.KIND_STOCK, assetRef);
         }
         if (!isBlank(assetRef)) throw new IllegalArgumentException("当前目录不允许选择公共基金或股票");
-        return new RecordIdentity(null, null, null, requestedName);
+        return new RecordIdentity(null, null, null, null, null, requestedName);
     }
 
     private RecordIdentity resolveConcreteIdentity(String expectedKind, String assetRef) {
@@ -312,14 +312,16 @@ public class AssetManagementCaseImpl implements IAssetManagementCase {
             if (fund == null || fund.getId() == null || isBlank(fund.getFundName())) {
                 throw new IllegalArgumentException("基金不存在或公开数据不完整");
             }
-            return new RecordIdentity(expectedKind, fund.getId(), ref.value(), fund.getFundName().trim());
+            return new RecordIdentity(expectedKind, fund.getId(), ref.value(), ref.getAssetCode(), null,
+                    fund.getFundName().trim());
         }
         StockMarketEntity stock = stockMarketRepository.queryOne(ref.getAssetCode(), ref.getMarket());
         if (stock == null || stock.getId() == null || isBlank(stock.getStockName())
                 || !StockMarketEntity.STATUS_ACTIVE.equals(stock.getStatus())) {
             throw new IllegalArgumentException("股票不存在、已停用或公开数据不完整");
         }
-        return new RecordIdentity(expectedKind, stock.getId(), ref.value(), stock.getStockName().trim());
+        return new RecordIdentity(expectedKind, stock.getId(), ref.value(), ref.getAssetCode(), ref.getMarket(),
+                stock.getStockName().trim());
     }
 
     private static Long requireUserId(Long userId) {
@@ -335,12 +337,17 @@ public class AssetManagementCaseImpl implements IAssetManagementCase {
         private final String kind;
         private final Long assetId;
         private final String assetRef;
+        private final String assetCode;
+        private final String assetMarket;
         private final String name;
 
-        private RecordIdentity(String kind, Long assetId, String assetRef, String name) {
+        private RecordIdentity(String kind, Long assetId, String assetRef, String assetCode,
+                               String assetMarket, String name) {
             this.kind = kind;
             this.assetId = assetId;
             this.assetRef = assetRef;
+            this.assetCode = assetCode;
+            this.assetMarket = assetMarket;
             this.name = name;
         }
     }
