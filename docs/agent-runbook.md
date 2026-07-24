@@ -37,6 +37,24 @@
 回复用户时说明沉淀或更新了哪条经验
 ```
 
+## 本地联调运行授权
+
+### 允许自行重启 `holdlens-server-app`
+
+- 授权范围：进行 HoldLens 本地前后端联调、API 验证或浏览器验收时，Agent 可以自行启动、停止和重启 `holdlens-server-app`，无需再次等待用户手动处理。
+- 运行边界：仅限本地开发环境和默认 `8091` 端口；操作前应确认目标进程和端口，禁止停止无关 Java 进程或占用其他服务端口。
+- 推荐方式：使用 JDK 17 构建并运行当前工作区产物；代码或资源发生变化后，应先完成相关测试，再停止由当前可执行 JAR 启动的旧进程，完成打包后重新启动。不要在旧进程仍从同一路径运行时覆盖可执行 JAR，否则 Spring Boot nested JAR 类加载器可能在停机阶段读取到已替换内容并产生 `NoClassDefFoundError`。
+
+```bash
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home PATH=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home/bin:$PATH mvn -q -pl holdlens-server-app -am package -DskipTests
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home PATH=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home/bin:$PATH java -jar holdlens-server-app/target/holdlens-server-app.jar
+```
+
+- 安全限制：该授权不包含读取敏感配置或凭据、修改数据库结构、清理业务数据、启动生产环境、外联部署或绕过系统权限；这些操作仍需遵循仓库安全规则和各自授权边界。
+- 权限处理：若执行环境要求额外的端口或进程权限，应按工具规则申请授权；权限被拒绝时不得绕过限制。
+- 完成说明：联调结束时应说明 `holdlens-server-app` 的最终运行状态，以及是否遗留临时测试数据。
+- 授权记录时间：2026-07-24
+
 ## 记录模板
 
 ````md
@@ -58,6 +76,23 @@
 ````
 
 ## 已知问题与解法
+
+### 删除 Mapper 或 PO 后增量打包仍携带旧资源
+
+- 触发场景：删除旧 MyBatis Mapper XML 或对应 PO 后，使用未清理 `target` 的增量 `mvn package` 构建并启动后端。
+- 症状：应用启动时解析已经从源码删除的 Mapper XML，并因对应 PO 类不存在而报 `Could not resolve type alias`。
+- 根因：Maven 增量打包不会自动清理 `target/classes` 中已删除的资源，旧 Mapper XML 被继续装入新 JAR。
+- 已验证解法：使用 JDK 17 执行一次完整清理构建，再从新的 JAR 启动。
+
+```bash
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home PATH=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home/bin:$PATH mvn -q clean package -DskipTests
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home PATH=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home/bin:$PATH java -jar holdlens-server-app/target/holdlens-server-app.jar
+```
+
+- 下次优先动作：错误指向源码中已不存在的 Mapper、PO 或资源时，先检查 JAR/`target/classes` 是否残留，再执行 `clean package`；不要通过恢复已经删除的旧类掩盖问题。
+- 验证方式：应用不再加载旧 Mapper，日志显示 `Tomcat started on port 8091` 和 `Started Application`。
+- 适用范围 / 注意事项：适用于删除或重命名资源后的本地增量构建；`clean` 会清理各模块构建产物，应在没有并行 Maven reactor 任务时执行。
+- 记录时间：2026-07-23
 
 ### 后端命令需要使用 JDK 17
 
