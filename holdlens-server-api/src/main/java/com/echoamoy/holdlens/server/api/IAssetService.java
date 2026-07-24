@@ -14,7 +14,7 @@ public interface IAssetService {
 
     Response<AssetDTO.Catalog> updateCatalog(Long catalogId, AssetRequestDTO.UpdateCatalog request);
 
-    Response<Void> deleteCatalog(Long catalogId, Long userId);
+    Response<Void> deleteCatalog(Long catalogId, AssetRequestDTO.UserOperation request);
 
     Response<List<AssetDTO.Record>> queryRecords(Long userId, String assetRef);
 

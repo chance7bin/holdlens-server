@@ -2,14 +2,13 @@ package com.echoamoy.holdlens.server.trigger.http;
 
 import com.echoamoy.holdlens.server.api.IWatchlistAssetService;
 import com.echoamoy.holdlens.server.api.request.WatchlistAssetBatchAddRequestDTO;
+import com.echoamoy.holdlens.server.api.request.WatchlistAssetRemoveRequestDTO;
 import com.echoamoy.holdlens.server.api.response.Response;
 import com.echoamoy.holdlens.server.api.response.WatchlistAssetBatchAddResponseDTO;
 import com.echoamoy.holdlens.server.cases.portfolio.IWatchlistAssetBatchAddCase;
 import com.echoamoy.holdlens.server.cases.portfolio.model.WatchlistAssetBatchAddCommand;
 import com.echoamoy.holdlens.server.cases.portfolio.model.WatchlistAssetBatchAddResult;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -36,11 +35,10 @@ public class WatchlistAssetController implements IWatchlistAssetService {
         return Response.ok(toResponseDTO(watchlistAssetBatchAddCase.batchAdd(toCommand(request))));
     }
 
-    @DeleteMapping("/api/watchlist/assets")
+    @PostMapping("/api/watchlist/assets/remove")
     @Override
-    public Response<Void> remove(@RequestParam Long userId, @RequestParam String assetKind,
-                                 @RequestParam String assetRef) {
-        watchlistAssetBatchAddCase.remove(userId, assetKind, assetRef);
+    public Response<Void> remove(@Valid @RequestBody WatchlistAssetRemoveRequestDTO request) {
+        watchlistAssetBatchAddCase.remove(request.getUserId(), request.getAssetKind(), request.getAssetRef());
         return Response.ok(null);
     }
 

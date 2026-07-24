@@ -13,12 +13,9 @@ import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetSummaryEn
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.ExchangeRateEntity;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -52,8 +49,8 @@ public class AssetController implements IAssetService {
     }
 
     @Override
-    @PutMapping("/api/asset-catalogs/{catalogId}")
-    public Response<AssetDTO.Catalog> updateCatalog(@PathVariable Long catalogId,
+    @PostMapping("/api/asset-catalogs/{catalogId}/update-details")
+    public Response<AssetDTO.Catalog> updateCatalog(@PathVariable("catalogId") Long catalogId,
                                                     @Valid @RequestBody AssetRequestDTO.UpdateCatalog request) {
         return Response.ok(toCatalog(assetManagementCase.updateCatalog(AssetManagementCommand.UpdateCatalog.builder()
                 .userId(request.getUserId()).catalogId(catalogId).parentId(request.getParentId())
@@ -62,9 +59,10 @@ public class AssetController implements IAssetService {
     }
 
     @Override
-    @DeleteMapping("/api/asset-catalogs/{catalogId}")
-    public Response<Void> deleteCatalog(@PathVariable Long catalogId, @RequestParam Long userId) {
-        assetManagementCase.deleteCatalog(userId, catalogId);
+    @PostMapping("/api/asset-catalogs/{catalogId}/delete")
+    public Response<Void> deleteCatalog(@PathVariable("catalogId") Long catalogId,
+                                        @Valid @RequestBody AssetRequestDTO.UserOperation request) {
+        assetManagementCase.deleteCatalog(request.getUserId(), catalogId);
         return Response.ok(null);
     }
 
@@ -92,8 +90,8 @@ public class AssetController implements IAssetService {
     }
 
     @Override
-    @PatchMapping("/api/asset-records/{recordId}/details")
-    public Response<AssetDTO.Record> updateRecordDetails(@PathVariable Long recordId,
+    @PostMapping("/api/asset-records/{recordId}/update-details")
+    public Response<AssetDTO.Record> updateRecordDetails(@PathVariable("recordId") Long recordId,
                                                          @Valid @RequestBody AssetRequestDTO.UpdateDetails request) {
         return Response.ok(toRecord(assetManagementCase.updateRecordDetails(AssetManagementCommand.UpdateDetails.builder()
                 .userId(request.getUserId()).recordId(recordId).recordName(request.getRecordName())
@@ -101,8 +99,8 @@ public class AssetController implements IAssetService {
     }
 
     @Override
-    @PatchMapping("/api/asset-records/{recordId}/amount")
-    public Response<AssetDTO.Record> updateRecordAmount(@PathVariable Long recordId,
+    @PostMapping("/api/asset-records/{recordId}/update-amount")
+    public Response<AssetDTO.Record> updateRecordAmount(@PathVariable("recordId") Long recordId,
                                                         @Valid @RequestBody AssetRequestDTO.UpdateAmount request) {
         return Response.ok(toRecord(assetManagementCase.updateRecordAmount(AssetManagementCommand.UpdateAmount.builder()
                 .userId(request.getUserId()).recordId(recordId).amount(request.getAmount()).build())));
@@ -110,7 +108,8 @@ public class AssetController implements IAssetService {
 
     @Override
     @PostMapping("/api/asset-records/{recordId}/{action:archive|restore|delete}")
-    public Response<AssetDTO.Record> changeRecordStatus(@PathVariable Long recordId, @PathVariable String action,
+    public Response<AssetDTO.Record> changeRecordStatus(@PathVariable("recordId") Long recordId,
+                                                        @PathVariable("action") String action,
                                                         @Valid @RequestBody AssetRequestDTO.UserOperation request) {
         AssetRecordEntity record = switch (action) {
             case "archive" -> assetManagementCase.archiveRecord(request.getUserId(), recordId);
@@ -123,7 +122,7 @@ public class AssetController implements IAssetService {
 
     @Override
     @PostMapping("/api/asset-records/{recordId}/split")
-    public Response<AssetDTO.Record> splitRecord(@PathVariable Long recordId,
+    public Response<AssetDTO.Record> splitRecord(@PathVariable("recordId") Long recordId,
                                                  @Valid @RequestBody AssetRequestDTO.SplitRecord request) {
         return Response.ok(toRecord(assetManagementCase.splitRecord(AssetManagementCommand.SplitRecord.builder()
                 .userId(request.getUserId()).sourceRecordId(recordId).assetRef(request.getAssetRef())
@@ -154,7 +153,7 @@ public class AssetController implements IAssetService {
     }
 
     @Override
-    @PutMapping("/internal/exchange-rates")
+    @PostMapping("/internal/exchange-rates/upsert")
     public Response<AssetDTO.ExchangeRate> upsertExchangeRate(
             @Valid @RequestBody AssetRequestDTO.UpsertExchangeRate request) {
         return Response.ok(toRate(assetManagementCase.upsertExchangeRate(AssetManagementCommand.UpsertExchangeRate.builder()

@@ -179,6 +179,9 @@ Superpowers 相关技能默认不自动加载，也不替代本文件中的 Open
 - 生成代码时，默认留空 author 字段。
 - DDD/六边形架构实现应遵循 `xfg-ddd-skills` 约定，除非用户明确覆盖。
 - MyBatis DAO SQL 默认必须使用 Mapper XML 实现。DAO 接口只声明方法，并使用必要的 MyBatis 绑定注解，例如 `@Mapper` / `@Param`；除非明确批准，不要使用 `@Select`、`@Insert`、`@Update` 或 `@Delete` 实现 SQL。
+- 所有对外及内部 HTTP API 仅允许使用 `GET` 和 `POST`：`GET` 只能执行无副作用的查询，创建、更新、删除、归档、恢复等所有会改变状态的操作统一使用 `POST`，不得使用 `PUT`、`PATCH` 或 `DELETE`。
+- 非创建类的 `POST` 写操作应使用能够表达业务意图的动作路径，例如 `/{id}/update-amount`、`/{id}/delete`，避免使用含义模糊的通用 `/update` 路径。
+- 使用 `POST` 不得放宽写入边界：请求 DTO 只能暴露当前操作允许写入的字段，用例层和领域层必须继续执行权限校验、业务校验、审计、事务及必要的幂等控制，确保局部更新不会修改未授权字段。
 
 ### Commenting Guidelines
 

@@ -1,6 +1,7 @@
 package com.echoamoy.holdlens.server.api;
 
 import com.echoamoy.holdlens.server.api.request.WatchlistAssetBatchAddRequestDTO;
+import com.echoamoy.holdlens.server.api.request.WatchlistAssetRemoveRequestDTO;
 import com.echoamoy.holdlens.server.api.response.Response;
 import com.echoamoy.holdlens.server.api.response.WatchlistAssetBatchAddResponseDTO;
 
@@ -11,6 +12,6 @@ public interface IWatchlistAssetService {
 
     Response<WatchlistAssetBatchAddResponseDTO> batchAdd(WatchlistAssetBatchAddRequestDTO request);
 
-    Response<Void> remove(Long userId, String assetKind, String assetRef);
+    Response<Void> remove(WatchlistAssetRemoveRequestDTO request);
 
 }
