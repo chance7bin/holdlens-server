@@ -7,6 +7,7 @@ import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentD
 import com.echoamoy.holdlens.server.domain.marketasset.model.valobj.MarketAssetRefVO;
 import com.echoamoy.holdlens.server.domain.portfolio.adapter.repository.IPortfolioRepository;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetCatalogEntity;
+import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetOverviewEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetRecordChangeEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetRecordEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetSummaryEntity;
@@ -94,8 +95,24 @@ public class AssetManagementCaseImpl implements IAssetManagementCase {
 
     @Override
     public List<AssetRecordEntity> queryRecords(Long userId) {
+        return queryRecords(userId, null);
+    }
+
+    @Override
+    public List<AssetRecordEntity> queryRecords(Long userId, String assetRef) {
         requireUserId(userId);
-        return portfolioRepository.queryActiveRecords(userId);
+        if (assetRef == null) return portfolioRepository.queryActiveRecords(userId);
+        if (assetRef.isBlank()) throw new IllegalArgumentException("资产引用不能为空");
+        return portfolioRepository.queryActiveRecords(userId, assetRef);
+    }
+
+    @Override
+    public AssetRecordEntity queryRecord(Long userId, Long recordId) {
+        requireUserId(userId);
+        if (recordId == null || recordId <= 0) throw new IllegalArgumentException("资产记录ID不合法");
+        AssetRecordEntity record = portfolioRepository.queryActiveRecord(userId, recordId);
+        if (record == null) throw new IllegalArgumentException("资产记录不存在或不可见");
+        return record;
     }
 
     @Override
@@ -111,7 +128,9 @@ public class AssetManagementCaseImpl implements IAssetManagementCase {
         portfolioRepository.insertRecord(record);
         portfolioRepository.insertRecordChanges(List.of(change(UUID.randomUUID().toString(), record,
                 AssetRecordChangeEntity.CREATE, null, record.getAmount(), null, record.getStatus())));
-        return record;
+        AssetRecordEntity created = portfolioRepository.queryActiveRecord(command.getUserId(), record.getId());
+        if (created == null) throw new IllegalStateException("资产记录创建后读取失败");
+        return created;
     }
 
     @Override
@@ -186,6 +205,19 @@ public class AssetManagementCaseImpl implements IAssetManagementCase {
         requireUserId(userId);
         List<AssetRecordEntity> records = portfolioRepository.queryActiveRecords(userId);
         String target = ExchangeRateEntity.normalizeCurrency(targetCurrency == null ? ExchangeRateEntity.CNY : targetCurrency);
+        return assetSummaryService.summarize(records, target, queryRates(records, target));
+    }
+
+    @Override
+    public AssetOverviewEntity overview(Long userId, String targetCurrency) {
+        requireUserId(userId);
+        List<AssetCatalogEntity> catalogs = portfolioRepository.queryVisibleCatalogs(userId);
+        List<AssetRecordEntity> records = portfolioRepository.queryActiveRecords(userId);
+        String target = ExchangeRateEntity.normalizeCurrency(targetCurrency == null ? ExchangeRateEntity.CNY : targetCurrency);
+        return assetSummaryService.summarizeOverview(catalogs, records, target, queryRates(records, target));
+    }
+
+    private Map<String, ExchangeRateEntity> queryRates(List<AssetRecordEntity> records, String target) {
         Set<String> bases = new LinkedHashSet<>();
         for (AssetRecordEntity record : records) {
             if (!ExchangeRateEntity.CNY.equals(record.getCurrency())) bases.add(record.getCurrency());
@@ -195,7 +227,7 @@ public class AssetManagementCaseImpl implements IAssetManagementCase {
         for (ExchangeRateEntity rate : portfolioRepository.queryExchangeRates(bases, ExchangeRateEntity.CNY)) {
             rates.put(rate.getBaseCurrency(), rate);
         }
-        return assetSummaryService.summarize(records, target, rates);
+        return rates;
     }
 
     @Override

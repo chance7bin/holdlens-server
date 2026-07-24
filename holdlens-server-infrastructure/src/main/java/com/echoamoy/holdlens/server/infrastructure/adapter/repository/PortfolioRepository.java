@@ -95,6 +95,12 @@ public class PortfolioRepository implements IPortfolioRepository {
     }
 
     @Override
+    public AssetRecordEntity queryActiveRecord(Long userId, Long recordId) {
+        AssetRecordPO po = assetRecordDao.selectActiveByUserAndId(userId, recordId);
+        return po == null ? null : toRecordEntity(po);
+    }
+
+    @Override
     public AssetRecordEntity queryRecordForUpdate(Long userId, Long recordId) {
         AssetRecordPO po = assetRecordDao.selectByUserAndIdForUpdate(userId, recordId);
         return po == null ? null : toRecordEntity(po);
@@ -103,6 +109,12 @@ public class PortfolioRepository implements IPortfolioRepository {
     @Override
     public List<AssetRecordEntity> queryActiveRecords(Long userId) {
         return assetRecordDao.selectActiveByUserId(userId).stream().map(this::toRecordEntity).toList();
+    }
+
+    @Override
+    public List<AssetRecordEntity> queryActiveRecords(Long userId, String assetRef) {
+        return assetRecordDao.selectActiveByUserAndAssetRef(userId, assetRef).stream()
+                .map(this::toRecordEntity).toList();
     }
 
     @Override

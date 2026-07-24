@@ -16,7 +16,9 @@ public interface IAssetService {
 
     Response<Void> deleteCatalog(Long catalogId, Long userId);
 
-    Response<List<AssetDTO.Record>> queryRecords(Long userId);
+    Response<List<AssetDTO.Record>> queryRecords(Long userId, String assetRef);
+
+    Response<AssetDTO.Record> queryRecord(Long recordId, Long userId);
 
     Response<AssetDTO.Record> createRecord(AssetRequestDTO.CreateRecord request);
 
@@ -29,6 +31,8 @@ public interface IAssetService {
     Response<AssetDTO.Record> splitRecord(Long recordId, AssetRequestDTO.SplitRecord request);
 
     Response<AssetDTO.Summary> summarize(Long userId, String targetCurrency);
+
+    Response<AssetDTO.Overview> overview(Long userId, String targetCurrency);
 
     Response<List<AssetDTO.ExchangeRate>> queryExchangeRates(List<String> baseCurrencies);
 

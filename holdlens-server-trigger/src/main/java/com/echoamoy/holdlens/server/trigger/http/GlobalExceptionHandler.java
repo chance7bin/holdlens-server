@@ -35,7 +35,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public Response<Void> handleMethodArgumentNotValidException(MethodArgumentNotValidException exception) {
-        log.warn("参数校验异常", exception);
+        // 绑定异常可能携带 rejectedValue；资产名称、金额和备注不能随异常对象进入日志。
+        log.warn("参数校验异常，errorCount={}", exception.getBindingResult().getErrorCount());
         return Response.fail(ResponseCode.ILLEGAL_PARAMETER.getCode(), ResponseCode.ILLEGAL_PARAMETER.getInfo());
     }
 

@@ -2,6 +2,7 @@ package com.echoamoy.holdlens.server.cases.portfolio;
 
 import com.echoamoy.holdlens.server.cases.portfolio.model.AssetManagementCommand;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetCatalogEntity;
+import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetOverviewEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetRecordEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetSummaryEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.ExchangeRateEntity;
@@ -20,6 +21,10 @@ public interface IAssetManagementCase {
 
     List<AssetRecordEntity> queryRecords(Long userId);
 
+    List<AssetRecordEntity> queryRecords(Long userId, String assetRef);
+
+    AssetRecordEntity queryRecord(Long userId, Long recordId);
+
     AssetRecordEntity createRecord(AssetManagementCommand.CreateRecord command);
 
     AssetRecordEntity updateRecordDetails(AssetManagementCommand.UpdateDetails command);
@@ -35,6 +40,8 @@ public interface IAssetManagementCase {
     AssetRecordEntity splitRecord(AssetManagementCommand.SplitRecord command);
 
     AssetSummaryEntity summarize(Long userId, String targetCurrency);
+
+    AssetOverviewEntity overview(Long userId, String targetCurrency);
 
     ExchangeRateEntity upsertExchangeRate(AssetManagementCommand.UpsertExchangeRate command);
 

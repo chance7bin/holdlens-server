@@ -7,6 +7,7 @@ import com.echoamoy.holdlens.server.api.response.Response;
 import com.echoamoy.holdlens.server.cases.portfolio.IAssetManagementCase;
 import com.echoamoy.holdlens.server.cases.portfolio.model.AssetManagementCommand;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetCatalogEntity;
+import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetOverviewEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetRecordEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetSummaryEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.ExchangeRateEntity;
@@ -38,7 +39,7 @@ public class AssetController implements IAssetService {
 
     @Override
     @GetMapping("/api/asset-catalogs")
-    public Response<List<AssetDTO.Catalog>> queryCatalogs(@RequestParam Long userId) {
+    public Response<List<AssetDTO.Catalog>> queryCatalogs(@RequestParam("userId") Long userId) {
         return Response.ok(assetManagementCase.queryCatalogs(userId).stream().map(this::toCatalog).toList());
     }
 
@@ -69,8 +70,16 @@ public class AssetController implements IAssetService {
 
     @Override
     @GetMapping("/api/asset-records")
-    public Response<List<AssetDTO.Record>> queryRecords(@RequestParam Long userId) {
-        return Response.ok(assetManagementCase.queryRecords(userId).stream().map(this::toRecord).toList());
+    public Response<List<AssetDTO.Record>> queryRecords(@RequestParam("userId") Long userId,
+                                                        @RequestParam(value = "assetRef", required = false) String assetRef) {
+        return Response.ok(assetManagementCase.queryRecords(userId, assetRef).stream().map(this::toRecord).toList());
+    }
+
+    @Override
+    @GetMapping("/api/asset-records/{recordId}")
+    public Response<AssetDTO.Record> queryRecord(@PathVariable("recordId") Long recordId,
+                                                  @RequestParam("userId") Long userId) {
+        return Response.ok(toRecord(assetManagementCase.queryRecord(userId, recordId)));
     }
 
     @Override
@@ -123,14 +132,24 @@ public class AssetController implements IAssetService {
 
     @Override
     @GetMapping("/api/assets/summary")
-    public Response<AssetDTO.Summary> summarize(@RequestParam Long userId,
-                                                @RequestParam(required = false) String targetCurrency) {
+    public Response<AssetDTO.Summary> summarize(@RequestParam("userId") Long userId,
+                                                @RequestParam(value = "targetCurrency", required = false)
+                                                String targetCurrency) {
         return Response.ok(toSummary(assetManagementCase.summarize(userId, targetCurrency)));
     }
 
     @Override
+    @GetMapping("/api/assets/overview")
+    public Response<AssetDTO.Overview> overview(@RequestParam("userId") Long userId,
+                                                @RequestParam(value = "targetCurrency", required = false)
+                                                String targetCurrency) {
+        return Response.ok(toOverview(assetManagementCase.overview(userId, targetCurrency)));
+    }
+
+    @Override
     @GetMapping("/internal/exchange-rates")
-    public Response<List<AssetDTO.ExchangeRate>> queryExchangeRates(@RequestParam List<String> baseCurrencies) {
+    public Response<List<AssetDTO.ExchangeRate>> queryExchangeRates(
+            @RequestParam("baseCurrencies") List<String> baseCurrencies) {
         return Response.ok(assetManagementCase.queryExchangeRates(baseCurrencies).stream().map(this::toRate).toList());
     }
 
@@ -150,6 +169,16 @@ public class AssetController implements IAssetService {
                 .sortOrder(entity.getSortOrder()).status(entity.getStatus()).build();
     }
 
+    private AssetDTO.Catalog toCatalog(AssetOverviewEntity.CatalogAmount value) {
+        AssetCatalogEntity entity = value.getCatalog();
+        return AssetDTO.Catalog.builder().id(entity.getId()).parentId(entity.getParentId())
+                .catalogCode(entity.getCatalogCode()).catalogName(entity.getCatalogName())
+                .catalogScope(entity.getCatalogScope()).balanceDirection(entity.getBalanceDirection())
+                .sortOrder(entity.getSortOrder()).status(entity.getStatus())
+                .convertedAmount(value.getConvertedAmount()).partial(value.isPartial())
+                .missingCurrencies(value.getMissingCurrencies()).build();
+    }
+
     private AssetDTO.Record toRecord(AssetRecordEntity entity) {
         return AssetDTO.Record.builder().id(entity.getId()).catalogId(entity.getCatalogId())
                 .catalogCode(entity.getCatalogCode()).recordName(entity.getRecordName())
@@ -157,6 +186,18 @@ public class AssetController implements IAssetService {
                 .assetRef(entity.getAssetRef()).fund(toFundAsset(entity)).stock(toStockAsset(entity))
                 .amount(entity.getAmount()).currency(entity.getCurrency())
                 .remark(entity.getRemark()).status(entity.getStatus()).createTime(entity.getCreateTime())
+                .updateTime(entity.getUpdateTime()).build();
+    }
+
+    private AssetDTO.Record toRecord(AssetOverviewEntity.RecordAmount value) {
+        AssetRecordEntity entity = value.getRecord();
+        return AssetDTO.Record.builder().id(entity.getId()).catalogId(entity.getCatalogId())
+                .catalogCode(entity.getCatalogCode()).recordName(entity.getRecordName())
+                .assetKind(entity.getAssetKind() == null ? null : entity.getAssetKind().toLowerCase(Locale.ROOT))
+                .assetRef(entity.getAssetRef()).fund(toFundAsset(entity)).stock(toStockAsset(entity))
+                .amount(entity.getAmount()).currency(entity.getCurrency()).remark(entity.getRemark())
+                .status(entity.getStatus()).convertedAmount(value.getConvertedAmount())
+                .conversionStatus(value.getConversionStatus()).createTime(entity.getCreateTime())
                 .updateTime(entity.getUpdateTime()).build();
     }
 
@@ -187,6 +228,20 @@ public class AssetController implements IAssetService {
                 .missingCurrencies(entity.getMissingCurrencies())
                 .unconvertedAmounts(entity.getUnconvertedAmounts().stream().map(item ->
                         AssetDTO.UnconvertedAmount.builder().currency(item.getCurrency()).amount(item.getAmount()).build()).toList())
+                .build();
+    }
+
+    private AssetDTO.Overview toOverview(AssetOverviewEntity entity) {
+        AssetSummaryEntity summary = entity.getSummary();
+        return AssetDTO.Overview.builder().targetCurrency(summary.getTargetCurrency())
+                .assetTotal(summary.getAssetTotal()).liabilityTotal(summary.getLiabilityTotal())
+                .netAsset(summary.getNetAsset()).partial(summary.isPartial())
+                .missingCurrencies(summary.getMissingCurrencies())
+                .unconvertedAmounts(summary.getUnconvertedAmounts().stream().map(item ->
+                        AssetDTO.UnconvertedAmount.builder().currency(item.getCurrency())
+                                .amount(item.getAmount()).build()).toList())
+                .catalogs(entity.getCatalogs().stream().map(this::toCatalog).toList())
+                .records(entity.getRecords().stream().map(this::toRecord).toList())
                 .build();
     }
 

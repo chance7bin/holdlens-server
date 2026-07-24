@@ -19,6 +19,10 @@ public class AssetPersistenceSqlStructureTest {
 
         Assert.assertTrue(catalog.contains("user_id = #{userId}"));
         Assert.assertTrue(record.contains("ar.user_id = #{userId}"));
+        Assert.assertTrue(record.contains("<select id=\"selectActiveByUserAndId\""));
+        Assert.assertTrue(record.contains("<select id=\"selectActiveByUserAndAssetRef\""));
+        Assert.assertTrue(record.contains("AND ar.status = 'ACTIVE'"));
+        Assert.assertTrue(record.contains("= #{assetRef}"));
         Assert.assertTrue(record.contains("END AS asset_code"));
         Assert.assertTrue(record.contains("END AS asset_market"));
         Assert.assertTrue(record.contains("FOR UPDATE"));

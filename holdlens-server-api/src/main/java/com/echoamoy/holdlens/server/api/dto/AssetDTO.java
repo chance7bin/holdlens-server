@@ -23,6 +23,9 @@ public final class AssetDTO {
         private String balanceDirection;
         private Integer sortOrder;
         private String status;
+        private BigDecimal convertedAmount;
+        private boolean partial;
+        private List<String> missingCurrencies;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
@@ -39,6 +42,8 @@ public final class AssetDTO {
         private String currency;
         private String remark;
         private String status;
+        private BigDecimal convertedAmount;
+        private String conversionStatus;
         private LocalDateTime createTime;
         private LocalDateTime updateTime;
     }
@@ -64,6 +69,19 @@ public final class AssetDTO {
         private boolean partial;
         private List<String> missingCurrencies;
         private List<UnconvertedAmount> unconvertedAmounts;
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class Overview {
+        private String targetCurrency;
+        private BigDecimal assetTotal;
+        private BigDecimal liabilityTotal;
+        private BigDecimal netAsset;
+        private boolean partial;
+        private List<String> missingCurrencies;
+        private List<UnconvertedAmount> unconvertedAmounts;
+        private List<Catalog> catalogs;
+        private List<Record> records;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor

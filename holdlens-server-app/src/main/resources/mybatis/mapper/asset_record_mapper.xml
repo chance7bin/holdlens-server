@@ -36,6 +36,13 @@
         CASE WHEN ar.asset_kind = 'STOCK' THEN sm.market ELSE NULL END AS asset_market,
         ar.amount, ar.currency, ar.remark, ar.status, ar.create_time, ar.update_time
     </sql>
+    <sql id="AssetRefExpression">
+        CASE
+            WHEN ar.asset_kind = 'FUND' AND f.id IS NOT NULL THEN CONCAT('fund:', f.fund_code)
+            WHEN ar.asset_kind = 'STOCK' AND sm.id IS NOT NULL THEN CONCAT('stock:', sm.market, ':', sm.stock_code)
+            ELSE NULL
+        END
+    </sql>
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO asset_record (user_id, catalog_id, record_name, asset_kind, asset_id, amount, currency, remark, status)
         VALUES (#{userId}, #{catalogId}, #{recordName}, #{assetKind}, #{assetId}, #{amount}, #{currency}, #{remark}, #{status})
@@ -46,6 +53,13 @@
         LEFT JOIN fund f ON ar.asset_kind = 'FUND' AND f.id = ar.asset_id
         LEFT JOIN stock_market sm ON ar.asset_kind = 'STOCK' AND sm.id = ar.asset_id
         WHERE ar.user_id = #{userId} AND ar.id = #{id}
+    </select>
+    <select id="selectActiveByUserAndId" resultMap="BaseResultMap">
+        SELECT <include refid="JoinedColumns"/> FROM asset_record ar
+        INNER JOIN asset_catalog ac ON ac.id = ar.catalog_id
+        LEFT JOIN fund f ON ar.asset_kind = 'FUND' AND f.id = ar.asset_id
+        LEFT JOIN stock_market sm ON ar.asset_kind = 'STOCK' AND sm.id = ar.asset_id
+        WHERE ar.user_id = #{userId} AND ar.id = #{id} AND ar.status = 'ACTIVE'
     </select>
     <select id="selectByUserAndIdForUpdate" resultMap="BaseResultMap">
         SELECT <include refid="JoinedColumns"/> FROM asset_record ar
@@ -61,6 +75,15 @@
         LEFT JOIN fund f ON ar.asset_kind = 'FUND' AND f.id = ar.asset_id
         LEFT JOIN stock_market sm ON ar.asset_kind = 'STOCK' AND sm.id = ar.asset_id
         WHERE ar.user_id = #{userId} AND ar.status = 'ACTIVE'
+        ORDER BY ar.id DESC
+    </select>
+    <select id="selectActiveByUserAndAssetRef" resultMap="BaseResultMap">
+        SELECT <include refid="JoinedColumns"/> FROM asset_record ar
+        INNER JOIN asset_catalog ac ON ac.id = ar.catalog_id
+        LEFT JOIN fund f ON ar.asset_kind = 'FUND' AND f.id = ar.asset_id
+        LEFT JOIN stock_market sm ON ar.asset_kind = 'STOCK' AND sm.id = ar.asset_id
+        WHERE ar.user_id = #{userId} AND ar.status = 'ACTIVE'
+          AND <include refid="AssetRefExpression"/> = #{assetRef}
         ORDER BY ar.id DESC
     </select>
     <select id="countActiveByCatalog" resultType="int">

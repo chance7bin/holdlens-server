@@ -33,4 +33,12 @@ public class AssetRecordEntityTest {
     public void rejectsPublicAssetIdWithoutKind() {
         AssetRecordEntity.create(1L, 2L, "非法记录", null, 9L, BigDecimal.ONE, "CNY", null);
     }
+
+    @Test(expected = IllegalStateException.class)
+    public void concreteHoldingKeepsServerSnapshotName() {
+        AssetRecordEntity record = AssetRecordEntity.create(1L, 2L, "示例基金", AssetRecordEntity.KIND_FUND,
+                9L, BigDecimal.ONE, "CNY", null);
+
+        record.updateDetails("用户改名", null);
+    }
 }

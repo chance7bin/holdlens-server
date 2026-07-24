@@ -5,8 +5,10 @@ import com.echoamoy.holdlens.server.domain.funddata.adapter.repository.IFundData
 import com.echoamoy.holdlens.server.domain.funddata.model.aggregate.FundCurrentDataAggregate;
 import com.echoamoy.holdlens.server.domain.portfolio.adapter.repository.IPortfolioRepository;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetCatalogEntity;
+import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetOverviewEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetRecordChangeEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetRecordEntity;
+import com.echoamoy.holdlens.server.domain.portfolio.model.entity.ExchangeRateEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.WatchlistAssetEntity;
 import com.echoamoy.holdlens.server.domain.stockdata.adapter.repository.IStockMarketRepository;
 import com.echoamoy.holdlens.server.domain.stockdata.model.entity.StockMarketEntity;
@@ -52,6 +54,7 @@ public class AssetManagementCaseImplTest {
         Assert.assertEquals(Long.valueOf(88L), record.getAssetId());
         Assert.assertEquals(1, portfolio.changes.size());
         Assert.assertEquals(AssetRecordChangeEntity.CREATE, portfolio.changes.get(0).getChangeType());
+        Assert.assertEquals(1, portfolio.activeRecordQueryCount);
     }
 
     @Test
@@ -127,6 +130,53 @@ public class AssetManagementCaseImplTest {
                 .balanceDirection(AssetCatalogEntity.DIRECTION_ADD).build());
     }
 
+    @Test
+    public void overviewUsesVisibleCatalogsActiveRecordsAndServerRates() {
+        AssetCatalogEntity root = AssetCatalogEntity.builder().id(4L).catalogCode("INVESTMENT_ASSET")
+                .catalogName("投资资产").catalogScope(AssetCatalogEntity.SCOPE_SYSTEM)
+                .balanceDirection(AssetCatalogEntity.DIRECTION_ADD).status(AssetCatalogEntity.STATUS_ENABLED).build();
+        AssetCatalogEntity leaf = AssetCatalogEntity.builder().id(5L).parentId(4L).catalogCode("FUND")
+                .catalogName("基金").catalogScope(AssetCatalogEntity.SCOPE_SYSTEM)
+                .balanceDirection(AssetCatalogEntity.DIRECTION_ADD).status(AssetCatalogEntity.STATUS_ENABLED).build();
+        portfolio.catalogs = List.of(root, leaf);
+        portfolio.records = List.of(AssetRecordEntity.builder().id(10L).userId(1L).catalogId(5L)
+                .catalogCode("FUND").balanceDirection(AssetCatalogEntity.DIRECTION_ADD).recordName("美元基金")
+                .amount(new BigDecimal("100")).currency("USD").status(AssetRecordEntity.STATUS_ACTIVE).build());
+        portfolio.rates = List.of(ExchangeRateEntity.current("USD", "CNY", new BigDecimal("7.2"), null, null, null));
+
+        AssetOverviewEntity overview = assetCase.overview(1L, null);
+
+        Assert.assertEquals("CNY", overview.getSummary().getTargetCurrency());
+        Assert.assertEquals(0, new BigDecimal("720").compareTo(overview.getSummary().getAssetTotal()));
+        Assert.assertEquals(0, new BigDecimal("720").compareTo(overview.getCatalogs().get(0).getConvertedAmount()));
+        Assert.assertEquals(AssetOverviewEntity.CONVERSION_CONVERTED,
+                overview.getRecords().get(0).getConversionStatus());
+    }
+
+    @Test
+    public void filtersRecordsByOpaqueAssetRefWithinUserBoundary() {
+        AssetRecordEntity own = AssetRecordEntity.builder().id(10L).userId(1L).catalogId(5L)
+                .recordName("记录").assetRef("fund:000001").amount(BigDecimal.ONE).currency("CNY")
+                .status(AssetRecordEntity.STATUS_ACTIVE).build();
+        portfolio.filteredRecords = List.of(own);
+
+        List<AssetRecordEntity> records = assetCase.queryRecords(1L, "fund:000001");
+
+        Assert.assertEquals(List.of(own), records);
+        Assert.assertEquals(Long.valueOf(1L), portfolio.filteredUserId);
+        Assert.assertEquals("fund:000001", portfolio.filteredAssetRef);
+    }
+
+    @Test
+    public void returnsOnlyOwnedActiveRecordDetail() {
+        portfolio.activeRecord = AssetRecordEntity.builder().id(10L).userId(1L).catalogId(5L)
+                .recordName("记录").amount(BigDecimal.ONE).currency("CNY")
+                .status(AssetRecordEntity.STATUS_ACTIVE).build();
+
+        Assert.assertEquals(Long.valueOf(10L), assetCase.queryRecord(1L, 10L).getId());
+        Assert.assertThrows(IllegalArgumentException.class, () -> assetCase.queryRecord(2L, 10L));
+    }
+
     private void setField(Object target, String name, Object value) throws Exception {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
@@ -139,17 +189,40 @@ public class AssetManagementCaseImplTest {
                 .catalogScope(AssetCatalogEntity.SCOPE_SYSTEM).balanceDirection(AssetCatalogEntity.DIRECTION_ADD)
                 .status(AssetCatalogEntity.STATUS_ENABLED).build();
         private AssetRecordEntity record;
+        private AssetRecordEntity activeRecord;
+        private List<AssetCatalogEntity> catalogs = List.of();
+        private List<AssetRecordEntity> records = List.of();
+        private List<AssetRecordEntity> filteredRecords = List.of();
+        private List<ExchangeRateEntity> rates = List.of();
+        private Long filteredUserId;
+        private String filteredAssetRef;
         private int childCount;
         private int activeRecordCount;
+        private int activeRecordQueryCount;
         private long nextId = 101L;
         private final List<AssetRecordChangeEntity> changes = new ArrayList<>();
 
         @Override public AssetCatalogEntity queryVisibleCatalog(Long userId, Long catalogId) { return catalog; }
+        @Override public List<AssetCatalogEntity> queryVisibleCatalogs(Long userId) { return catalogs; }
         @Override public int countEnabledChildren(Long userId, Long catalogId) { return childCount; }
         @Override public int countActiveRecords(Long userId, Long catalogId) { return activeRecordCount; }
         @Override public void insertCatalog(AssetCatalogEntity value) { value.assignId(nextId++); catalog = value; }
         @Override public void insertRecord(AssetRecordEntity value) { value.assignId(nextId++); record = value; }
         @Override public AssetRecordEntity queryRecordForUpdate(Long userId, Long recordId) { return record; }
+        @Override public AssetRecordEntity queryActiveRecord(Long userId, Long recordId) {
+            activeRecordQueryCount++;
+            AssetRecordEntity candidate = activeRecord != null ? activeRecord : record;
+            return candidate != null && userId.equals(candidate.getUserId()) && recordId.equals(candidate.getId())
+                    ? candidate : null;
+        }
+        @Override public List<AssetRecordEntity> queryActiveRecords(Long userId) { return records; }
+        @Override public List<AssetRecordEntity> queryActiveRecords(Long userId, String assetRef) {
+            filteredUserId = userId;
+            filteredAssetRef = assetRef;
+            return filteredRecords.stream().filter(item -> userId.equals(item.getUserId())
+                    && assetRef.equals(item.getAssetRef()) && AssetRecordEntity.STATUS_ACTIVE.equals(item.getStatus())).toList();
+        }
+        @Override public List<ExchangeRateEntity> queryExchangeRates(Collection<String> bases, String quote) { return rates; }
         @Override public void updateRecord(AssetRecordEntity value) { record = value; }
         @Override public void insertRecordChanges(List<AssetRecordChangeEntity> values) { changes.addAll(values); }
         @Override public List<com.echoamoy.holdlens.server.domain.portfolio.model.entity.PortfolioHoldingEntity> queryCurrentHoldings(Long userId) { return List.of(); }

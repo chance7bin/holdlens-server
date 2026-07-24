@@ -31,9 +31,15 @@ public interface IPortfolioRepository {
 
     default AssetRecordEntity queryRecord(Long userId, Long recordId) { return null; }
 
+    default AssetRecordEntity queryActiveRecord(Long userId, Long recordId) { return null; }
+
     default AssetRecordEntity queryRecordForUpdate(Long userId, Long recordId) { return queryRecord(userId, recordId); }
 
     default List<AssetRecordEntity> queryActiveRecords(Long userId) { return List.of(); }
+
+    default List<AssetRecordEntity> queryActiveRecords(Long userId, String assetRef) {
+        return queryActiveRecords(userId);
+    }
 
     default void updateRecord(AssetRecordEntity record) { throw new UnsupportedOperationException(); }
 
