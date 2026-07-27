@@ -1,16 +1,29 @@
-# 需求文档
+# HoldLens Server 产品需求文档
 
-本目录用于维护产品需求文档（PRD），包括功能需求、业务规则、用户故事、验收标准、依赖风险和未决问题。
+本目录只维护 `holdlens-server` 的 PRD、版本规划和产品进度。文档必须在本项目独立检出、且会话目录只有本项目时仍然可读，不依赖上级仓库的需求文档或 Agent 规范。
 
-PRD 是 OpenSpec 变更的输入材料，不替代 OpenSpec 的 proposal、design、spec 或 tasks。需求评审清楚后，再基于对应 PRD 创建或更新 OpenSpec change。
+PRD 由用户按规划需要自行创建，或由用户明确要求 Agent 创建或修改。未经明确要求，Agent 不得自动生成 PRD。没有 PRD 不妨碍范围和成功标准已经清楚的研发需求进入本项目 OpenSpec。
 
-PRD 只描述产品意图、业务范围、用户流程、业务规则和验收标准。接口、任务、数据模型、迁移、兼容性、技术风险等研发影响评估，应在 OpenSpec proposal 或 design 中完成。
+## 文档边界
 
-创建 PRD 时，优先从根目录的 [prd-template.md](prd-template.md) 复制模板，并根据目标版本、模块、涉及端和需求复杂度补全内容。模板用于统一常见信息结构，不要求所有 PRD 机械保留每个小节；简单模块、低风险需求或不涉及某类内容时，可以酌情删减、合并或调整小节，但应保留背景、目标、范围、需求明细、验收标准、依赖风险、未决问题和 OpenSpec 衔接等关键信息。
+| 文档 | 负责内容 | 不负责内容 |
+| --- | --- | --- |
+| PRD | Server 产品目标、业务范围、用户流程、业务规则、产品验收标准和进度 | Change 名称、接口字段、技术设计和任务 |
+| `version-overview.md` | 版本目标、PRD 清单、状态、PRD 与本项目 OpenSpec Change 的映射 | 详细需求和技术设计 |
+| OpenSpec | 本项目单次研发变更的行为增量、详细场景、设计、任务和完成状态 | 完整复制 PRD 或 ADR |
+| ADR | 领域边界、事实源、持久化、权限、审计和集成方式等长期决策 | 产品计划、详细行为和任务进度 |
+
+PRD 不包含“关联 OpenSpec Change”字段，也不设置“OpenSpec 衔接”章节。PRD 与 OpenSpec Change 的关系只在同版本的 `version-overview.md` 中维护。
+
+## 创建与修改授权
+
+- 创建 PRD 必须由用户主动完成，或由用户明确要求 Agent 创建。
+- Agent 可以建议进行产品规划，但不得直接把建议写成 PRD。
+- 改变 PRD 的目标、范围、优先级、业务规则或验收标准，必须由用户明确确认。
+- 用户授权实现已纳入版本规划的 PRD 时，可以机械同步 PRD 状态和版本总览映射。
+- 没有 PRD 且需求仍模糊时先在对话中澄清；清楚后可以直接创建 OpenSpec Change。
 
 ## 目录结构
-
-新需求按迭代版本归档。版本目录优先，版本内再按涉及端存放 PRD；版本总览使用“模块”做索引。
 
 ```text
 docs/requirements/
@@ -20,125 +33,39 @@ docs/requirements/
 
   v0.0.1/
     version-overview.md
-    admin/
-      prd-admin-xxx.md
-    user/
-      prd-user-xxx.md
-    agent/
-      prd-agent-xxx.md
     shared/
       prd-shared-xxx.md
 ```
 
-说明：
+一个 PRD 只属于一个主版本。后续版本扩展历史需求时创建增量 PRD，不直接重写已经完成版本的范围。
 
-- `prd-template.md` 是所有 PRD 的统一模板，保留在根目录。
-- `version-overview-template.md` 是版本总览的统一模板，保留在根目录。
-- `vX.Y.Z/` 表示一个迭代版本，推荐使用三段语义版本号，例如 `v0.0.1`、`v0.1.0`、`v1.0.0`。
-- `admin/` 放管理端 PRD。
-- `user/` 放用户端 PRD。
-- `agent/` 放 AI 分析、自动化处理或智能助理相关 PRD。
-- `shared/` 只放确实跨多个端、且不适合归入单一入口的 PRD。
-- 根目录只保留总览文档、模板和版本目录；PRD 文件应放入对应版本目录下。
+## 版本总览与 Change 映射
 
-## 版本号规则
+`version-overview.md` 是本项目 PRD 与本项目 OpenSpec Change 映射的唯一事实源：
 
-版本目录使用三段语义版本号：
+- PRD 和 OpenSpec 文档不重复维护对方名称或路径。
+- 一个 PRD 可以对应多个本地 Change，一个本地 Change 也可以覆盖多个 PRD。
+- 没有 PRD 的技术性 Change 可以独立存在，不写入版本总览。
+- Change 尚未创建时填写 `-`。
+- Change 使用本项目名称，并优先链接到 `openspec/changes/<change-name>/proposal.md`。
 
-```text
-v主版本.次版本.修订版本
-```
-
-建议含义：
-
-- `v0.0.1`：第一个需求迭代包。
-- `v0.0.2`：第二个小迭代。
-- `v0.1.0`：一组较完整的业务能力成型。
-- `v1.0.0`：第一个稳定业务版本。
-
-版本目录名只放版本号，不带主题。版本目标、范围和主题说明写在对应版本目录的 `version-overview.md` 中。
-
-## 版本总览
-
-每个版本目录必须包含 `version-overview.md`，用于说明该版本的目标、范围、PRD 清单和 OpenSpec 关联。
-
-创建版本总览时，优先从根目录的 [version-overview-template.md](version-overview-template.md) 复制模板，并根据版本复杂度补全内容。模板用于统一常见信息结构，不要求所有版本机械保留每个小节；简单版本、低风险迭代或不涉及某类内容时，可以酌情删减、合并或调整小节，但应保留迭代目标、范围内 PRD、OpenSpec 关联等关键信息。
-
-版本总览的“依赖与风险”只记录产品或业务层面的依赖与风险，例如运营规则、外部流程、业务前置条件、评审未决项。技术影响面不在版本总览中展开，由对应 OpenSpec change 承接。
-
-`关联 OpenSpec Change` 表示 PRD 与 OpenSpec change 的追踪关系，不要求一对一。一个 PRD 可以因实现拆分关联多个 OpenSpec change；一个 OpenSpec change 也可以同时覆盖多个 PRD。多个 change 名称可用逗号分隔，尚未创建时填写 `-`。
-
-## 文件命名
-
-PRD 文件名使用小写英文、数字和连字符。
-
-```text
-prd-<涉及端>-<需求主题>.md
-```
-
-示例：
-
-- `prd-user-import-broker-statement.md`
-- `prd-user-portfolio-overview.md`
-- `prd-agent-risk-summary.md`
-- `prd-admin-data-source-management.md`
-- `prd-shared-asset-class-taxonomy.md`
-
-如果后续版本扩展历史需求，不直接重写旧 PRD，创建新的增量 PRD：
-
-```text
-v0.0.2/user/prd-user-portfolio-risk-alert.md
-```
-
-## 模块口径
-
-版本总览中的“模块”用于从业务能力视角索引需求，建议使用稳定的业务模块名称。
-
-常用模块：
-
-- 账号与权限
-- 数据导入
-- 资产账户
-- 持仓汇总
-- 估值与收益
-- 风险分析
-- AI 分析
-- 报告导出
-- 基础配置
-
-模块不是目录强制约束。PRD 的物理路径按涉及端存放，版本总览按模块索引。
-
-## 状态枚举
-
-PRD 状态建议使用以下值：
+## PRD 状态
 
 | 状态 | 含义 |
 | --- | --- |
-| 待确认 | 需求仍在整理或评审中，范围和验收标准尚未最终确认 |
-| 待实现 | 尚未开始实现，或尚未核对到可确认的实现内容 |
-| 实现中 | 已经完成部分实现，但尚未覆盖 PRD 的全部范围、验收标准或必要验证；该状态也表示“部分实现” |
-| 已实现 | PRD 范围内功能已完成实现，并通过约定的测试、验收或 OpenSpec 校验；是否归档由 OpenSpec change 状态体现 |
-| 已归档 | 所属 OpenSpec change 已完成并归档 |
-| 废弃 | 需求不再继续推进 |
+| 待确认 | 产品范围、业务规则或验收标准仍待用户确认 |
+| 待实现 | 产品范围已经确认，尚未开始实现 |
+| 实现中 | 已开始交付，但尚未覆盖全部范围和必要验证 |
+| 已实现 | PRD 范围已经完成，并通过约定的验证或产品验收 |
+| 废弃 | 用户决定不再推进该需求 |
 
-## 维护规则
+OpenSpec Change 是否归档由本项目 OpenSpec 流程管理，不作为 PRD 状态。
 
-1. 新 PRD 先进入目标版本目录，不直接放到根目录。
-2. 一个 PRD 只属于一个主版本；后续版本扩展时创建新的增量 PRD。
-3. 已经进入 OpenSpec 的 PRD，需要在版本总览中标注对应 change 名称。
-4. 已完成版本不频繁改动原始 PRD，只允许补充决策记录、勘误和链接；新的行为变化放到新版本。
-5. `prd-template.md` 和 `version-overview-template.md` 保留在根目录，所有版本共用。
-6. 根 `README.md` 维护目录规则、命名规范、状态枚举和版本索引规则。
-7. `version-overview.md` 是该版本 PRD 的入口；新增、废弃或完成 PRD 时同步更新清单。
+## 工作流
 
-## 从 PRD 到 OpenSpec
-
-建议流程：
-
-1. 在目标版本目录创建 PRD。
-2. 使用 `prd-template.md` 补全背景、目标、范围、业务规则和验收标准。
-3. 评审确认后，将 PRD 状态更新为 `待实现`。
-4. 基于 PRD 创建或更新 OpenSpec change。
-5. 在 OpenSpec proposal 或 design 中评估接口、数据模型、任务、兼容性和迁移影响。
-6. 在版本总览中填写 `关联 OpenSpec Change`。
-7. OpenSpec 实现、验证、归档完成后，同步更新 PRD 状态。
+1. 用户自行创建 PRD，或明确要求 Agent 创建。
+2. 用户确认产品范围后，将 PRD 状态更新为 `待实现`。
+3. 非琐碎研发变更按本项目 `AGENTS.md` 创建或更新 OpenSpec Change。
+4. 在本版本总览中建立 PRD 与本地 Change 的映射；PRD 本身不记录 Change。
+5. 获得实现授权并开始交付后，将 PRD 和版本总览状态同步为 `实现中`。
+6. PRD 范围完成并通过验证后同步为 `已实现`；Change 按 OpenSpec 规则独立归档。

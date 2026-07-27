@@ -79,7 +79,9 @@ Preserve:
 ### OpenSpec Source of Truth
 
 - 始终使用简体中文回复；OpenSpec 产物、实现计划、验证摘要、评审记录和项目文档默认使用简体中文。
-- OpenSpec 是产品意图、需求、验收标准、设计决策、任务范围、变更历史和完成状态的唯一事实来源。
+- OpenSpec 是本项目单次研发变更的行为增量、详细验收场景、研发设计、任务范围、变更历史和完成状态的事实源。
+- 本项目 `docs/requirements/` 记录用户主动创建的 PRD 和版本规划，本项目 ADR 记录长期架构决策，已确认的外部契约作为集成输入；OpenSpec 只记录本项目单次变更的增量，不复制维护这些资料的完整内容。
+- PRD 不是 OpenSpec 的必备前置。未经用户明确要求，不得创建或修改 PRD 的产品内容；没有 PRD 时，范围和成功标准已经清楚的需求仍可直接进入 OpenSpec。
 - 除非用户明确要求，不要生成额外任务、实现计划、评审记录、验证报告或类似 Markdown 文档，避免形成双重事实来源。
 
 ### Superpowers
@@ -97,8 +99,8 @@ Superpowers 相关技能默认不自动加载，也不替代本文件中的 Open
 
 项目级约束优先：
 - brainstorming 适用于需求澄清、方案探索和范围收敛场景。
-- 非琐碎结论必须收敛进 OpenSpec proposal、design、spec 和 tasks。
-- OpenSpec 仍是需求、设计、验收标准和任务状态的唯一事实来源。
+- 用户授权创建或更新 OpenSpec 时，非琐碎的研发结论应收敛进 proposal、design、spec 和 tasks。
+- OpenSpec 负责单次研发变更，不替代本项目 PRD、已确认契约或 ADR。
 - 不默认写入 `docs/superpowers/specs/**`，除非用户明确要求。
 - 不默认 commit，仍遵循本文件的 Git Standard。
 - 不自动进入实现；生产代码、测试、迁移、脚手架等实现动作必须等待用户明确授权。
@@ -148,14 +150,26 @@ Superpowers 相关技能默认不自动加载，也不替代本文件中的 Open
 
 - 如需求仍模糊、存在多个可行方向，或用户明确要求发散思考，先按 `Superpowers` 中的 `Brainstorming` 规则澄清并收敛范围。
 - 代码实现默认应从 OpenSpec 派生，优先使用 `openspec-apply-change`。
-- 将 PRD/需求文档视为 `openspec propose` 的输入材料，而不是 OpenSpec proposal、design、spec 或 tasks 产物的替代品。
-- 如果没有 PRD 且想法仍模糊，先探索和澄清；如果范围和成功标准已清楚，询问是否可以基于当前上下文创建 OpenSpec change。
+- 用户已经创建 PRD 时，将其视为 `openspec propose` 的产品输入材料；PRD 不替代 proposal、design、spec 或 tasks，OpenSpec 也不得反向复制维护完整 PRD。
+- 如果没有 PRD 且想法仍模糊，先探索和澄清；范围和成功标准清楚后，询问是否可以基于当前上下文创建 OpenSpec change，不得自动补建 PRD。
 - 创建或更新 OpenSpec 产物后，必须直接列出需要用户确认的点，包括关键假设、开放问题、范围边界和会影响实现/验收的决策；如果没有需要确认的点，也应明确说明“当前无待确认事项”，并说明是否已经可以等待实现授权。
 - 非琐碎变更编码前必须先创建或更新 OpenSpec change；实现时遵循 `openspec-apply-change`。
 
-### PRD Linkage
-- 关联 PRD 的实现开始时，将状态更新为 `实现中`；关联范围完成并通过实现、测试、评审和 OpenSpec 验证后，将状态更新为 `已实现`。
-- 直接关联 PRD 的变更，必须确认对应版本 `version-overview.md` 中的 PRD 状态和 OpenSpec change 关联准确。
+### PRD 与版本总览
+
+- 本项目 PRD、模板和版本总览统一维护在本项目 `docs/requirements/`；这些文档必须在独立检出本项目时仍然可用，不依赖上级仓库的需求文档。
+- PRD 不记录 OpenSpec Change 名称，也不包含“OpenSpec 衔接”章节；PRD 与 Change 的映射只在对应版本的 `version-overview.md` 中维护。
+- OpenSpec Change 明确承担某个 PRD 的交付时，在本项目版本总览中关联本地 `<change-name>`；没有 PRD 的技术性 Change 无需建立产品映射。
+- 用户授权实现已经纳入版本规划的 PRD 时，开始实现后将 PRD 和版本总览状态同步为 `实现中`；关联范围全部完成并通过必要验证后同步为 `已实现`。
+- 状态和映射可以随交付机械同步，但改变 PRD 的产品目标、范围、优先级、业务规则或验收标准仍需用户明确确认。
+
+### 项目边界与安全
+
+- `holdlens-server` 是账户、资产、持仓、基金清单、任务状态、权限和审计等长期业务事实源，负责持久化、写入决策、API 和任务编排。
+- 外部数据处理服务只提供结构化处理结果；结果是否保存、覆盖、展示、归档或丢弃，由本项目决定。
+- 默认不得读取、打印、上传或提交真实个人资产明细、账户标识、导出原始文件、API key、token、cookie、`.env`、`credentials*`、`secrets*` 或其他敏感信息。
+- 涉及账户、资产、持仓、权限、审计或外部输入的变更，完成前必须检查用户隔离、数据暴露、幂等、事务和审计影响。
+- 外部契约在当前会话不可用时，不得猜测跨系统字段或错误语义；先基于本项目已有代码、测试和 OpenSpec 判断，仍无法确认时向用户说明缺失输入。
 
 ### Command and Runbook Rules
 

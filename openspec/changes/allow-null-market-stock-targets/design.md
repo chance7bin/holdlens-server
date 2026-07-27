@@ -4,7 +4,7 @@
 
 这导致 agent 能识别股票代码但暂时无法识别市场时，基金重仓可以保存，股票库却不会留下待补全记录。后续排查时只能从基金重仓表反推，股票刷新 universe 也无法表达“存在股票，但 market 待补全”这一状态。
 
-关联 PRD `docs/requirements/v0.0.1/shared/prd-shared-fund-detail-refresh-task.md` 仍保持已实现状态；本变更是已有基金详情刷新链路的持久化规则修正，不新增独立 PRD。
+本变更只修正已有基金详情刷新链路的持久化规则，不改变产品目标或范围，因此不新增 PRD，也不建立产品交付映射。
 
 ## Goals / Non-Goals
 
