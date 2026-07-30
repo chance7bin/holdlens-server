@@ -2,10 +2,14 @@ package com.echoamoy.holdlens.server.infrastructure.adapter.repository;
 
 import com.echoamoy.holdlens.server.domain.marketdetail.adapter.repository.IMarketDetailRepository;
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.FundNavHistoryEntity;
+import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.FundPeriodPerformanceEntity;
+import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.MarketDetailSliceStateEntity;
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.StockCompanyProfileEntity;
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.StockPriceBarEntity;
 import com.echoamoy.holdlens.server.infrastructure.dao.IMarketDetailDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.FundNavHistoryPO;
+import com.echoamoy.holdlens.server.infrastructure.dao.po.FundPeriodPerformancePO;
+import com.echoamoy.holdlens.server.infrastructure.dao.po.MarketDetailSliceStatePO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.StockCompanyProfilePO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.StockPriceBarPO;
 import jakarta.annotation.Resource;
@@ -30,6 +34,12 @@ public class MarketDetailRepository implements IMarketDetailRepository {
     }
 
     @Override
+    public void upsertFundPeriodPerformance(List<FundPeriodPerformanceEntity> rows) {
+        if (rows == null || rows.isEmpty()) return;
+        marketDetailDao.upsertFundPeriodPerformance(rows.stream().map(this::toPO).toList());
+    }
+
+    @Override
     public void upsertStockPriceBars(List<StockPriceBarEntity> bars) {
         if (bars == null || bars.isEmpty()) return;
         marketDetailDao.upsertStockPriceBars(bars.stream().map(this::toPO).toList());
@@ -49,6 +59,34 @@ public class MarketDetailRepository implements IMarketDetailRepository {
     public LocalDate queryLatestFundNavDate(String fundCode) {
         Date value = marketDetailDao.selectLatestFundNavDate(fundCode);
         return value == null ? null : new java.sql.Date(value.getTime()).toLocalDate();
+    }
+
+    @Override
+    public List<FundPeriodPerformanceEntity> queryFundPeriodPerformance(String fundCode) {
+        return marketDetailDao.selectFundPeriodPerformance(fundCode).stream().map(this::toEntity).toList();
+    }
+
+    @Override
+    public void ensureFundSliceStates(String fundCode, List<String> sliceTypes) {
+        if (sliceTypes != null && !sliceTypes.isEmpty()) {
+            marketDetailDao.insertFundSliceStatesIfAbsent(fundCode, sliceTypes);
+        }
+    }
+
+    @Override
+    public MarketDetailSliceStateEntity lockFundSliceState(String fundCode, String sliceType) {
+        MarketDetailSliceStatePO po = marketDetailDao.selectFundSliceStateForUpdate(fundCode, sliceType);
+        return po == null ? null : toEntity(po);
+    }
+
+    @Override
+    public void updateFundSliceState(MarketDetailSliceStateEntity state) {
+        marketDetailDao.updateFundSliceState(toPO(state));
+    }
+
+    @Override
+    public boolean updateFundSliceStateIfActiveTask(MarketDetailSliceStateEntity state) {
+        return marketDetailDao.updateFundSliceStateIfActiveTask(toPO(state)) == 1;
     }
 
     @Override
@@ -75,6 +113,19 @@ public class MarketDetailRepository implements IMarketDetailRepository {
                 .sourceAsOf(toDate(e.getSourceAsOf())).fetchedAt(toDate(e.getFetchedAt())).build();
     }
 
+    private FundPeriodPerformancePO toPO(FundPeriodPerformanceEntity e) {
+        return FundPeriodPerformancePO.builder().id(e.getId()).fundCode(e.getFundCode()).period(e.getPeriod())
+                .fundReturn(e.getFundReturn()).peerAverage(e.getPeerAverage()).peerRank(e.getPeerRank())
+                .peerTotal(e.getPeerTotal()).rankChange(e.getRankChange()).asOf(toDate(e.getAsOf()))
+                .fetchedAt(toDate(e.getFetchedAt())).build();
+    }
+
+    private MarketDetailSliceStatePO toPO(MarketDetailSliceStateEntity e) {
+        return MarketDetailSliceStatePO.builder().id(e.getId()).fundCode(e.getFundCode()).sliceType(e.getSliceType())
+                .status(e.getStatus()).activeTaskId(e.getActiveTaskId()).lastAttemptAt(toDate(e.getLastAttemptAt()))
+                .lastSuccessAt(toDate(e.getLastSuccessAt())).errorSummary(e.getErrorSummary()).build();
+    }
+
     private StockPriceBarPO toPO(StockPriceBarEntity e) {
         return StockPriceBarPO.builder().id(e.getId()).stockCode(e.getStockCode()).market(e.getMarket())
                 .granularity(e.getGranularity()).barTime(toDate(e.getBarTime())).open(e.getOpen()).high(e.getHigh())
@@ -94,6 +145,21 @@ public class MarketDetailRepository implements IMarketDetailRepository {
                 .navDate(p.getNavDate() == null ? null : new java.sql.Date(p.getNavDate().getTime()).toLocalDate())
                 .unitNav(p.getUnitNav()).accumulatedNav(p.getAccumulatedNav()).dailyGrowthRate(p.getDailyGrowthRate())
                 .sourceAsOf(toLocalDateTime(p.getSourceAsOf())).fetchedAt(toLocalDateTime(p.getFetchedAt())).build();
+    }
+
+    private FundPeriodPerformanceEntity toEntity(FundPeriodPerformancePO p) {
+        return FundPeriodPerformanceEntity.builder().id(p.getId()).fundCode(p.getFundCode()).period(p.getPeriod())
+                .fundReturn(p.getFundReturn()).peerAverage(p.getPeerAverage()).peerRank(p.getPeerRank())
+                .peerTotal(p.getPeerTotal()).rankChange(p.getRankChange())
+                .asOf(p.getAsOf() == null ? null : new java.sql.Date(p.getAsOf().getTime()).toLocalDate())
+                .fetchedAt(toLocalDateTime(p.getFetchedAt())).build();
+    }
+
+    private MarketDetailSliceStateEntity toEntity(MarketDetailSliceStatePO p) {
+        return MarketDetailSliceStateEntity.builder().id(p.getId()).fundCode(p.getFundCode()).sliceType(p.getSliceType())
+                .status(p.getStatus()).activeTaskId(p.getActiveTaskId()).lastAttemptAt(toLocalDateTime(p.getLastAttemptAt()))
+                .lastSuccessAt(toLocalDateTime(p.getLastSuccessAt())).errorSummary(p.getErrorSummary())
+                .createTime(toLocalDateTime(p.getCreateTime())).updateTime(toLocalDateTime(p.getUpdateTime())).build();
     }
 
     private StockPriceBarEntity toEntity(StockPriceBarPO p) {

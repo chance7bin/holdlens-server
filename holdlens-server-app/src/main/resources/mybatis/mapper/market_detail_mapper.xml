@@ -20,6 +20,21 @@
         <result column="fetched_at" property="fetchedAt"/><result column="create_time" property="createTime"/>
         <result column="update_time" property="updateTime"/>
     </resultMap>
+    <resultMap id="FundPeriodPerformanceMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.FundPeriodPerformancePO">
+        <id column="id" property="id"/><result column="fund_code" property="fundCode"/>
+        <result column="period" property="period"/><result column="fund_return" property="fundReturn"/>
+        <result column="peer_average" property="peerAverage"/><result column="peer_rank" property="peerRank"/>
+        <result column="peer_total" property="peerTotal"/><result column="rank_change" property="rankChange"/>
+        <result column="as_of" property="asOf"/><result column="fetched_at" property="fetchedAt"/>
+        <result column="create_time" property="createTime"/><result column="update_time" property="updateTime"/>
+    </resultMap>
+    <resultMap id="FundSliceStateMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.MarketDetailSliceStatePO">
+        <id column="id" property="id"/><result column="fund_code" property="fundCode"/>
+        <result column="slice_type" property="sliceType"/><result column="status" property="status"/>
+        <result column="active_task_id" property="activeTaskId"/><result column="last_attempt_at" property="lastAttemptAt"/>
+        <result column="last_success_at" property="lastSuccessAt"/><result column="error_summary" property="errorSummary"/>
+        <result column="create_time" property="createTime"/><result column="update_time" property="updateTime"/>
+    </resultMap>
     <resultMap id="ProfileMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.StockCompanyProfilePO">
         <id column="id" property="id"/><result column="stock_code" property="stockCode"/>
         <result column="market" property="market"/><result column="company_name" property="companyName"/>
@@ -56,6 +71,32 @@
             update_time=CURRENT_TIMESTAMP
     </insert>
 
+    <insert id="upsertFundPeriodPerformance">
+        INSERT INTO fund_period_performance
+        (fund_code, period, fund_return, peer_average, peer_rank, peer_total, rank_change, as_of, fetched_at)
+        VALUES
+        <foreach collection="rows" item="r" separator=",">
+            (#{r.fundCode}, #{r.period}, #{r.fundReturn}, #{r.peerAverage}, #{r.peerRank}, #{r.peerTotal},
+             #{r.rankChange}, #{r.asOf}, #{r.fetchedAt})
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            fund_return=IF(as_of &lt;= VALUES(as_of), VALUES(fund_return), fund_return),
+            peer_average=IF(as_of &lt;= VALUES(as_of), VALUES(peer_average), peer_average),
+            peer_rank=IF(as_of &lt;= VALUES(as_of), VALUES(peer_rank), peer_rank),
+            peer_total=IF(as_of &lt;= VALUES(as_of), VALUES(peer_total), peer_total),
+            rank_change=IF(as_of &lt;= VALUES(as_of), VALUES(rank_change), rank_change),
+            fetched_at=IF(as_of &lt;= VALUES(as_of), VALUES(fetched_at), fetched_at),
+            as_of=GREATEST(as_of, VALUES(as_of)), update_time=CURRENT_TIMESTAMP
+    </insert>
+
+    <insert id="insertFundSliceStatesIfAbsent">
+        INSERT IGNORE INTO market_detail_slice_state (fund_code, slice_type, status)
+        VALUES
+        <foreach collection="sliceTypes" item="slice" separator=",">
+            (#{fundCode}, #{slice}, 'failed')
+        </foreach>
+    </insert>
+
     <insert id="upsertStockCompanyProfile" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.StockCompanyProfilePO">
         INSERT INTO stock_company_profile
         (stock_code, market, company_name, industry, business_summary, company_profile, website, source_as_of, fetched_at)
@@ -74,6 +115,33 @@
     <select id="selectLatestFundNavDate" resultType="java.util.Date">
         SELECT MAX(nav_date) FROM fund_nav_history WHERE fund_code=#{fundCode}
     </select>
+    <select id="selectFundPeriodPerformance" resultMap="FundPeriodPerformanceMap">
+        SELECT * FROM fund_period_performance
+        WHERE fund_code=#{fundCode}
+          AND as_of = (
+              SELECT MAX(latest.as_of)
+              FROM fund_period_performance latest
+              WHERE latest.fund_code=#{fundCode}
+          )
+        ORDER BY FIELD(period, '1m', '3m', '6m', '1y', '3y')
+    </select>
+    <select id="selectFundSliceStateForUpdate" resultMap="FundSliceStateMap">
+        SELECT * FROM market_detail_slice_state
+        WHERE fund_code=#{fundCode} AND slice_type=#{sliceType}
+        FOR UPDATE
+    </select>
+    <update id="updateFundSliceState" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.MarketDetailSliceStatePO">
+        UPDATE market_detail_slice_state
+        SET status=#{status}, active_task_id=#{activeTaskId}, last_attempt_at=#{lastAttemptAt},
+            last_success_at=#{lastSuccessAt}, error_summary=#{errorSummary}, update_time=CURRENT_TIMESTAMP
+        WHERE fund_code=#{fundCode} AND slice_type=#{sliceType}
+    </update>
+    <update id="updateFundSliceStateIfActiveTask" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.MarketDetailSliceStatePO">
+        UPDATE market_detail_slice_state
+        SET status=#{status}, active_task_id=NULL, last_attempt_at=#{lastAttemptAt},
+            last_success_at=#{lastSuccessAt}, error_summary=#{errorSummary}, update_time=CURRENT_TIMESTAMP
+        WHERE fund_code=#{fundCode} AND slice_type=#{sliceType} AND active_task_id=#{activeTaskId}
+    </update>
     <select id="selectStockPriceBars" resultMap="StockBarMap">
         SELECT * FROM stock_price_bar WHERE stock_code=#{stockCode} AND market=#{market} AND granularity=#{granularity}
         <if test="startTime != null">AND bar_time &gt;= #{startTime}</if>

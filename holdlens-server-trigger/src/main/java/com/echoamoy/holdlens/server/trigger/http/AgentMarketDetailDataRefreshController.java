@@ -71,6 +71,29 @@ public class AgentMarketDetailDataRefreshController implements IMarketDetailServ
     }
 
     @Override
+    @GetMapping("/api/funds/{fundCode}/period-performance")
+    public Response<MarketDetailDTO.FundPeriodPerformance> queryFundPeriodPerformance(
+            @PathVariable("fundCode") String fundCode) {
+        MarketDetailResult.FundPeriodPerformance r = marketDetailCase.queryFundPeriodPerformance(fundCode);
+        return Response.ok(MarketDetailDTO.FundPeriodPerformance.builder().fundCode(r.getFundCode()).asOf(r.getAsOf())
+                .rows(r.getRows().stream().map(row -> MarketDetailDTO.FundPeriodPerformanceRow.builder()
+                        .period(row.getPeriod()).fundReturn(row.getFundReturn()).peerAverage(row.getPeerAverage())
+                        .peerRank(row.getPeerRank()).peerTotal(row.getPeerTotal()).rankChange(row.getRankChange()).build())
+                        .toList()).build());
+    }
+
+    @Override
+    @PostMapping("/api/funds/{fundCode}/detail-data/request-refresh")
+    public Response<MarketDetailDTO.FundDetailRefresh> requestFundDetailRefresh(
+            @PathVariable("fundCode") String fundCode) {
+        MarketDetailResult.FundDetailRefresh r = marketDetailCase.requestFundDetailRefresh(fundCode);
+        return Response.ok(MarketDetailDTO.FundDetailRefresh.builder().fundCode(r.getFundCode()).status(r.getStatus())
+                .retryAfterMs(r.getRetryAfterMs()).slices(r.getSlices().stream()
+                        .map(slice -> MarketDetailDTO.FundDetailSlice.builder().slice(slice.getSlice())
+                                .status(slice.getStatus()).build()).toList()).build());
+    }
+
+    @Override
     @GetMapping("/api/stocks/price-history")
     public Response<MarketDetailDTO.StockPriceHistory> queryStockPriceHistory(@RequestParam("assetRef") String assetRef,
                                                                               @RequestParam("period") String period) {
@@ -96,6 +119,7 @@ public class AgentMarketDetailDataRefreshController implements IMarketDetailServ
                 .idempotencyKey(r.getIdempotencyKey()).status(r.getStatus()).generatedAt(r.getGeneratedAt())
                 .assetKind(r.getAssetKind()).assetRef(r.getAssetRef())
                 .fundNavHistory(toFundNav(r.getFundNavHistory()))
+                .fundPeriodPerformance(toFundPeriodPerformance(r.getFundPeriodPerformance()))
                 .stockPriceHistories(r.getStockPriceHistories() == null ? null : r.getStockPriceHistories().stream()
                         .map(h -> MarketDetailCommand.StockPriceHistory.builder().period(h.getPeriod())
                                 .granularity(h.getGranularity()).currency(h.getCurrency())
@@ -122,6 +146,17 @@ public class AgentMarketDetailDataRefreshController implements IMarketDetailServ
         return MarketDetailCommand.StockCompanyProfile.builder().companyName(p.getCompanyName()).industry(p.getIndustry())
                 .businessSummary(p.getBusinessSummary()).companyProfile(p.getCompanyProfile()).website(p.getWebsite())
                 .sourceAsOf(p.getSourceAsOf()).build();
+    }
+
+    private MarketDetailCommand.FundPeriodPerformance toFundPeriodPerformance(
+            MarketDetailRefreshRequest.FundPeriodPerformance performance) {
+        if (performance == null) return null;
+        return MarketDetailCommand.FundPeriodPerformance.builder().fundCode(performance.getFundCode())
+                .asOf(performance.getAsOf()).rows(performance.getRows() == null ? List.of() : performance.getRows().stream()
+                        .map(row -> MarketDetailCommand.FundPeriodPerformanceRow.builder().period(row.getPeriod())
+                                .fundReturn(row.getFundReturn()).peerAverage(row.getPeerAverage())
+                                .peerRank(row.getPeerRank()).peerTotal(row.getPeerTotal())
+                                .rankChange(row.getRankChange()).build()).toList()).build();
     }
 
     private MarketDetailDTO.Task toTask(MarketDetailResult.Task r) {

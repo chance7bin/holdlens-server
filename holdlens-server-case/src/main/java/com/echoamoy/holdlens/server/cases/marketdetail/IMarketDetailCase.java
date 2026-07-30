@@ -7,6 +7,8 @@ public interface IMarketDetailCase {
     MarketDetailResult.Task createAndDispatch(MarketDetailCommand.CreateTask command);
     MarketDetailResult.Task handleCallback(MarketDetailCommand.Callback command);
     MarketDetailResult.FundNavHistory queryFundNavHistory(String fundCode, String period);
+    MarketDetailResult.FundPeriodPerformance queryFundPeriodPerformance(String fundCode);
+    MarketDetailResult.FundDetailRefresh requestFundDetailRefresh(String fundCode);
     MarketDetailResult.StockPriceHistory queryStockPriceHistory(String assetRef, String period);
     MarketDetailResult.StockCompanyProfile queryStockCompanyProfile(String assetRef);
 }

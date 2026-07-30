@@ -54,6 +54,17 @@ public class MarketApiContractMappingTest {
         assertPathVariable(fundHistory, 0, "fundCode");
         assertRequestParam(fundHistory, 1, "period");
 
+        Method performance = AgentMarketDetailDataRefreshController.class.getMethod(
+                "queryFundPeriodPerformance", String.class);
+        assertGet(performance, "/api/funds/{fundCode}/period-performance");
+        assertPathVariable(performance, 0, "fundCode");
+
+        Method requestRefresh = AgentMarketDetailDataRefreshController.class.getMethod(
+                "requestFundDetailRefresh", String.class);
+        Assert.assertArrayEquals(new String[]{"/api/funds/{fundCode}/detail-data/request-refresh"},
+                requestRefresh.getAnnotation(PostMapping.class).value());
+        assertPathVariable(requestRefresh, 0, "fundCode");
+
         Method stockHistory = AgentMarketDetailDataRefreshController.class.getMethod(
                 "queryStockPriceHistory", String.class, String.class);
         assertGet(stockHistory, "/api/stocks/price-history");
@@ -66,6 +77,8 @@ public class MarketApiContractMappingTest {
         assertRequestParam(profile, 0, "assetRef");
         Field volume = MarketDetailRefreshRequest.StockBar.class.getDeclaredField("volume");
         Assert.assertEquals(String.class, volume.getType());
+        Assert.assertNotNull(MarketDetailRefreshRequest.Callback.class
+                .getDeclaredField("fundPeriodPerformance").getAnnotation(com.fasterxml.jackson.annotation.JsonProperty.class));
     }
 
     @Test

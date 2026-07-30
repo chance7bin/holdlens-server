@@ -28,6 +28,7 @@ public final class MarketDetailCommand {
         private String assetKind;
         private String assetRef;
         private FundNavHistory fundNavHistory;
+        private FundPeriodPerformance fundPeriodPerformance;
         private List<StockPriceHistory> stockPriceHistories;
         private StockCompanyProfile stockCompanyProfile;
         private List<RefreshWarning> refreshWarnings;
@@ -39,6 +40,15 @@ public final class MarketDetailCommand {
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class FundNavPoint {
         private String navDate; private String unitNav; private String accumulatedNav; private String dailyGrowthRate;
+    }
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class FundPeriodPerformance {
+        private String fundCode; private String asOf; private List<FundPeriodPerformanceRow> rows;
+    }
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class FundPeriodPerformanceRow {
+        private String period; private String fundReturn; private String peerAverage;
+        private Integer peerRank; private Integer peerTotal; private Integer rankChange;
     }
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class StockPriceHistory {

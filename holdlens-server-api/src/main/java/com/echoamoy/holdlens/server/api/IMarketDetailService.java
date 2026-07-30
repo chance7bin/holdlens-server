@@ -9,6 +9,8 @@ public interface IMarketDetailService {
     Response<MarketDetailDTO.Task> callback(String callbackHeader, String idempotencyHeader,
                                              MarketDetailRefreshRequest.Callback request);
     Response<MarketDetailDTO.FundNavHistory> queryFundNavHistory(String fundCode, String period);
+    Response<MarketDetailDTO.FundPeriodPerformance> queryFundPeriodPerformance(String fundCode);
+    Response<MarketDetailDTO.FundDetailRefresh> requestFundDetailRefresh(String fundCode);
     Response<MarketDetailDTO.StockPriceHistory> queryStockPriceHistory(String assetRef, String period);
     Response<MarketDetailDTO.StockCompanyProfile> queryStockCompanyProfile(String assetRef);
 }

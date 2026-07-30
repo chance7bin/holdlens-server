@@ -25,6 +25,7 @@ public final class MarketDetailRefreshRequest {
         @JsonProperty("asset_kind") private String assetKind;
         @JsonProperty("asset_ref") private String assetRef;
         @JsonProperty("fund_nav_history") private FundNavHistory fundNavHistory;
+        @JsonProperty("fund_period_performance") private FundPeriodPerformance fundPeriodPerformance;
         @JsonProperty("stock_price_histories") private List<StockPriceHistory> stockPriceHistories;
         @JsonProperty("stock_company_profile") private StockCompanyProfile stockCompanyProfile;
         @JsonProperty("refresh_warnings") private List<RefreshWarning> refreshWarnings;
@@ -38,6 +39,21 @@ public final class MarketDetailRefreshRequest {
         @JsonProperty("unit_nav") private String unitNav;
         @JsonProperty("accumulated_nav") private String accumulatedNav;
         @JsonProperty("daily_growth_rate") private String dailyGrowthRate;
+    }
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class FundPeriodPerformance {
+        @JsonProperty("fund_code") private String fundCode;
+        @JsonProperty("as_of") private String asOf;
+        private List<FundPeriodPerformanceRow> rows;
+    }
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class FundPeriodPerformanceRow {
+        private String period;
+        @JsonProperty("fund_return") private String fundReturn;
+        @JsonProperty("peer_average") private String peerAverage;
+        @JsonProperty("peer_rank") private Integer peerRank;
+        @JsonProperty("peer_total") private Integer peerTotal;
+        @JsonProperty("rank_change") private Integer rankChange;
     }
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class StockPriceHistory {

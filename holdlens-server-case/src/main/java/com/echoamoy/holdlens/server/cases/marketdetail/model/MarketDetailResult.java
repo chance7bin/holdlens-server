@@ -22,6 +22,21 @@ public final class MarketDetailResult {
         private String navDate; private BigDecimal unitNav; private BigDecimal accumulatedNav; private BigDecimal dailyGrowthRate;
     }
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class FundPeriodPerformance {
+        private String fundCode; private String asOf; private List<FundPeriodPerformanceRow> rows;
+    }
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class FundPeriodPerformanceRow {
+        private String period; private BigDecimal fundReturn; private BigDecimal peerAverage;
+        private Integer peerRank; private Integer peerTotal; private Integer rankChange;
+    }
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class FundDetailRefresh {
+        private String fundCode; private String status; private Long retryAfterMs; private List<FundDetailSlice> slices;
+    }
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class FundDetailSlice { private String slice; private String status; }
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class StockPriceHistory {
         private String assetRef; private String period; private String granularity; private String currency;
         private String asOf; private List<StockBar> points;
