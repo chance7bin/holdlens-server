@@ -21,7 +21,8 @@ public class AgentMarketDetailRefreshPort implements IAgentMarketDetailRefreshPo
         ResponseEntity<Map> response = gateway.dispatch(MarketDetailDispatchRequestDTO.builder()
                 .schemaVersion(command.getSchemaVersion()).serverTaskId(command.getServerTaskId())
                 .assetKind(command.getAssetKind()).assetRef(command.getAssetRef())
-                .providerMarketCode(command.getProviderMarketCode()).slices(command.getSlices()).periods(command.getPeriods())
+                .exchangeCode(command.getExchangeCode()).providerMarketCode(command.getProviderMarketCode())
+                .slices(command.getSlices()).periods(command.getPeriods())
                 .callbackUrl(command.getCallbackUrl()).allowNetwork(command.getAllowNetwork())
                 .requestedAt(command.getRequestedAt()).build());
         Object returnedTaskId = response.getBody() == null ? null : response.getBody().get("server_task_id");

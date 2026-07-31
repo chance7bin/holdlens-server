@@ -7,6 +7,8 @@
         <result column="server_task_id" property="serverTaskId"/>
         <result column="task_type" property="taskType"/>
         <result column="task_params_json" property="taskParamsJson"/>
+        <result column="active_key" property="activeKey"/>
+        <result column="lease_until" property="leaseUntil"/>
         <result column="status" property="status"/>
         <result column="error_summary" property="errorSummary"/>
         <result column="create_time" property="createTime"/>
@@ -14,14 +16,15 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, server_task_id, task_type, task_params_json, status, error_summary, create_time, update_time
+        id, server_task_id, task_type, task_params_json, active_key, lease_until,
+        status, error_summary, create_time, update_time
     </sql>
 
     <insert id="insert" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.ProcessingTaskPO" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO processing_task (
-            server_task_id, task_type, task_params_json, status, error_summary
+            server_task_id, task_type, task_params_json, active_key, lease_until, status, error_summary
         ) VALUES (
-            #{serverTaskId}, #{taskType}, #{taskParamsJson}, #{status}, #{errorSummary}
+            #{serverTaskId}, #{taskType}, #{taskParamsJson}, #{activeKey}, #{leaseUntil}, #{status}, #{errorSummary}
         )
     </insert>
 
@@ -29,8 +32,25 @@
         UPDATE processing_task
         SET status = #{status},
             error_summary = #{errorSummary},
+            active_key = CASE WHEN #{status} IN ('succeeded','partial_failed','failed','dispatch_failed','callback_failed')
+                              THEN NULL ELSE #{activeKey} END,
+            lease_until = CASE WHEN #{status} IN ('succeeded','partial_failed','failed','dispatch_failed','callback_failed')
+                               THEN NULL ELSE #{leaseUntil} END,
             update_time = NOW()
         WHERE server_task_id = #{serverTaskId}
+    </update>
+
+    <update id="updateIfNonTerminal" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.ProcessingTaskPO">
+        UPDATE processing_task
+        SET status = #{status},
+            error_summary = #{errorSummary},
+            active_key = CASE WHEN #{status} IN ('succeeded','partial_failed','failed','dispatch_failed','callback_failed')
+                              THEN NULL ELSE #{activeKey} END,
+            lease_until = CASE WHEN #{status} IN ('succeeded','partial_failed','failed','dispatch_failed','callback_failed')
+                               THEN NULL ELSE #{leaseUntil} END,
+            update_time = NOW()
+        WHERE server_task_id = #{serverTaskId}
+          AND status IN ('created','dispatched','running')
     </update>
 
     <select id="selectByServerTaskId" resultMap="BaseResultMap">
@@ -45,6 +65,23 @@
         WHERE server_task_id = #{serverTaskId}
         FOR UPDATE
     </select>
+
+    <select id="selectByActiveKey" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM processing_task
+        WHERE active_key = #{activeKey}
+        LIMIT 1
+    </select>
+
+    <update id="markFailedIfLeaseExpired">
+        UPDATE processing_task
+        SET status = 'failed', error_summary = #{errorSummary}, active_key = NULL,
+            lease_until = NULL, update_time = NOW()
+        WHERE server_task_id = #{serverTaskId}
+          AND active_key = #{activeKey}
+          AND status IN ('created','dispatched','running')
+          AND lease_until &lt;= #{cutoff}
+    </update>
 
     <select id="countNonTerminalByTaskType" resultType="int">
         SELECT COUNT(1)

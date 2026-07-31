@@ -13,9 +13,18 @@ public interface IProcessingTaskDao {
 
     int update(ProcessingTaskPO processingTaskPO);
 
+    int updateIfNonTerminal(ProcessingTaskPO processingTaskPO);
+
     ProcessingTaskPO selectByServerTaskId(@Param("serverTaskId") String serverTaskId);
 
     ProcessingTaskPO selectByServerTaskIdForUpdate(@Param("serverTaskId") String serverTaskId);
+
+    ProcessingTaskPO selectByActiveKey(@Param("activeKey") String activeKey);
+
+    int markFailedIfLeaseExpired(@Param("serverTaskId") String serverTaskId,
+                                 @Param("activeKey") String activeKey,
+                                 @Param("cutoff") Date cutoff,
+                                 @Param("errorSummary") String errorSummary);
 
     int countNonTerminalByTaskType(@Param("taskType") String taskType);
 

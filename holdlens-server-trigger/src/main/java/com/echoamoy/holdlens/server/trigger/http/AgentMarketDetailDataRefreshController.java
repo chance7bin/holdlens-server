@@ -114,6 +114,22 @@ public class AgentMarketDetailDataRefreshController implements IMarketDetailServ
                 .companyProfile(r.getCompanyProfile()).website(r.getWebsite()).asOf(r.getAsOf()).build());
     }
 
+    @Override
+    @PostMapping("/api/stocks/detail-data/ensure")
+    public Response<MarketDetailDTO.StockDetailRefresh> ensureStockDetailData(
+            @RequestBody MarketDetailRefreshRequest.EnsureStockDetail request) {
+        MarketDetailResult.StockDetailRefresh result = marketDetailCase.ensureStockDetailData(
+                request == null ? null : request.getAssetRef());
+        return Response.ok(toStockDetailRefresh(result));
+    }
+
+    @Override
+    @GetMapping("/api/stocks/detail-data/tasks/{serverTaskId}")
+    public Response<MarketDetailDTO.StockDetailRefresh> queryStockDetailDataTask(
+            @PathVariable("serverTaskId") String serverTaskId) {
+        return Response.ok(toStockDetailRefresh(marketDetailCase.queryStockDetailDataTask(serverTaskId)));
+    }
+
     private MarketDetailCommand.Callback toCommand(MarketDetailRefreshRequest.Callback r) {
         return MarketDetailCommand.Callback.builder().schemaVersion(r.getSchemaVersion()).serverTaskId(r.getServerTaskId())
                 .idempotencyKey(r.getIdempotencyKey()).status(r.getStatus()).generatedAt(r.getGeneratedAt())
@@ -161,5 +177,13 @@ public class AgentMarketDetailDataRefreshController implements IMarketDetailServ
 
     private MarketDetailDTO.Task toTask(MarketDetailResult.Task r) {
         return MarketDetailDTO.Task.builder().serverTaskId(r.getServerTaskId()).taskType(r.getTaskType()).status(r.getStatus()).build();
+    }
+
+    private MarketDetailDTO.StockDetailRefresh toStockDetailRefresh(MarketDetailResult.StockDetailRefresh result) {
+        return MarketDetailDTO.StockDetailRefresh.builder().assetRef(result.getAssetRef())
+                .serverTaskId(result.getServerTaskId()).status(result.getStatus())
+                .retryAfterMs(result.getRetryAfterMs()).slices(result.getSlices().stream()
+                        .map(slice -> MarketDetailDTO.StockDetailSlice.builder().slice(slice.getSlice())
+                                .status(slice.getStatus()).build()).toList()).build();
     }
 }

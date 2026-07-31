@@ -12,6 +12,7 @@ import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.FundPeriodP
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.MarketDetailDispatchCommandEntity;
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.MarketDetailSliceStateEntity;
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.StockCompanyProfileEntity;
+import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.StockDetailSliceStateEntity;
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.StockPriceBarEntity;
 import com.echoamoy.holdlens.server.domain.marketdetail.model.valobj.MarketDetailDispatchResultVO;
 import com.echoamoy.holdlens.server.domain.processing.adapter.repository.IProcessingTaskRepository;
@@ -29,6 +30,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -305,6 +307,123 @@ public class MarketDetailCaseImplTest {
         Assert.assertEquals(List.of("nav_history"), agent.command.getSlices());
     }
 
+    @Test
+    public void stockDetailEnsureUsesOneAShareTaskAndDailyPeriodsOnly() throws Exception {
+        FakeProcessingRepository processing = new FakeProcessingRepository();
+        FakeDetailRepository detail = new FakeDetailRepository();
+        FakeAgentPort agent = new FakeAgentPort();
+        MarketDetailCaseImpl service = newService(processing, detail, agent);
+
+        MarketDetailResult.StockDetailRefresh first = service.ensureStockDetailData("stock:A_SHARE:600519");
+        MarketDetailResult.StockDetailRefresh second = service.ensureStockDetailData("stock:A_SHARE:600519");
+        MarketDetailResult.StockDetailRefresh queried = service.queryStockDetailDataTask(first.getServerTaskId());
+
+        Assert.assertEquals("refreshing", first.getStatus());
+        Assert.assertEquals(first.getServerTaskId(), second.getServerTaskId());
+        Assert.assertEquals(first.getServerTaskId(), queried.getServerTaskId());
+        Assert.assertEquals(1, processing.saveCount);
+        Assert.assertEquals(1, agent.dispatchCount);
+        Assert.assertEquals("SH", agent.command.getExchangeCode());
+        Assert.assertEquals(List.of("5d", "1m", "1y"), agent.command.getPeriods());
+        Assert.assertFalse(agent.command.getPeriods().contains("intraday"));
+        Assert.assertEquals(Set.of("price_history", "company_profile"),
+                Set.copyOf(agent.command.getSlices()));
+    }
+
+    @Test
+    public void stockDetailFactsReturnReadyAndTrustedEmptyRespectsCooldown() throws Exception {
+        FakeProcessingRepository readyProcessing = new FakeProcessingRepository();
+        FakeDetailRepository readyDetail = new FakeDetailRepository();
+        readyDetail.latestBarTime = LocalDateTime.now();
+        readyDetail.profile = StockCompanyProfileEntity.builder().companyName("贵州茅台").build();
+        FakeAgentPort readyAgent = new FakeAgentPort();
+        MarketDetailResult.StockDetailRefresh ready = newService(readyProcessing, readyDetail, readyAgent)
+                .ensureStockDetailData("stock:A_SHARE:600519");
+
+        Assert.assertEquals("ready", ready.getStatus());
+        Assert.assertNull(ready.getServerTaskId());
+        Assert.assertEquals(0, readyAgent.dispatchCount);
+
+        FakeProcessingRepository emptyProcessing = new FakeProcessingRepository();
+        FakeDetailRepository emptyDetail = new FakeDetailRepository();
+        emptyDetail.ensureStockSliceStates("stock:A_SHARE:600519", List.of("price_history", "company_profile"));
+        for (StockDetailSliceStateEntity state : emptyDetail.stockStates.values()) {
+            state.setStatus("empty");
+            state.setLastAttemptAt(LocalDateTime.now());
+            state.setLastSuccessAt(LocalDateTime.now());
+        }
+        FakeAgentPort emptyAgent = new FakeAgentPort();
+        MarketDetailResult.StockDetailRefresh empty = newService(emptyProcessing, emptyDetail, emptyAgent)
+                .ensureStockDetailData("stock:A_SHARE:600519");
+
+        Assert.assertEquals("empty", empty.getStatus());
+        Assert.assertNull(empty.getServerTaskId());
+        Assert.assertEquals(0, emptyAgent.dispatchCount);
+    }
+
+    @Test
+    public void stockDetailCallbackConvergesSlicesAndRejectsLateFactWrites() throws Exception {
+        FakeProcessingRepository processing = new FakeProcessingRepository();
+        FakeDetailRepository detail = new FakeDetailRepository();
+        MarketDetailCaseImpl service = newService(processing, detail, new FakeAgentPort());
+        MarketDetailResult.StockDetailRefresh refresh = service.ensureStockDetailData("stock:A_SHARE:600519");
+        String taskId = refresh.getServerTaskId();
+
+        MarketDetailCommand.Callback callback = stockCallback(taskId);
+        MarketDetailResult.Task completed = service.handleCallback(callback);
+
+        Assert.assertEquals("succeeded", completed.getStatus());
+        Assert.assertEquals("available", detail.stockStates.get("price_history").getStatus());
+        Assert.assertEquals("available", detail.stockStates.get("company_profile").getStatus());
+        Assert.assertEquals(1, detail.bars.size());
+        Assert.assertEquals("贵州茅台", detail.profile.getCompanyName());
+
+        FakeProcessingRepository lateProcessing = new FakeProcessingRepository();
+        FakeDetailRepository lateDetail = new FakeDetailRepository();
+        MarketDetailCaseImpl lateService = newService(lateProcessing, lateDetail, new FakeAgentPort());
+        String lateTaskId = lateService.ensureStockDetailData("stock:A_SHARE:600519").getServerTaskId();
+        for (StockDetailSliceStateEntity state : lateDetail.stockStates.values()) {
+            state.setActiveTaskId("newer-task");
+        }
+
+        lateService.handleCallback(stockCallback(lateTaskId));
+
+        Assert.assertTrue(lateDetail.bars.isEmpty());
+        Assert.assertNull(lateDetail.profile);
+    }
+
+    @Test
+    public void expiredStockDetailLeaseIsReclaimedByANewTask() throws Exception {
+        FakeProcessingRepository processing = new FakeProcessingRepository();
+        FakeDetailRepository detail = new FakeDetailRepository();
+        FakeAgentPort agent = new FakeAgentPort();
+        MarketDetailCaseImpl service = newService(processing, detail, agent);
+        String firstTaskId = service.ensureStockDetailData("stock:A_SHARE:600519").getServerTaskId();
+        processing.tasks.get(firstTaskId).setLeaseUntil(LocalDateTime.now().minusMinutes(1));
+
+        MarketDetailResult.StockDetailRefresh reclaimed = service.ensureStockDetailData("stock:A_SHARE:600519");
+
+        Assert.assertNotEquals(firstTaskId, reclaimed.getServerTaskId());
+        Assert.assertEquals("refreshing", reclaimed.getStatus());
+        Assert.assertEquals(2, agent.dispatchCount);
+        Assert.assertEquals("failed", processing.tasks.get(firstTaskId).getStatus().getCode());
+    }
+
+    private MarketDetailCommand.Callback stockCallback(String taskId) {
+        List<MarketDetailCommand.StockPriceHistory> histories = List.of("5d", "1m", "1y").stream()
+                .map(period -> MarketDetailCommand.StockPriceHistory.builder().period(period).granularity("day")
+                        .currency("CNY").bars(List.of(MarketDetailCommand.StockBar.builder()
+                                .barTime("2026-07-30T00:00:00+08:00").open("1400").high("1450")
+                                .low("1390").close("1440").volume("100").build())).build()).toList();
+        return MarketDetailCommand.Callback.builder()
+                .schemaVersion("market-detail-data-refresh-result/v1").serverTaskId(taskId)
+                .idempotencyKey(taskId + ":result:1").status("succeeded")
+                .generatedAt("2026-07-30T12:01:00Z").assetKind("stock")
+                .assetRef("stock:A_SHARE:600519").stockPriceHistories(histories)
+                .stockCompanyProfile(MarketDetailCommand.StockCompanyProfile.builder()
+                        .companyName("贵州茅台").industry("白酒").build()).build();
+    }
+
     private MarketDetailCaseImpl newService(FakeProcessingRepository processing, FakeDetailRepository detail,
                                              FakeAgentPort agent) throws Exception {
         MarketDetailCaseImpl service = new MarketDetailCaseImpl();
@@ -341,14 +460,50 @@ public class MarketDetailCaseImplTest {
 
     private static class FakeProcessingRepository implements IProcessingTaskRepository {
         private ProcessingTaskEntity task;
+        private final Map<String, ProcessingTaskEntity> tasks = new LinkedHashMap<>();
         private String callbackKey;
         private int callbackCount;
         private ProcessingCallbackEntity savedCallback;
         private int saveCount;
         private final List<ProcessingLogEntity> logs = new ArrayList<>();
-        @Override public void saveTask(ProcessingTaskEntity taskEntity) { this.task = taskEntity; saveCount++; }
-        @Override public void updateTask(ProcessingTaskEntity taskEntity) { this.task = taskEntity; }
-        @Override public ProcessingTaskEntity queryTask(String serverTaskId) { return task; }
+        @Override public void saveTask(ProcessingTaskEntity taskEntity) {
+            this.task = taskEntity; tasks.put(taskEntity.getServerTaskId(), taskEntity); saveCount++;
+        }
+        @Override public boolean saveTaskIfActiveKeyAbsent(ProcessingTaskEntity taskEntity) {
+            if (taskEntity.getActiveKey() != null && tasks.values().stream().anyMatch(existing ->
+                    taskEntity.getActiveKey().equals(existing.getActiveKey()) && !existing.isTerminal())) return false;
+            saveTask(taskEntity); return true;
+        }
+        @Override public void updateTask(ProcessingTaskEntity taskEntity) {
+            if (taskEntity.isTerminal()) {
+                taskEntity.setActiveKey(null);
+                taskEntity.setLeaseUntil(null);
+            }
+            this.task = taskEntity; tasks.put(taskEntity.getServerTaskId(), taskEntity);
+        }
+        @Override public boolean updateTaskIfNonTerminal(ProcessingTaskEntity taskEntity) {
+            ProcessingTaskEntity current = queryTask(taskEntity.getServerTaskId());
+            if (current == null || current.isTerminal() && current != taskEntity) return false;
+            updateTask(taskEntity); return true;
+        }
+        @Override public ProcessingTaskEntity queryTask(String serverTaskId) {
+            return tasks.getOrDefault(serverTaskId,
+                    task != null && serverTaskId.equals(task.getServerTaskId()) ? task : null);
+        }
+        @Override public ProcessingTaskEntity queryTaskForUpdate(String serverTaskId) { return queryTask(serverTaskId); }
+        @Override public ProcessingTaskEntity queryTaskByActiveKey(String activeKey) {
+            return tasks.values().stream().filter(existing -> activeKey.equals(existing.getActiveKey()))
+                    .findFirst().orElse(null);
+        }
+        @Override public boolean markFailedIfLeaseExpired(String serverTaskId, String activeKey,
+                                                          LocalDateTime cutoff, String errorSummary) {
+            ProcessingTaskEntity existing = queryTask(serverTaskId);
+            if (existing == null || existing.isTerminal() || !activeKey.equals(existing.getActiveKey())
+                    || existing.getLeaseUntil() == null || existing.getLeaseUntil().isAfter(cutoff)) return false;
+            existing.transitTo(com.echoamoy.holdlens.server.domain.processing.model.valobj.ProcessingTaskStatusEnumVO.FAILED,
+                    errorSummary);
+            updateTask(existing); return true;
+        }
         @Override public boolean existsNonTerminalTask(String taskType) { return false; }
         @Override public boolean saveCallbackIfAbsent(ProcessingCallbackEntity callbackEntity) {
             if (callbackEntity.getIdempotencyKey().equals(callbackKey)) return false;
@@ -370,8 +525,10 @@ public class MarketDetailCaseImplTest {
         @Override public Map<String, StockMarketEntity> queryByStockKeys(Collection<String> stockKeys) { return Map.of(); }
         @Override public Set<String> queryExistingStockKeys(Collection<String> stockKeys) { return Set.copyOf(stockKeys); }
         @Override public StockMarketEntity queryOne(String stockCode, String market) {
-            return StockMarketEntity.builder().stockCode(stockCode).market(market).providerMarketCode("105.DEMO")
-                    .currency("USD").stockName("Demo").build();
+            boolean aShare = "A_SHARE".equals(market);
+            return StockMarketEntity.builder().stockCode(stockCode).market(market)
+                    .exchangeCode(aShare ? "SH" : null).providerMarketCode(aShare ? null : "105.DEMO")
+                    .currency(aShare ? "CNY" : "USD").stockName("Demo").build();
         }
     }
 
@@ -383,9 +540,14 @@ public class MarketDetailCaseImplTest {
         private RuntimeException profileFailure;
         private final List<FundPeriodPerformanceEntity> performanceRows = new ArrayList<>();
         private final Map<String, MarketDetailSliceStateEntity> states = new java.util.LinkedHashMap<>();
+        private final Map<String, StockDetailSliceStateEntity> stockStates = new LinkedHashMap<>();
         @Override public void upsertFundNavHistory(List<FundNavHistoryEntity> points) { navPoints.addAll(points); }
         @Override public void upsertFundPeriodPerformance(List<FundPeriodPerformanceEntity> rows) { performanceRows.addAll(rows); }
-        @Override public void upsertStockPriceBars(List<StockPriceBarEntity> values) { bars.addAll(values); }
+        @Override public void upsertStockPriceBars(List<StockPriceBarEntity> values) {
+            bars.addAll(values);
+            latestBarTime = values.stream().map(StockPriceBarEntity::getBarTime)
+                    .max(LocalDateTime::compareTo).orElse(latestBarTime);
+        }
         @Override public void upsertStockCompanyProfile(StockCompanyProfileEntity profile) {
             if (profileFailure != null) throw profileFailure;
             this.profile = profile;
@@ -414,6 +576,25 @@ public class MarketDetailCaseImplTest {
         }
         @Override public List<StockPriceBarEntity> queryStockPriceBars(String stockCode, String market, String granularity, LocalDateTime startTime) { return bars; }
         @Override public LocalDateTime queryLatestStockBarTime(String stockCode, String market, String granularity) { return latestBarTime; }
-        @Override public StockCompanyProfileEntity queryStockCompanyProfile(String stockCode, String market) { return null; }
+        @Override public StockCompanyProfileEntity queryStockCompanyProfile(String stockCode, String market) { return profile; }
+        @Override public void ensureStockSliceStates(String assetRef, List<String> sliceTypes) {
+            for (String slice : sliceTypes) stockStates.putIfAbsent(slice, StockDetailSliceStateEntity.builder()
+                    .assetRef(assetRef).sliceType(slice).status("failed").build());
+        }
+        @Override public StockDetailSliceStateEntity lockStockSliceState(String assetRef, String sliceType) {
+            return stockStates.get(sliceType);
+        }
+        @Override public List<StockDetailSliceStateEntity> queryStockSliceStates(String assetRef) {
+            return List.copyOf(stockStates.values());
+        }
+        @Override public void updateStockSliceState(StockDetailSliceStateEntity state) {
+            stockStates.put(state.getSliceType(), state);
+        }
+        @Override public boolean updateStockSliceStateIfActiveTask(StockDetailSliceStateEntity state) {
+            StockDetailSliceStateEntity current = stockStates.get(state.getSliceType());
+            if (current == null || !java.util.Objects.equals(current.getActiveTaskId(), state.getActiveTaskId())) return false;
+            state.setActiveTaskId(null);
+            stockStates.put(state.getSliceType(), state); return true;
+        }
     }
 }

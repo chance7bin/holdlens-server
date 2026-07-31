@@ -11,4 +11,6 @@ public interface IMarketDetailCase {
     MarketDetailResult.FundDetailRefresh requestFundDetailRefresh(String fundCode);
     MarketDetailResult.StockPriceHistory queryStockPriceHistory(String assetRef, String period);
     MarketDetailResult.StockCompanyProfile queryStockCompanyProfile(String assetRef);
+    MarketDetailResult.StockDetailRefresh ensureStockDetailData(String assetRef);
+    MarketDetailResult.StockDetailRefresh queryStockDetailDataTask(String serverTaskId);
 }

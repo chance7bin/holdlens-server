@@ -4,6 +4,7 @@ import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.FundNavHist
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.FundPeriodPerformanceEntity;
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.MarketDetailSliceStateEntity;
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.StockCompanyProfileEntity;
+import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.StockDetailSliceStateEntity;
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.StockPriceBarEntity;
 
 import java.time.LocalDate;
@@ -26,4 +27,9 @@ public interface IMarketDetailRepository {
                                                   LocalDateTime startTime);
     LocalDateTime queryLatestStockBarTime(String stockCode, String market, String granularity);
     StockCompanyProfileEntity queryStockCompanyProfile(String stockCode, String market);
+    void ensureStockSliceStates(String assetRef, List<String> sliceTypes);
+    StockDetailSliceStateEntity lockStockSliceState(String assetRef, String sliceType);
+    List<StockDetailSliceStateEntity> queryStockSliceStates(String assetRef);
+    void updateStockSliceState(StockDetailSliceStateEntity state);
+    boolean updateStockSliceStateIfActiveTask(StockDetailSliceStateEntity state);
 }

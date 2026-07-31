@@ -13,4 +13,6 @@ public interface IMarketDetailService {
     Response<MarketDetailDTO.FundDetailRefresh> requestFundDetailRefresh(String fundCode);
     Response<MarketDetailDTO.StockPriceHistory> queryStockPriceHistory(String assetRef, String period);
     Response<MarketDetailDTO.StockCompanyProfile> queryStockCompanyProfile(String assetRef);
+    Response<MarketDetailDTO.StockDetailRefresh> ensureStockDetailData(MarketDetailRefreshRequest.EnsureStockDetail request);
+    Response<MarketDetailDTO.StockDetailRefresh> queryStockDetailDataTask(String serverTaskId);
 }

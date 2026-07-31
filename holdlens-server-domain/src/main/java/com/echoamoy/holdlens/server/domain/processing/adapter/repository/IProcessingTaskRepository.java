@@ -11,9 +11,24 @@ public interface IProcessingTaskRepository {
 
     void saveTask(ProcessingTaskEntity taskEntity);
 
+    default boolean saveTaskIfActiveKeyAbsent(ProcessingTaskEntity taskEntity) {
+        saveTask(taskEntity);
+        return true;
+    }
+
     void updateTask(ProcessingTaskEntity taskEntity);
 
+    default boolean updateTaskIfNonTerminal(ProcessingTaskEntity taskEntity) {
+        updateTask(taskEntity);
+        return true;
+    }
+
     ProcessingTaskEntity queryTask(String serverTaskId);
+
+    default ProcessingTaskEntity queryTaskByActiveKey(String activeKey) { return null; }
+
+    default boolean markFailedIfLeaseExpired(String serverTaskId, String activeKey,
+                                             LocalDateTime cutoff, String errorSummary) { return false; }
 
     default ProcessingTaskEntity queryTaskForUpdate(String serverTaskId) { return queryTask(serverTaskId); }
 

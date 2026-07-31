@@ -15,6 +15,7 @@ import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.FundPeriodP
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.MarketDetailDispatchCommandEntity;
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.MarketDetailSliceStateEntity;
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.StockCompanyProfileEntity;
+import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.StockDetailSliceStateEntity;
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.StockPriceBarEntity;
 import com.echoamoy.holdlens.server.domain.marketdetail.model.valobj.MarketDetailDispatchResultVO;
 import com.echoamoy.holdlens.server.domain.processing.adapter.repository.IProcessingTaskRepository;
@@ -57,6 +58,10 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
     private static final String RESULT_SCHEMA = "market-detail-data-refresh-result/v1";
     private static final int MAX_FUND_NAV_POINTS = 10000;
     private static final Set<String> STOCK_PERIODS = Set.of("intraday", "5d", "1m", "1y");
+    private static final List<String> STOCK_DETAIL_PERIODS = List.of("5d", "1m", "1y");
+    private static final List<String> STOCK_DETAIL_SLICES = List.of("price_history", "company_profile");
+    private static final String STOCK_DETAIL_REQUEST_MODE = "stock_detail_ensure";
+    private static final String STOCK_DETAIL_ACTIVE_KEY_PREFIX = "stock-detail:";
     private static final Set<String> FUND_PERIODS = Set.of("1m", "3m", "1y", "all");
     private static final List<String> FUND_DETAIL_SLICES = List.of("nav_history", "period_performance");
     private static final List<String> PERFORMANCE_PERIODS = List.of("1m", "3m", "6m", "1y", "3y");
@@ -87,8 +92,8 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
                 .taskParamsJson(taskParams(plan)).status(ProcessingTaskStatusEnumVO.CREATED).build();
         processingTaskRepository.saveTask(task);
         dispatchTask(task, plan);
-        processingTaskRepository.updateTask(task);
-        return toTask(task);
+        processingTaskRepository.updateTaskIfNonTerminal(task);
+        return toTask(processingTaskRepository.queryTask(task.getServerTaskId()));
     }
 
     @Override
@@ -159,33 +164,37 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
                 }
             }
             if (plan.slices.contains("price_history")) {
-                if (command.getStockPriceHistories() == null) {
-                    if ("partial_failed".equals(command.getStatus())) failedSlices++;
-                    else successfulSlices++;
-                } else {
-                    try {
-                        List<StockPriceBarEntity> bars = toStockBars(plan, command);
-                        transactionExecutor.requiresNew(() -> { marketDetailRepository.upsertStockPriceBars(bars); return null; });
-                        successfulSlices++;
-                    } catch (RuntimeException exception) {
-                        failedSlices++;
-                        recordSlicePersistenceFailure(command.getServerTaskId(), "price_history", exception);
-                    }
+                try {
+                    List<StockPriceBarEntity> bars = command.getStockPriceHistories() == null
+                            ? List.of() : toStockBars(plan, command);
+                    Set<String> returnedPeriods = command.getStockPriceHistories() == null ? Set.of()
+                            : command.getStockPriceHistories().stream().filter(java.util.Objects::nonNull)
+                            .map(MarketDetailCommand.StockPriceHistory::getPeriod).collect(java.util.stream.Collectors.toSet());
+                    boolean complete = returnedPeriods.size() == plan.periods.size()
+                            && returnedPeriods.containsAll(plan.periods);
+                    String sliceStatus = complete ? (bars.isEmpty() ? "empty" : "available") : "failed";
+                    boolean current = persistStockPriceSlice(plan, command, bars, sliceStatus,
+                            complete ? null : command.getErrorSummary());
+                    if (complete && current) successfulSlices++; else failedSlices++;
+                } catch (RuntimeException exception) {
+                    failedSlices++;
+                    convergeStockSlice(command, plan.ref.value(), "price_history", "failed", "price history rejected");
+                    recordSlicePersistenceFailure(command.getServerTaskId(), "price_history", exception);
                 }
             }
             if (plan.slices.contains("company_profile")) {
-                if (command.getStockCompanyProfile() == null) {
-                    if ("partial_failed".equals(command.getStatus())) failedSlices++;
-                    else successfulSlices++;
-                } else {
-                    try {
-                        StockCompanyProfileEntity profile = toProfile(plan.ref, command);
-                        transactionExecutor.requiresNew(() -> { marketDetailRepository.upsertStockCompanyProfile(profile); return null; });
-                        successfulSlices++;
-                    } catch (RuntimeException exception) {
-                        failedSlices++;
-                        recordSlicePersistenceFailure(command.getServerTaskId(), "company_profile", exception);
-                    }
+                try {
+                    StockCompanyProfileEntity profile = command.getStockCompanyProfile() == null
+                            ? null : toProfile(plan.ref, command);
+                    boolean complete = command.getStockCompanyProfile() != null;
+                    String sliceStatus = !complete ? "failed" : hasProfileData(profile) ? "available" : "empty";
+                    boolean current = persistStockCompanyProfileSlice(plan, command, profile, sliceStatus,
+                            complete ? null : command.getErrorSummary());
+                    if (complete && current) successfulSlices++; else failedSlices++;
+                } catch (RuntimeException exception) {
+                    failedSlices++;
+                    convergeStockSlice(command, plan.ref.value(), "company_profile", "failed", "company profile rejected");
+                    recordSlicePersistenceFailure(command.getServerTaskId(), "company_profile", exception);
                 }
             }
         }
@@ -195,12 +204,19 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
                 failedSlices++;
             }
         }
+        if ("failed".equals(command.getStatus()) && MarketAssetRefVO.KIND_STOCK.equals(plan.ref.getAssetKind())) {
+            for (String slice : plan.slices) {
+                convergeStockSlice(command, plan.ref.value(), slice, "failed", command.getErrorSummary());
+                failedSlices++;
+            }
+        }
 
         ProcessingTaskStatusEnumVO target = callbackTarget(command.getStatus(), successfulSlices, failedSlices);
         ProcessingTaskEntity latest = processingTaskRepository.queryTask(command.getServerTaskId());
         if (!latest.isTerminal()) {
             latest.transitTo(target, safe(command.getErrorSummary(), 500));
-            processingTaskRepository.updateTask(latest);
+            processingTaskRepository.updateTaskIfNonTerminal(latest);
+            latest = processingTaskRepository.queryTask(command.getServerTaskId());
         }
         saveWarnings(command);
         processingTaskRepository.markCallbackProcessed(command.getServerTaskId(), command.getIdempotencyKey(),
@@ -306,6 +322,48 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
                 .website(p == null ? null : p.getWebsite()).asOf(p == null ? null : format(p.getSourceAsOf())).build();
     }
 
+    @Override
+    public MarketDetailResult.StockDetailRefresh ensureStockDetailData(String assetRef) {
+        MarketAssetRefVO ref = parseStockRef(assetRef);
+        StockMarketEntity stock = requireStock(ref);
+        StockRefreshClaim claim = transactionExecutor.required(() -> claimStockDetailRefresh(ref, stock));
+        if (claim.taskToDispatch != null) {
+            dispatchTask(claim.taskToDispatch, claim.plan);
+            ProcessingTaskStatusEnumVO dispatchStatus = claim.taskToDispatch.getStatus();
+            String dispatchError = claim.taskToDispatch.getErrorSummary();
+            claim.taskToDispatch.setStatus(dispatchStatus);
+            claim.taskToDispatch.setErrorSummary(dispatchError);
+            processingTaskRepository.updateTaskIfNonTerminal(claim.taskToDispatch);
+            ProcessingTaskEntity persisted = processingTaskRepository.queryTask(claim.taskToDispatch.getServerTaskId());
+            if (persisted != null && persisted.getStatus() == ProcessingTaskStatusEnumVO.DISPATCH_FAILED) {
+                transactionExecutor.required(() -> {
+                    for (String slice : claim.plan.slices) {
+                        marketDetailRepository.updateStockSliceStateIfActiveTask(StockDetailSliceStateEntity.builder()
+                                .assetRef(ref.value()).sliceType(slice).status("failed")
+                                .activeTaskId(claim.taskToDispatch.getServerTaskId()).lastAttemptAt(DateTimeUtils.now())
+                                .errorSummary("agent dispatch failed").build());
+                    }
+                    return null;
+                });
+            }
+        }
+        return toStockDetailRefresh(ref.value(), claim.serverTaskId);
+    }
+
+    @Override
+    public MarketDetailResult.StockDetailRefresh queryStockDetailDataTask(String serverTaskId) {
+        if (serverTaskId == null || serverTaskId.isBlank()) throw illegal("任务标识不能为空");
+        ProcessingTaskEntity task = processingTaskRepository.queryTask(serverTaskId.trim());
+        if (task == null || !ProcessingTaskEntity.MARKET_DETAIL_DATA_REFRESH.equals(task.getTaskType())
+                || !isStockDetailEnsureTask(task)) {
+            throw illegal("未知股票详情任务");
+        }
+        JSONObject params = JSON.parseObject(task.getTaskParamsJson());
+        MarketAssetRefVO ref = parseStockRef(params.getString("assetRef"));
+        requireStock(ref);
+        return toStockDetailRefresh(ref.value(), task.getServerTaskId());
+    }
+
     private TaskPlan validateCreate(MarketDetailCommand.CreateTask command) {
         if (command == null) throw illegal("任务请求不能为空");
         MarketAssetRefVO ref;
@@ -315,6 +373,7 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
         List<String> periods = dedup(command.getPeriods());
         if (slices.isEmpty()) throw illegal("slices 不能为空");
         String providerCode = null;
+        String exchangeCode = null;
         if (MarketAssetRefVO.KIND_FUND.equals(ref.getAssetKind())) {
             if (slices.stream().anyMatch(slice -> !FUND_DETAIL_SLICES.contains(slice)) || !periods.isEmpty()) {
                 throw illegal("基金 slices 不支持或 periods 必须为空");
@@ -333,8 +392,11 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
                 providerCode = stock.getProviderMarketCode();
                 if (providerCode == null || providerCode.isBlank()) throw illegal("美股缺少 provider_market_code");
             }
+            if (MarketAssetRefVO.MARKET_A_SHARE.equals(ref.getMarket()) && slices.contains("price_history")) {
+                exchangeCode = requireAShareExchangeCode(stock, ref.getAssetCode());
+            }
         }
-        return new TaskPlan(ref, slices, periods, providerCode);
+        return new TaskPlan(ref, slices, periods, providerCode, exchangeCode);
     }
 
     private CallbackPlan validateCallback(MarketDetailCommand.Callback c) {
@@ -416,7 +478,7 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
         }
         if (claimable.isEmpty()) return new FundRefreshClaim(null, null, statuses);
         MarketAssetRefVO ref = MarketAssetRefVO.parse(MarketAssetRefVO.KIND_FUND, "fund:" + fundCode);
-        TaskPlan plan = new TaskPlan(ref, List.copyOf(claimable), List.of(), null);
+        TaskPlan plan = new TaskPlan(ref, List.copyOf(claimable), List.of(), null, null);
         ProcessingTaskEntity task = ProcessingTaskEntity.builder()
                 .serverTaskId("market_detail_data_refresh_" + UUID.randomUUID().toString().replace("-", ""))
                 .taskType(ProcessingTaskEntity.MARKET_DETAIL_DATA_REFRESH).taskParamsJson(taskParams(plan))
@@ -434,6 +496,164 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
         return new FundRefreshClaim(task, plan, statuses);
     }
 
+    private StockRefreshClaim claimStockDetailRefresh(MarketAssetRefVO ref, StockMarketEntity stock) {
+        String assetRef = ref.value();
+        String activeKey = STOCK_DETAIL_ACTIVE_KEY_PREFIX + assetRef;
+        LocalDateTime now = DateTimeUtils.now();
+        marketDetailRepository.ensureStockSliceStates(assetRef, STOCK_DETAIL_SLICES);
+
+        Map<String, StockDetailSliceStateEntity> states = new LinkedHashMap<>();
+        for (String slice : STOCK_DETAIL_SLICES) {
+            states.put(slice, marketDetailRepository.lockStockSliceState(assetRef, slice));
+        }
+
+        boolean hasPriceHistory = marketDetailRepository.queryLatestStockBarTime(
+                ref.getAssetCode(), ref.getMarket(), "day") != null;
+        StockCompanyProfileEntity profile = marketDetailRepository.queryStockCompanyProfile(
+                ref.getAssetCode(), ref.getMarket());
+        boolean hasCompanyProfile = hasProfileData(profile);
+        String activeTaskId = null;
+        List<String> claimable = new ArrayList<>();
+
+        for (String slice : STOCK_DETAIL_SLICES) {
+            StockDetailSliceStateEntity state = states.get(slice);
+            boolean factExists = "price_history".equals(slice) ? hasPriceHistory : hasCompanyProfile;
+            if (factExists) {
+                state.setStatus("available");
+                state.setActiveTaskId(null);
+                state.setLastSuccessAt(now);
+                state.setErrorSummary(null);
+                marketDetailRepository.updateStockSliceState(state);
+                continue;
+            }
+
+            boolean expiredActiveTask = false;
+            if ("refreshing".equals(state.getStatus()) && state.getActiveTaskId() != null) {
+                ProcessingTaskEntity active = processingTaskRepository.queryTaskForUpdate(state.getActiveTaskId());
+                boolean leaseValid = active != null && !active.isTerminal()
+                        && activeKey.equals(active.getActiveKey())
+                        && active.getLeaseUntil() != null && active.getLeaseUntil().isAfter(now);
+                if (leaseValid) {
+                    activeTaskId = active.getServerTaskId();
+                    continue;
+                }
+                expireStockDetailTask(active, activeKey, now);
+                state.setStatus("failed");
+                state.setActiveTaskId(null);
+                state.setLastAttemptAt(now);
+                state.setErrorSummary("market detail refresh timed out");
+                marketDetailRepository.updateStockSliceState(state);
+                expiredActiveTask = true;
+            }
+
+            if (expiredActiveTask) {
+                claimable.add(slice);
+                continue;
+            }
+            boolean cooling = state.getLastAttemptAt() != null
+                    && state.getLastAttemptAt().isAfter(now.minusMinutes(refreshCooldownMinutes))
+                    && Set.of("empty", "failed").contains(state.getStatus());
+            if (!cooling) claimable.add(slice);
+        }
+
+        if (activeTaskId != null) return new StockRefreshClaim(null, null, activeTaskId);
+        if (claimable.isEmpty()) return new StockRefreshClaim(null, null, null);
+
+        List<String> periods = claimable.contains("price_history") ? STOCK_DETAIL_PERIODS : List.of();
+        String providerCode = null;
+        String exchangeCode = null;
+        if (claimable.contains("price_history")) {
+            if (MarketAssetRefVO.MARKET_US_STOCK.equals(ref.getMarket())) {
+                providerCode = stock.getProviderMarketCode();
+                if (providerCode == null || providerCode.isBlank()) throw illegal("美股缺少 provider_market_code");
+            } else if (MarketAssetRefVO.MARKET_A_SHARE.equals(ref.getMarket())) {
+                exchangeCode = requireAShareExchangeCode(stock, ref.getAssetCode());
+            }
+        }
+        TaskPlan plan = new TaskPlan(ref, List.copyOf(claimable), periods, providerCode, exchangeCode);
+        ProcessingTaskEntity task = ProcessingTaskEntity.builder()
+                .serverTaskId("market_detail_data_refresh_" + UUID.randomUUID().toString().replace("-", ""))
+                .taskType(ProcessingTaskEntity.MARKET_DETAIL_DATA_REFRESH)
+                .taskParamsJson(taskParams(plan, STOCK_DETAIL_REQUEST_MODE))
+                .activeKey(activeKey).leaseUntil(now.plusMinutes(refreshTimeoutMinutes))
+                .status(ProcessingTaskStatusEnumVO.CREATED).build();
+        if (!processingTaskRepository.saveTaskIfActiveKeyAbsent(task)) {
+            ProcessingTaskEntity existing = processingTaskRepository.queryTaskByActiveKey(activeKey);
+            if (existing == null || existing.isTerminal()) throw illegal("股票详情刷新任务竞争失败，请稍后重试");
+            markStockSlicesRefreshing(states, stockSlicesFromTask(existing), existing.getServerTaskId(), now);
+            return new StockRefreshClaim(null, null, existing.getServerTaskId());
+        }
+
+        markStockSlicesRefreshing(states, claimable, task.getServerTaskId(), now);
+        return new StockRefreshClaim(task, plan, task.getServerTaskId());
+    }
+
+    private void expireStockDetailTask(ProcessingTaskEntity task, String activeKey, LocalDateTime now) {
+        if (task == null || task.isTerminal()) return;
+        if (task.getLeaseUntil() != null) {
+            processingTaskRepository.markFailedIfLeaseExpired(task.getServerTaskId(), activeKey, now,
+                    "market detail refresh timed out");
+            return;
+        }
+        task.transitTo(ProcessingTaskStatusEnumVO.FAILED, "market detail refresh timed out");
+        processingTaskRepository.updateTaskIfNonTerminal(task);
+    }
+
+    private void markStockSlicesRefreshing(Map<String, StockDetailSliceStateEntity> states, List<String> slices,
+                                           String serverTaskId, LocalDateTime now) {
+        for (String slice : slices) {
+            StockDetailSliceStateEntity state = states.get(slice);
+            if (state == null) continue;
+            state.setStatus("refreshing");
+            state.setActiveTaskId(serverTaskId);
+            state.setLastAttemptAt(now);
+            state.setErrorSummary(null);
+            marketDetailRepository.updateStockSliceState(state);
+        }
+    }
+
+    private List<String> stockSlicesFromTask(ProcessingTaskEntity task) {
+        if (task == null || task.getTaskParamsJson() == null) return List.of();
+        JSONObject params = JSON.parseObject(task.getTaskParamsJson());
+        if (!STOCK_DETAIL_REQUEST_MODE.equals(params.getString("requestMode"))
+                || params.getJSONArray("slices") == null) return List.of();
+        return params.getJSONArray("slices").toJavaList(String.class).stream()
+                .filter(STOCK_DETAIL_SLICES::contains).toList();
+    }
+
+    private MarketDetailResult.StockDetailRefresh toStockDetailRefresh(String assetRef, String serverTaskId) {
+        Map<String, StockDetailSliceStateEntity> states = marketDetailRepository.queryStockSliceStates(assetRef).stream()
+                .collect(java.util.stream.Collectors.toMap(StockDetailSliceStateEntity::getSliceType,
+                        state -> state, (left, right) -> left, LinkedHashMap::new));
+        ProcessingTaskEntity task = serverTaskId == null ? null : processingTaskRepository.queryTask(serverTaskId);
+        LocalDateTime now = DateTimeUtils.now();
+        List<MarketDetailResult.StockDetailSlice> slices = new ArrayList<>();
+        List<String> statuses = new ArrayList<>();
+        for (String slice : STOCK_DETAIL_SLICES) {
+            StockDetailSliceStateEntity state = states.get(slice);
+            String status = state == null || state.getStatus() == null ? "failed" : state.getStatus();
+            if ("refreshing".equals(status) && task != null
+                    && task.getServerTaskId().equals(state.getActiveTaskId())
+                    && (task.isTerminal() || task.getLeaseUntil() == null || !task.getLeaseUntil().isAfter(now))) {
+                status = "failed";
+            }
+            statuses.add(status);
+            slices.add(MarketDetailResult.StockDetailSlice.builder().slice(slice).status(status).build());
+        }
+        String overall = stockDetailOverallStatus(statuses);
+        return MarketDetailResult.StockDetailRefresh.builder().assetRef(assetRef).serverTaskId(serverTaskId)
+                .status(overall).retryAfterMs(1000L).slices(List.copyOf(slices)).build();
+    }
+
+    private String stockDetailOverallStatus(List<String> statuses) {
+        if (statuses.stream().anyMatch("refreshing"::equals)) return "refreshing";
+        if (statuses.stream().allMatch("available"::equals)) return "ready";
+        long failures = statuses.stream().filter("failed"::equals).count();
+        if (failures == statuses.size()) return "failed";
+        if (failures > 0) return "partial_failed";
+        return "empty";
+    }
+
     private MarketDetailResult.FundDetailRefresh toFundDetailRefresh(String fundCode, Map<String, String> statuses) {
         List<MarketDetailResult.FundDetailSlice> slices = FUND_DETAIL_SLICES.stream()
                 .map(slice -> MarketDetailResult.FundDetailSlice.builder().slice(slice)
@@ -449,7 +669,8 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
             MarketDetailDispatchResultVO dispatched = agentMarketDetailRefreshPort.dispatch(
                     MarketDetailDispatchCommandEntity.builder().schemaVersion(TASK_SCHEMA)
                             .serverTaskId(task.getServerTaskId()).assetKind(plan.ref.getAssetKind())
-                            .assetRef(plan.ref.value()).providerMarketCode(plan.providerMarketCode)
+                            .assetRef(plan.ref.value()).exchangeCode(plan.exchangeCode)
+                            .providerMarketCode(plan.providerMarketCode)
                             .slices(plan.slices).periods(plan.periods).callbackUrl(callbackUrl).allowNetwork(true)
                             .requestedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
                             .build());
@@ -534,6 +755,63 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
                 .errorSummary(safe(errorSummary, 500)).build());
     }
 
+    private boolean persistStockPriceSlice(CallbackPlan plan, MarketDetailCommand.Callback command,
+                                           List<StockPriceBarEntity> bars, String status, String errorSummary) {
+        if (!isStockDetailEnsureTask(plan.task)) {
+            transactionExecutor.requiresNew(() -> { marketDetailRepository.upsertStockPriceBars(bars); return null; });
+            return true;
+        }
+        return transactionExecutor.requiresNew(() -> {
+            boolean current = updateStockSliceState(command, plan.ref.value(), "price_history", status, errorSummary);
+            if (current) marketDetailRepository.upsertStockPriceBars(bars);
+            return current;
+        });
+    }
+
+    private boolean persistStockCompanyProfileSlice(CallbackPlan plan, MarketDetailCommand.Callback command,
+                                                     StockCompanyProfileEntity profile, String status,
+                                                     String errorSummary) {
+        if (!isStockDetailEnsureTask(plan.task)) {
+            if (profile != null && "available".equals(status)) {
+                transactionExecutor.requiresNew(() -> { marketDetailRepository.upsertStockCompanyProfile(profile); return null; });
+            }
+            return true;
+        }
+        return transactionExecutor.requiresNew(() -> {
+            boolean current = updateStockSliceState(command, plan.ref.value(), "company_profile", status, errorSummary);
+            if (current && profile != null && "available".equals(status)) {
+                marketDetailRepository.upsertStockCompanyProfile(profile);
+            }
+            return current;
+        });
+    }
+
+    private void convergeStockSlice(MarketDetailCommand.Callback command, String assetRef, String slice,
+                                    String status, String errorSummary) {
+        try {
+            transactionExecutor.requiresNew(() -> {
+                updateStockSliceState(command, assetRef, slice, status, errorSummary);
+                return null;
+            });
+        } catch (RuntimeException exception) {
+            recordSlicePersistenceFailure(command.getServerTaskId(), slice + "_state", exception);
+        }
+    }
+
+    private boolean updateStockSliceState(MarketDetailCommand.Callback command, String assetRef, String slice,
+                                          String status, String errorSummary) {
+        LocalDateTime now = DateTimeUtils.now();
+        return marketDetailRepository.updateStockSliceStateIfActiveTask(StockDetailSliceStateEntity.builder()
+                .assetRef(assetRef).sliceType(slice).status(status).activeTaskId(command.getServerTaskId())
+                .lastAttemptAt(now).lastSuccessAt(Set.of("available", "empty").contains(status) ? now : null)
+                .errorSummary(safe(errorSummary, 500)).build());
+    }
+
+    private boolean isStockDetailEnsureTask(ProcessingTaskEntity task) {
+        if (task == null || task.getTaskParamsJson() == null) return false;
+        return STOCK_DETAIL_REQUEST_MODE.equals(JSON.parseObject(task.getTaskParamsJson()).getString("requestMode"));
+    }
+
     private List<StockPriceBarEntity> toStockBars(CallbackPlan plan, MarketDetailCommand.Callback c) {
         List<MarketDetailCommand.StockPriceHistory> histories = c.getStockPriceHistories();
         if (histories.size() > plan.periods.size()) throw illegal("价格历史 period 重复或超出任务范围");
@@ -545,7 +823,7 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
             if (history == null || !plan.periods.contains(history.getPeriod()) || !seenPeriods.add(history.getPeriod())) throw illegal("价格历史 period 不一致");
             if (!Set.of("minute", "day").contains(history.getGranularity())) throw illegal("价格粒度不支持");
             if (("intraday".equals(history.getPeriod()) && !"minute".equals(history.getGranularity()))
-                    || (Set.of("1m", "1y").contains(history.getPeriod()) && !"day".equals(history.getGranularity()))) {
+                    || (Set.of("5d", "1m", "1y").contains(history.getPeriod()) && !"day".equals(history.getGranularity()))) {
                 throw illegal("价格历史 period 与粒度不一致");
             }
             List<MarketDetailCommand.StockBar> bars = history.getBars() == null ? List.of() : history.getBars();
@@ -566,11 +844,19 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
 
     private StockCompanyProfileEntity toProfile(MarketAssetRefVO ref, MarketDetailCommand.Callback c) {
         MarketDetailCommand.StockCompanyProfile p = c.getStockCompanyProfile();
+        LocalDateTime sourceAsOf = parseDateOrTime(p.getSourceAsOf());
+        if (sourceAsOf == null) sourceAsOf = parseTime(c.getGeneratedAt());
         return StockCompanyProfileEntity.builder().stockCode(ref.getAssetCode()).market(ref.getMarket())
                 .companyName(safe(p.getCompanyName(), 200)).industry(safe(p.getIndustry(), 200))
                 .businessSummary(safe(p.getBusinessSummary(), 10000)).companyProfile(safe(p.getCompanyProfile(), 10000))
-                .website(safe(p.getWebsite(), 500)).sourceAsOf(parseDateOrTime(p.getSourceAsOf()))
+                .website(safe(p.getWebsite(), 500)).sourceAsOf(sourceAsOf)
                 .fetchedAt(DateTimeUtils.now()).build();
+    }
+
+    private boolean hasProfileData(StockCompanyProfileEntity profile) {
+        return profile != null && (profile.getCompanyName() != null || profile.getIndustry() != null
+                || profile.getBusinessSummary() != null || profile.getCompanyProfile() != null
+                || profile.getWebsite() != null);
     }
 
     private void saveWarnings(MarketDetailCommand.Callback c) {
@@ -611,9 +897,14 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
     }
 
     private String taskParams(TaskPlan p) {
+        return taskParams(p, null);
+    }
+
+    private String taskParams(TaskPlan p, String requestMode) {
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("assetKind", p.ref.getAssetKind()); params.put("assetRef", p.ref.value());
         params.put("slices", p.slices); params.put("periods", p.periods);
+        if (requestMode != null) params.put("requestMode", requestMode);
         return JSON.toJSONString(params);
     }
 
@@ -622,6 +913,22 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
         LinkedHashSet<String> result = new LinkedHashSet<>();
         for (String value : values) if (value != null && !value.isBlank()) result.add(value.trim());
         return List.copyOf(result);
+    }
+
+    private String requireAShareExchangeCode(StockMarketEntity stock, String stockCode) {
+        String exchangeCode = stock.getExchangeCode();
+        if (exchangeCode != null && !exchangeCode.isBlank()) {
+            String normalized = exchangeCode.trim().toUpperCase();
+            if (!Set.of("SH", "SZ", "BJ").contains(normalized)) throw illegal("A股 exchange_code 不合法");
+            return normalized;
+        }
+        if (stockCode == null || stockCode.isBlank()) throw illegal("A股代码不合法");
+        return switch (stockCode.charAt(0)) {
+            case '6' -> "SH";
+            case '0', '1', '2', '3' -> "SZ";
+            case '4', '8', '9' -> "BJ";
+            default -> throw illegal("无法根据 A 股代码推断 exchange_code");
+        };
     }
 
     private MarketAssetRefVO parseStockRef(String assetRef) {
@@ -707,7 +1014,9 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
         return new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), message);
     }
 
-    private record TaskPlan(MarketAssetRefVO ref, List<String> slices, List<String> periods, String providerMarketCode) { }
+    private record TaskPlan(MarketAssetRefVO ref, List<String> slices, List<String> periods,
+                            String providerMarketCode, String exchangeCode) { }
     private record CallbackPlan(ProcessingTaskEntity task, MarketAssetRefVO ref, List<String> slices, List<String> periods) { }
     private record FundRefreshClaim(ProcessingTaskEntity task, TaskPlan plan, Map<String, String> statuses) { }
+    private record StockRefreshClaim(ProcessingTaskEntity taskToDispatch, TaskPlan plan, String serverTaskId) { }
 }

@@ -75,6 +75,16 @@ public class MarketApiContractMappingTest {
                 "queryStockCompanyProfile", String.class);
         assertGet(profile, "/api/stocks/company-profile");
         assertRequestParam(profile, 0, "assetRef");
+
+        Method ensureStockDetail = AgentMarketDetailDataRefreshController.class.getMethod(
+                "ensureStockDetailData", MarketDetailRefreshRequest.EnsureStockDetail.class);
+        Assert.assertArrayEquals(new String[]{"/api/stocks/detail-data/ensure"},
+                ensureStockDetail.getAnnotation(PostMapping.class).value());
+
+        Method stockDetailTask = AgentMarketDetailDataRefreshController.class.getMethod(
+                "queryStockDetailDataTask", String.class);
+        assertGet(stockDetailTask, "/api/stocks/detail-data/tasks/{serverTaskId}");
+        assertPathVariable(stockDetailTask, 0, "serverTaskId");
         Field volume = MarketDetailRefreshRequest.StockBar.class.getDeclaredField("volume");
         Assert.assertEquals(String.class, volume.getType());
         Assert.assertNotNull(MarketDetailRefreshRequest.Callback.class

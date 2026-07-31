@@ -14,6 +14,7 @@ public class MarketDetailDispatchRequestDTO {
     @JsonProperty("server_task_id") private String serverTaskId;
     @JsonProperty("asset_kind") private String assetKind;
     @JsonProperty("asset_ref") private String assetRef;
+    @JsonProperty("exchange_code") private String exchangeCode;
     @JsonProperty("provider_market_code") private String providerMarketCode;
     private List<String> slices;
     private List<String> periods;

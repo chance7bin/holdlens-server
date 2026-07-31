@@ -37,6 +37,13 @@ public final class MarketDetailResult {
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class FundDetailSlice { private String slice; private String status; }
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class StockDetailRefresh {
+        private String assetRef; private String serverTaskId; private String status; private Long retryAfterMs;
+        private List<StockDetailSlice> slices;
+    }
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class StockDetailSlice { private String slice; private String status; }
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class StockPriceHistory {
         private String assetRef; private String period; private String granularity; private String currency;
         private String asOf; private List<StockBar> points;

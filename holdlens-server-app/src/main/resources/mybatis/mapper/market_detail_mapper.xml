@@ -43,6 +43,13 @@
         <result column="source_as_of" property="sourceAsOf"/><result column="fetched_at" property="fetchedAt"/>
         <result column="create_time" property="createTime"/><result column="update_time" property="updateTime"/>
     </resultMap>
+    <resultMap id="StockSliceStateMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.StockDetailSliceStatePO">
+        <id column="id" property="id"/><result column="asset_ref" property="assetRef"/>
+        <result column="slice_type" property="sliceType"/><result column="status" property="status"/>
+        <result column="active_task_id" property="activeTaskId"/><result column="last_attempt_at" property="lastAttemptAt"/>
+        <result column="last_success_at" property="lastSuccessAt"/><result column="error_summary" property="errorSummary"/>
+        <result column="create_time" property="createTime"/><result column="update_time" property="updateTime"/>
+    </resultMap>
 
     <insert id="upsertFundNavHistory">
         INSERT INTO fund_nav_history
@@ -154,4 +161,31 @@
     <select id="selectStockCompanyProfile" resultMap="ProfileMap">
         SELECT * FROM stock_company_profile WHERE stock_code=#{stockCode} AND market=#{market} LIMIT 1
     </select>
+    <insert id="insertStockSliceStatesIfAbsent">
+        INSERT IGNORE INTO stock_detail_slice_state (asset_ref, slice_type, status)
+        VALUES
+        <foreach collection="sliceTypes" item="slice" separator=",">
+            (#{assetRef}, #{slice}, 'failed')
+        </foreach>
+    </insert>
+    <select id="selectStockSliceStateForUpdate" resultMap="StockSliceStateMap">
+        SELECT * FROM stock_detail_slice_state
+        WHERE asset_ref=#{assetRef} AND slice_type=#{sliceType}
+        FOR UPDATE
+    </select>
+    <select id="selectStockSliceStates" resultMap="StockSliceStateMap">
+        SELECT * FROM stock_detail_slice_state WHERE asset_ref=#{assetRef} ORDER BY id ASC
+    </select>
+    <update id="updateStockSliceState" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.StockDetailSliceStatePO">
+        UPDATE stock_detail_slice_state
+        SET status=#{status}, active_task_id=#{activeTaskId}, last_attempt_at=#{lastAttemptAt},
+            last_success_at=#{lastSuccessAt}, error_summary=#{errorSummary}, update_time=CURRENT_TIMESTAMP
+        WHERE asset_ref=#{assetRef} AND slice_type=#{sliceType}
+    </update>
+    <update id="updateStockSliceStateIfActiveTask" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.StockDetailSliceStatePO">
+        UPDATE stock_detail_slice_state
+        SET status=#{status}, active_task_id=NULL, last_attempt_at=#{lastAttemptAt},
+            last_success_at=#{lastSuccessAt}, error_summary=#{errorSummary}, update_time=CURRENT_TIMESTAMP
+        WHERE asset_ref=#{assetRef} AND slice_type=#{sliceType} AND active_task_id=#{activeTaskId}
+    </update>
 </mapper>

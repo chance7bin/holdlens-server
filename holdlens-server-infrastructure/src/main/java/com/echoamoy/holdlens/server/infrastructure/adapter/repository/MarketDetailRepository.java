@@ -5,12 +5,14 @@ import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.FundNavHist
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.FundPeriodPerformanceEntity;
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.MarketDetailSliceStateEntity;
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.StockCompanyProfileEntity;
+import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.StockDetailSliceStateEntity;
 import com.echoamoy.holdlens.server.domain.marketdetail.model.entity.StockPriceBarEntity;
 import com.echoamoy.holdlens.server.infrastructure.dao.IMarketDetailDao;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.FundNavHistoryPO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.FundPeriodPerformancePO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.MarketDetailSliceStatePO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.StockCompanyProfilePO;
+import com.echoamoy.holdlens.server.infrastructure.dao.po.StockDetailSliceStatePO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.StockPriceBarPO;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Repository;
@@ -107,6 +109,34 @@ public class MarketDetailRepository implements IMarketDetailRepository {
         return po == null ? null : toEntity(po);
     }
 
+    @Override
+    public void ensureStockSliceStates(String assetRef, List<String> sliceTypes) {
+        if (sliceTypes != null && !sliceTypes.isEmpty()) {
+            marketDetailDao.insertStockSliceStatesIfAbsent(assetRef, sliceTypes);
+        }
+    }
+
+    @Override
+    public StockDetailSliceStateEntity lockStockSliceState(String assetRef, String sliceType) {
+        StockDetailSliceStatePO po = marketDetailDao.selectStockSliceStateForUpdate(assetRef, sliceType);
+        return po == null ? null : toEntity(po);
+    }
+
+    @Override
+    public List<StockDetailSliceStateEntity> queryStockSliceStates(String assetRef) {
+        return marketDetailDao.selectStockSliceStates(assetRef).stream().map(this::toEntity).toList();
+    }
+
+    @Override
+    public void updateStockSliceState(StockDetailSliceStateEntity state) {
+        marketDetailDao.updateStockSliceState(toPO(state));
+    }
+
+    @Override
+    public boolean updateStockSliceStateIfActiveTask(StockDetailSliceStateEntity state) {
+        return marketDetailDao.updateStockSliceStateIfActiveTask(toPO(state)) == 1;
+    }
+
     private FundNavHistoryPO toPO(FundNavHistoryEntity e) {
         return FundNavHistoryPO.builder().id(e.getId()).fundCode(e.getFundCode()).navDate(toDate(e.getNavDate()))
                 .unitNav(e.getUnitNav()).accumulatedNav(e.getAccumulatedNav()).dailyGrowthRate(e.getDailyGrowthRate())
@@ -138,6 +168,12 @@ public class MarketDetailRepository implements IMarketDetailRepository {
                 .companyName(e.getCompanyName()).industry(e.getIndustry()).businessSummary(e.getBusinessSummary())
                 .companyProfile(e.getCompanyProfile()).website(e.getWebsite()).sourceAsOf(toDate(e.getSourceAsOf()))
                 .fetchedAt(toDate(e.getFetchedAt())).build();
+    }
+
+    private StockDetailSliceStatePO toPO(StockDetailSliceStateEntity e) {
+        return StockDetailSliceStatePO.builder().id(e.getId()).assetRef(e.getAssetRef()).sliceType(e.getSliceType())
+                .status(e.getStatus()).activeTaskId(e.getActiveTaskId()).lastAttemptAt(toDate(e.getLastAttemptAt()))
+                .lastSuccessAt(toDate(e.getLastSuccessAt())).errorSummary(e.getErrorSummary()).build();
     }
 
     private FundNavHistoryEntity toEntity(FundNavHistoryPO p) {
@@ -174,6 +210,14 @@ public class MarketDetailRepository implements IMarketDetailRepository {
                 .companyName(p.getCompanyName()).industry(p.getIndustry()).businessSummary(p.getBusinessSummary())
                 .companyProfile(p.getCompanyProfile()).website(p.getWebsite()).sourceAsOf(toLocalDateTime(p.getSourceAsOf()))
                 .fetchedAt(toLocalDateTime(p.getFetchedAt())).build();
+    }
+
+    private StockDetailSliceStateEntity toEntity(StockDetailSliceStatePO p) {
+        return StockDetailSliceStateEntity.builder().id(p.getId()).assetRef(p.getAssetRef())
+                .sliceType(p.getSliceType()).status(p.getStatus()).activeTaskId(p.getActiveTaskId())
+                .lastAttemptAt(toLocalDateTime(p.getLastAttemptAt())).lastSuccessAt(toLocalDateTime(p.getLastSuccessAt()))
+                .errorSummary(p.getErrorSummary()).createTime(toLocalDateTime(p.getCreateTime()))
+                .updateTime(toLocalDateTime(p.getUpdateTime())).build();
     }
 
     private Date toDate(LocalDate value) {

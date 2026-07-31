@@ -13,6 +13,7 @@ public class MarketDetailDispatchCommandEntity {
     private String serverTaskId;
     private String assetKind;
     private String assetRef;
+    private String exchangeCode;
     private String providerMarketCode;
     private List<String> slices;
     private List<String> periods;

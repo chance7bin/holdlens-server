@@ -28,6 +28,12 @@ public class ProcessingTaskPO implements Serializable {
     /** 安全任务参数摘要JSON */
     private String taskParamsJson;
 
+    /** 活动业务键，仅 single-flight 任务使用 */
+    private String activeKey;
+
+    /** 活动业务键租约截止时间 */
+    private Date leaseUntil;
+
     /** 状态：created/dispatched/running/succeeded/partial_failed/failed/dispatch_failed/callback_failed */
     private String status;
 

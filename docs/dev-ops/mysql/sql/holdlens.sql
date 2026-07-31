@@ -160,12 +160,15 @@ CREATE TABLE `processing_task` (
     `server_task_id` VARCHAR(100) NOT NULL COMMENT 'server任务标识',
     `task_type` VARCHAR(50) NOT NULL COMMENT '任务类型：基金切片刷新/A股行情/美股行情',
     `task_params_json` TEXT DEFAULT NULL COMMENT '安全任务参数摘要JSON',
+    `active_key` VARCHAR(200) DEFAULT NULL COMMENT 'single-flight 活动业务键',
+    `lease_until` DATETIME DEFAULT NULL COMMENT '活动业务键租约截止时间',
     `status` VARCHAR(30) NOT NULL DEFAULT 'created' COMMENT '状态：created/dispatched/running/succeeded/partial_failed/failed/dispatch_failed/callback_failed',
     `error_summary` VARCHAR(1000) DEFAULT NULL COMMENT '安全错误摘要',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_processing_task_server_task_id` (`server_task_id`),
+    UNIQUE KEY `uk_processing_task_active_key` (`active_key`),
     KEY `idx_processing_task_type_status` (`task_type`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='处理任务表';
 
@@ -375,6 +378,27 @@ CREATE TABLE `market_detail_slice_state` (
     KEY `idx_market_detail_slice_state_active_task` (`active_task_id`),
     KEY `idx_market_detail_slice_state_status_attempt` (`status`,`last_attempt_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='基金详情 slice 刷新状态';
+
+-- ----------------------------
+-- 股票详情 slice 刷新状态表
+-- ----------------------------
+DROP TABLE IF EXISTS `stock_detail_slice_state`;
+CREATE TABLE `stock_detail_slice_state` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '股票详情 slice 状态ID',
+    `asset_ref` VARCHAR(120) NOT NULL COMMENT '统一股票资产引用',
+    `slice_type` VARCHAR(50) NOT NULL COMMENT 'price_history/company_profile',
+    `status` VARCHAR(20) NOT NULL COMMENT 'available/refreshing/empty/failed',
+    `active_task_id` VARCHAR(100) DEFAULT NULL COMMENT '当前刷新任务ID',
+    `last_attempt_at` DATETIME DEFAULT NULL COMMENT '最近尝试时间',
+    `last_success_at` DATETIME DEFAULT NULL COMMENT '最近成功时间',
+    `error_summary` VARCHAR(500) DEFAULT NULL COMMENT '安全错误摘要',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_stock_detail_slice_state_asset_slice` (`asset_ref`,`slice_type`),
+    KEY `idx_stock_detail_slice_state_active_task` (`active_task_id`),
+    KEY `idx_stock_detail_slice_state_status_attempt` (`status`,`last_attempt_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='股票详情 slice 刷新状态';
 
 -- ----------------------------
 -- 股票价格时间序列表

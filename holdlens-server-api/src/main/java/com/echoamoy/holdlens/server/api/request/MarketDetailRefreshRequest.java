@@ -16,6 +16,8 @@ public final class MarketDetailRefreshRequest {
         private String assetKind; private String assetRef; private List<String> slices; private List<String> periods;
     }
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class EnsureStockDetail { private String assetRef; }
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class Callback {
         @JsonProperty("schema_version") private String schemaVersion;
         @JsonProperty("server_task_id") private String serverTaskId;

@@ -63,6 +63,33 @@ public class MarketDetailSqlStructureTest {
         Assert.assertTrue(mapper.contains("active_task_id=#{activeTaskId}"));
     }
 
+    @Test
+    public void stockDetailMigrationUsesMysqlSingleFlightAndConditionalSliceUpdates() throws Exception {
+        Path root = projectRoot();
+        String baseline = Files.readString(root.resolve("docs/dev-ops/mysql/sql/holdlens.sql"));
+        String migration = Files.readString(root.resolve(
+                "docs/dev-ops/mysql/sql/migrations/20260731_stock_detail_on_demand.sql"));
+        String detailMapper = Files.readString(root.resolve(
+                "holdlens-server-app/src/main/resources/mybatis/mapper/market_detail_mapper.xml"));
+        String taskMapper = Files.readString(root.resolve(
+                "holdlens-server-app/src/main/resources/mybatis/mapper/processing_task_mapper.xml"));
+
+        for (String ddl : List.of(baseline, migration)) {
+            Assert.assertTrue(ddl.contains("stock_detail_slice_state"));
+            Assert.assertTrue(ddl.contains("uk_stock_detail_slice_state_asset_slice"));
+            Assert.assertTrue(ddl.contains("active_key"));
+            Assert.assertTrue(ddl.contains("lease_until"));
+            Assert.assertTrue(ddl.contains("uk_processing_task_active_key"));
+        }
+        Assert.assertFalse(migration.contains("DROP TABLE"));
+        Assert.assertTrue(detailMapper.contains("id=\"selectStockSliceStateForUpdate\""));
+        Assert.assertTrue(detailMapper.contains("asset_ref=#{assetRef} AND slice_type=#{sliceType} AND active_task_id=#{activeTaskId}"));
+        Assert.assertTrue(taskMapper.contains("id=\"updateIfNonTerminal\""));
+        Assert.assertTrue(taskMapper.contains("id=\"markFailedIfLeaseExpired\""));
+        Assert.assertFalse(detailMapper.contains("${"));
+        Assert.assertFalse(taskMapper.contains("${"));
+    }
+
     private Path projectRoot() {
         Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
         while (current != null && !Files.exists(current.resolve("docs/dev-ops/mysql/sql/holdlens.sql"))) {

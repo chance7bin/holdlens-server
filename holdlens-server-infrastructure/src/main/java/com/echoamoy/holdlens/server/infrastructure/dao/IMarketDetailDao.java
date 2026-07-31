@@ -4,6 +4,7 @@ import com.echoamoy.holdlens.server.infrastructure.dao.po.FundNavHistoryPO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.FundPeriodPerformancePO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.MarketDetailSliceStatePO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.StockCompanyProfilePO;
+import com.echoamoy.holdlens.server.infrastructure.dao.po.StockDetailSliceStatePO;
 import com.echoamoy.holdlens.server.infrastructure.dao.po.StockPriceBarPO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -35,4 +36,11 @@ public interface IMarketDetailDao {
                                   @Param("granularity") String granularity);
     StockCompanyProfilePO selectStockCompanyProfile(@Param("stockCode") String stockCode,
                                                      @Param("market") String market);
+    void insertStockSliceStatesIfAbsent(@Param("assetRef") String assetRef,
+                                        @Param("sliceTypes") List<String> sliceTypes);
+    StockDetailSliceStatePO selectStockSliceStateForUpdate(@Param("assetRef") String assetRef,
+                                                            @Param("sliceType") String sliceType);
+    List<StockDetailSliceStatePO> selectStockSliceStates(@Param("assetRef") String assetRef);
+    int updateStockSliceState(StockDetailSliceStatePO state);
+    int updateStockSliceStateIfActiveTask(StockDetailSliceStatePO state);
 }

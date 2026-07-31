@@ -38,8 +38,23 @@ public class ProcessingTaskRepository implements IProcessingTaskRepository {
     }
 
     @Override
+    public boolean saveTaskIfActiveKeyAbsent(ProcessingTaskEntity taskEntity) {
+        try {
+            processingTaskDao.insert(toPO(taskEntity));
+            return true;
+        } catch (DuplicateKeyException exception) {
+            return false;
+        }
+    }
+
+    @Override
     public void updateTask(ProcessingTaskEntity taskEntity) {
         processingTaskDao.update(toPO(taskEntity));
+    }
+
+    @Override
+    public boolean updateTaskIfNonTerminal(ProcessingTaskEntity taskEntity) {
+        return processingTaskDao.updateIfNonTerminal(toPO(taskEntity)) == 1;
     }
 
     @Override
@@ -50,6 +65,19 @@ public class ProcessingTaskRepository implements IProcessingTaskRepository {
     @Override
     public ProcessingTaskEntity queryTaskForUpdate(String serverTaskId) {
         return toEntity(processingTaskDao.selectByServerTaskIdForUpdate(serverTaskId));
+    }
+
+    @Override
+    public ProcessingTaskEntity queryTaskByActiveKey(String activeKey) {
+        return toEntity(processingTaskDao.selectByActiveKey(activeKey));
+    }
+
+    @Override
+    public boolean markFailedIfLeaseExpired(String serverTaskId, String activeKey,
+                                            LocalDateTime cutoff, String errorSummary) {
+        if (serverTaskId == null || activeKey == null || cutoff == null) return false;
+        return processingTaskDao.markFailedIfLeaseExpired(
+                serverTaskId, activeKey, toDate(cutoff), errorSummary) == 1;
     }
 
     @Override
@@ -122,6 +150,8 @@ public class ProcessingTaskRepository implements IProcessingTaskRepository {
                 .serverTaskId(entity.getServerTaskId())
                 .taskType(entity.getTaskType())
                 .taskParamsJson(entity.getTaskParamsJson())
+                .activeKey(entity.getActiveKey())
+                .leaseUntil(toDate(entity.getLeaseUntil()))
                 .status(entity.getStatus() == null ? null : entity.getStatus().getCode())
                 .errorSummary(entity.getErrorSummary())
                 .build();
@@ -136,6 +166,8 @@ public class ProcessingTaskRepository implements IProcessingTaskRepository {
                 .serverTaskId(po.getServerTaskId())
                 .taskType(po.getTaskType())
                 .taskParamsJson(po.getTaskParamsJson())
+                .activeKey(po.getActiveKey())
+                .leaseUntil(toLocalDateTime(po.getLeaseUntil()))
                 .status(ProcessingTaskStatusEnumVO.fromCode(po.getStatus()))
                 .errorSummary(po.getErrorSummary())
                 .createTime(po.getCreateTime())
@@ -178,6 +210,14 @@ public class ProcessingTaskRepository implements IProcessingTaskRepository {
                 .message(entity.getMessage())
                 .severity(entity.getSeverity())
                 .build();
+    }
+
+    private Date toDate(LocalDateTime value) {
+        return value == null ? null : Date.from(value.atZone(ZoneId.of("Asia/Shanghai")).toInstant());
+    }
+
+    private LocalDateTime toLocalDateTime(Date value) {
+        return value == null ? null : value.toInstant().atZone(ZoneId.of("Asia/Shanghai")).toLocalDateTime();
     }
 
 }

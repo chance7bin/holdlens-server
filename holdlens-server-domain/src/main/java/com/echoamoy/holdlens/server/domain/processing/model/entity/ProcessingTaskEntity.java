@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.Date;
+import java.time.LocalDateTime;
 
 @Data
 @Builder
@@ -37,6 +38,8 @@ public class ProcessingTaskEntity {
     private String serverTaskId;
     private String taskType;
     private String taskParamsJson;
+    private String activeKey;
+    private LocalDateTime leaseUntil;
     private ProcessingTaskStatusEnumVO status;
     private String errorSummary;
     private Date createTime;
