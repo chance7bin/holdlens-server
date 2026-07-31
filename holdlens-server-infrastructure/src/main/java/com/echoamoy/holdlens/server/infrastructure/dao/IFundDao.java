@@ -25,7 +25,8 @@ public interface IFundDao {
                                        @Param("assetAllocationFetchedAt") java.util.Date assetAllocationFetchedAt);
 
     int updateLastDetailViewTime(@Param("fundCodes") java.util.Collection<String> fundCodes,
-                                 @Param("lastDetailViewTime") java.util.Date lastDetailViewTime);
+                                 @Param("lastDetailViewTime") java.util.Date lastDetailViewTime,
+                                 @Param("updateBefore") java.util.Date updateBefore);
 
     FundPO selectById(@Param("id") Long id);
 
@@ -34,6 +35,9 @@ public interface IFundDao {
     List<FundPO> selectByFundCodes(@Param("fundCodes") java.util.Collection<String> fundCodes);
 
     List<String> selectTopHoldingRefreshTargets(@Param("viewedSince") java.util.Date viewedSince);
+
+    List<String> selectDetailRefreshTargets(@Param("viewedSince") java.util.Date viewedSince,
+                                            @Param("limit") int limit);
 
     List<String> selectAssetAllocationRefreshTargets(@Param("viewedSince") java.util.Date viewedSince,
                                                      @Param("latestEndedQuarter") java.util.Date latestEndedQuarter,

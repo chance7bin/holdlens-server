@@ -133,6 +133,7 @@
         UPDATE fund SET last_detail_view_time = #{lastDetailViewTime}
         WHERE fund_code IN
         <foreach collection="fundCodes" item="fundCode" open="(" separator="," close=")">#{fundCode}</foreach>
+          AND (last_detail_view_time IS NULL OR last_detail_view_time &lt;= #{updateBefore})
     </update>
 
     <select id="selectById" resultMap="BaseResultMap">
@@ -176,6 +177,26 @@
         ) targets
         INNER JOIN fund f ON f.fund_code = targets.fund_code
         ORDER BY targets.fund_code
+    </select>
+
+    <select id="selectDetailRefreshTargets" resultType="string">
+        SELECT DISTINCT targets.fund_code
+        FROM (
+            SELECT f.fund_code
+            FROM watchlist_item wi
+            INNER JOIN fund f ON wi.asset_kind = 'FUND' AND f.id = wi.asset_id
+            UNION
+            SELECT f.fund_code
+            FROM asset_record ar
+            INNER JOIN fund f ON ar.asset_kind = 'FUND' AND f.id = ar.asset_id
+            WHERE ar.status = 'ACTIVE' AND ar.asset_id IS NOT NULL
+            UNION
+            SELECT f.fund_code
+            FROM fund f
+            WHERE f.last_detail_view_time &gt;= #{viewedSince}
+        ) targets
+        ORDER BY targets.fund_code
+        LIMIT #{limit}
     </select>
 
     <select id="selectAssetAllocationRefreshTargets" resultType="string">

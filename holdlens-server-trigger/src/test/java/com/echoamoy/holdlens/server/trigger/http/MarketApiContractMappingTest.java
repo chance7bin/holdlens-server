@@ -1,6 +1,7 @@
 package com.echoamoy.holdlens.server.trigger.http;
 
 import com.echoamoy.holdlens.server.api.request.MarketDetailRefreshRequest;
+import com.echoamoy.holdlens.server.api.request.MarketAssetDetailEnsureRequest;
 import org.junit.Assert;
 import org.junit.Test;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,6 +36,11 @@ public class MarketApiContractMappingTest {
         assertRequestParam(unifiedDetail, 0, "userId");
         assertRequestParam(unifiedDetail, 1, "assetKind");
         assertRequestParam(unifiedDetail, 2, "assetRef");
+
+        Method ensureDetail = MarketAssetController.class.getMethod(
+                "ensureDetail", MarketAssetDetailEnsureRequest.class);
+        Assert.assertArrayEquals(new String[]{"/api/market-assets/detail/ensure"},
+                ensureDetail.getAnnotation(PostMapping.class).value());
 
         Method detail = MarketAssetController.class.getMethod("queryStockDetail", Long.class, String.class);
         assertGet(detail, "/api/stocks/detail");
@@ -85,6 +91,10 @@ public class MarketApiContractMappingTest {
                 "queryStockDetailDataTask", String.class);
         assertGet(stockDetailTask, "/api/stocks/detail-data/tasks/{serverTaskId}");
         assertPathVariable(stockDetailTask, 0, "serverTaskId");
+        Method operation = AgentMarketDetailDataRefreshController.class.getMethod(
+                "queryDetailOperation", String.class);
+        assertGet(operation, "/api/market-detail-data/operations/{operationId}");
+        assertPathVariable(operation, 0, "operationId");
         Field volume = MarketDetailRefreshRequest.StockBar.class.getDeclaredField("volume");
         Assert.assertEquals(String.class, volume.getType());
         Assert.assertNotNull(MarketDetailRefreshRequest.Callback.class

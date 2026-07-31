@@ -117,6 +117,26 @@ public class StockMarketRepositoryTest {
         Assert.assertTrue(repository.queryExistingStockKeys(List.of("600000#A_SHARE")).contains("600000#A_SHARE"));
     }
 
+    @Test
+    public void detailActivityUsesThrottledTimestampAndMapsRefreshTargets() throws Exception {
+        StockMarketRepository repository = new StockMarketRepository();
+        FakeStockMarketDao dao = new FakeStockMarketDao();
+        LocalDateTime viewedAt = LocalDateTime.of(2026, 8, 1, 10, 0);
+        LocalDateTime updateBefore = viewedAt.minusHours(1);
+        dao.stockMarkets = List.of(StockMarketPO.builder().stockCode("600519").market("A_SHARE")
+                .lastDetailViewTime(viewedAt).build());
+        setField(repository, "stockMarketDao", dao);
+
+        repository.markDetailViewed("600519", "A_SHARE", viewedAt, updateBefore);
+        List<StockMarketEntity> targets = repository.queryDetailRefreshTargets(
+                "A_SHARE", viewedAt.minusDays(90), 100);
+
+        Assert.assertEquals("600519", dao.viewedStockCode);
+        Assert.assertEquals(updateBefore, dao.updateBefore.toInstant()
+                .atZone(java.time.ZoneId.of("Asia/Shanghai")).toLocalDateTime());
+        Assert.assertEquals(viewedAt, targets.get(0).getLastDetailViewTime());
+    }
+
     private void setField(Object target, String name, Object value) throws Exception {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
@@ -127,6 +147,8 @@ public class StockMarketRepositoryTest {
         private final List<StockMarketPO> marketUpserts = new ArrayList<>();
         private final List<StockMarketPO> targetUpserts = new ArrayList<>();
         private List<StockMarketPO> stockMarkets = List.of();
+        private String viewedStockCode;
+        private java.util.Date updateBefore;
 
         @Override
         public void upsert(StockMarketPO stockMarketPO) {
@@ -151,6 +173,19 @@ public class StockMarketRepositoryTest {
         @Override
         public StockMarketPO selectOne(String stockCode, String market) {
             return stockMarkets.isEmpty() ? null : stockMarkets.get(0);
+        }
+
+        @Override
+        public int updateLastDetailViewTime(String stockCode, String market, java.util.Date viewedAt,
+                                            java.util.Date updateBefore) {
+            this.viewedStockCode = stockCode;
+            this.updateBefore = updateBefore;
+            return 1;
+        }
+
+        @Override
+        public List<StockMarketPO> selectDetailRefreshTargets(String market, java.util.Date viewedSince, int limit) {
+            return stockMarkets;
         }
     }
 }

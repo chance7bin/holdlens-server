@@ -3,6 +3,8 @@ package com.echoamoy.holdlens.server.cases.marketasset.impl;
 import com.echoamoy.holdlens.server.cases.marketasset.IMarketAssetQueryCase;
 import com.echoamoy.holdlens.server.cases.marketasset.model.MarketAssetDetailResult;
 import com.echoamoy.holdlens.server.cases.marketasset.model.MarketAssetQueryResult;
+import com.echoamoy.holdlens.server.cases.marketdetail.IMarketDetailCase;
+import com.echoamoy.holdlens.server.cases.marketdetail.model.MarketDetailResult;
 import com.echoamoy.holdlens.server.cases.portfolio.IPortfolioFundDetailCase;
 import com.echoamoy.holdlens.server.cases.portfolio.model.PortfolioFundDetailResult;
 import com.echoamoy.holdlens.server.domain.portfolio.adapter.repository.IPortfolioRepository;
@@ -14,20 +16,35 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.List;
 
 public class MarketAssetDetailCaseImplTest {
 
     private MarketAssetDetailCaseImpl detailCase;
     private FakePortfolio portfolio;
+    private FakeFundDetailCase fundDetail;
+    private List<String> marketDetailCalls;
 
     @Before
     public void setUp() throws Exception {
         detailCase = new MarketAssetDetailCaseImpl();
         portfolio = new FakePortfolio();
         set(detailCase, "portfolioRepository", portfolio);
-        set(detailCase, "portfolioFundDetailCase", new FakeFundDetailCase());
+        fundDetail = new FakeFundDetailCase();
+        marketDetailCalls = new ArrayList<>();
+        set(detailCase, "portfolioFundDetailCase", fundDetail);
         set(detailCase, "marketAssetQueryCase", new FakeMarketAssetQueryCase());
+        set(detailCase, "marketDetailCase", Proxy.newProxyInstance(getClass().getClassLoader(),
+                new Class[]{IMarketDetailCase.class}, (proxy, method, args) -> {
+                    marketDetailCalls.add(method.getName());
+                    if (method.getName().startsWith("ensure")) {
+                        return MarketDetailResult.DetailRefresh.builder().status("PROCESSING")
+                                .operationId("operation-1").slices(List.of()).build();
+                    }
+                    return null;
+                }));
     }
 
     @Test
@@ -38,6 +55,7 @@ public class MarketAssetDetailCaseImplTest {
         Assert.assertTrue(result.getWatchlisted());
         Assert.assertNull(result.getStock());
         Assert.assertEquals(0, portfolio.assetRecordQueryCount);
+        Assert.assertTrue(marketDetailCalls.isEmpty());
     }
 
     @Test
@@ -46,6 +64,17 @@ public class MarketAssetDetailCaseImplTest {
 
         Assert.assertEquals("DEMO", result.getStock().getCode());
         Assert.assertNull(result.getFund());
+    }
+
+    @Test
+    public void ensureDetailRoutesBothKindsThroughUnifiedRefreshAndReturnsOperation() {
+        MarketAssetDetailResult fund = detailCase.ensureDetail(1L, "fund", "fund:000001");
+        MarketAssetDetailResult stock = detailCase.ensureDetail(1L, "stock", "stock:US_STOCK:DEMO");
+
+        Assert.assertEquals("operation-1", fund.getRefresh().getOperationId());
+        Assert.assertEquals("operation-1", stock.getRefresh().getOperationId());
+        Assert.assertEquals(1, fundDetail.ensureCalls);
+        Assert.assertEquals(List.of("ensureFundDetailData", "ensureStockDetailDataV2"), marketDetailCalls);
     }
 
     @Test(expected = AppException.class)
@@ -72,9 +101,14 @@ public class MarketAssetDetailCaseImplTest {
     }
 
     private static class FakeFundDetailCase implements IPortfolioFundDetailCase {
+        private int ensureCalls;
         @Override public PortfolioFundDetailResult queryPortfolioFundDetails(Long userId) { return null; }
         @Override public PortfolioFundDetailResult.FundDetail queryFundDetail(String fundCode) {
             return PortfolioFundDetailResult.FundDetail.builder().fundCode(fundCode).fundName("示例基金").build();
+        }
+        @Override public PortfolioFundDetailResult.FundDetail ensureFundDetail(String fundCode) {
+            ensureCalls++;
+            return queryFundDetail(fundCode);
         }
     }
 

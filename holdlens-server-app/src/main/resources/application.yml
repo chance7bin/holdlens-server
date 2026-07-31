@@ -45,3 +45,37 @@ holdlens:
       minutes: 30
       processing-warning-minutes: 10
       cron: "0 */5 * * * ?"
+    a-share-market-refresh-schedule:
+      enabled: false
+      cron: "0 5,35 9-15 ? * MON-FRI"
+      zone: Asia/Shanghai
+    us-stock-market-refresh-schedule:
+      enabled: false
+      cron: "0 5,35 9-16 ? * MON-FRI"
+      zone: America/New_York
+    active-fund-detail-refresh-schedule:
+      enabled: false
+      cron: "0 40 2 ? * MON-FRI"
+      zone: Asia/Shanghai
+    active-stock-detail-refresh-schedule:
+      enabled: false
+    active-a-share-detail-refresh-schedule:
+      cron: "0 10 15 ? * MON-FRI"
+      zone: Asia/Shanghai
+    active-us-stock-detail-refresh-schedule:
+      cron: "0 10 16 ? * MON-FRI"
+      zone: America/New_York
+  market-detail:
+    access-write-throttle-minutes: 60
+    active-days: 90
+    schedule-batch-size: 100
+    fund-nav-stale-hours: 36
+    fund-performance-stale-hours: 168
+    stock-price-stale-hours: 36
+    stock-profile-stale-days: 30
+  market-calendar:
+    a-share:
+      closed-dates: ""
+    us-stock:
+      closed-dates: ""
+      early-closes: ""

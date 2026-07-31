@@ -308,12 +308,14 @@ CREATE TABLE `stock_market` (
     `listing_date` DATE DEFAULT NULL COMMENT '上市日期',
     `status` VARCHAR(30) NOT NULL DEFAULT 'active' COMMENT '状态：active/missing_from_refresh',
     `refreshed_at` DATETIME DEFAULT NULL COMMENT '本批行情刷新时间',
+    `last_detail_view_time` DATETIME DEFAULT NULL COMMENT '股票详情最近查看时间，仅用于公共数据刷新目标',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_stock_market_code_market` (`stock_code`, `market`),
     KEY `idx_stock_market_market_status` (`market`, `status`),
-    KEY `idx_stock_market_refreshed_at` (`refreshed_at`)
+    KEY `idx_stock_market_refreshed_at` (`refreshed_at`),
+    KEY `idx_stock_market_last_detail_view_time` (`last_detail_view_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='股票市场当前行情表';
 
 -- ----------------------------
@@ -366,7 +368,7 @@ CREATE TABLE `market_detail_slice_state` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '市场详情 slice 状态ID',
     `fund_code` VARCHAR(50) NOT NULL COMMENT '基金代码',
     `slice_type` VARCHAR(50) NOT NULL COMMENT 'nav_history/period_performance',
-    `status` VARCHAR(20) NOT NULL COMMENT 'available/refreshing/empty/failed',
+    `status` VARCHAR(20) NOT NULL COMMENT 'missing/refreshing/available/empty/failed',
     `active_task_id` VARCHAR(100) DEFAULT NULL COMMENT '当前刷新任务ID',
     `last_attempt_at` DATETIME DEFAULT NULL COMMENT '最近尝试时间',
     `last_success_at` DATETIME DEFAULT NULL COMMENT '最近成功时间',
@@ -387,7 +389,7 @@ CREATE TABLE `stock_detail_slice_state` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '股票详情 slice 状态ID',
     `asset_ref` VARCHAR(120) NOT NULL COMMENT '统一股票资产引用',
     `slice_type` VARCHAR(50) NOT NULL COMMENT 'price_history/company_profile',
-    `status` VARCHAR(20) NOT NULL COMMENT 'available/refreshing/empty/failed',
+    `status` VARCHAR(20) NOT NULL COMMENT 'missing/refreshing/available/empty/failed',
     `active_task_id` VARCHAR(100) DEFAULT NULL COMMENT '当前刷新任务ID',
     `last_attempt_at` DATETIME DEFAULT NULL COMMENT '最近尝试时间',
     `last_success_at` DATETIME DEFAULT NULL COMMENT '最近成功时间',

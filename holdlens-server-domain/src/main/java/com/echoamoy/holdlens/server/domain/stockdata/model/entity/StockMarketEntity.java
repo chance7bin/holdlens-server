@@ -56,5 +56,6 @@ public class StockMarketEntity {
     private LocalDate listingDate;
     private String status;
     private LocalDateTime refreshedAt;
+    private LocalDateTime lastDetailViewTime;
 
 }

@@ -90,6 +90,35 @@ public class MarketDetailSqlStructureTest {
         Assert.assertFalse(taskMapper.contains("${"));
     }
 
+    @Test
+    public void unifiedEnsureMigrationAndActivityQueriesPreservePublicFacts() throws Exception {
+        Path root = projectRoot();
+        String baseline = Files.readString(root.resolve("docs/dev-ops/mysql/sql/holdlens.sql"));
+        String migration = Files.readString(root.resolve(
+                "docs/dev-ops/mysql/sql/migrations/20260801_unify_market_detail_ensure_flow.sql"));
+        String fundMapper = Files.readString(root.resolve(
+                "holdlens-server-app/src/main/resources/mybatis/mapper/fund_mapper.xml"));
+        String stockMapper = Files.readString(root.resolve(
+                "holdlens-server-app/src/main/resources/mybatis/mapper/stock_market_mapper.xml"));
+
+        for (String ddl : List.of(baseline, migration)) {
+            Assert.assertTrue(ddl.contains("last_detail_view_time"));
+            Assert.assertTrue(ddl.contains("idx_stock_market_last_detail_view_time"));
+        }
+        Assert.assertTrue(migration.contains("SET `status` = 'missing'"));
+        Assert.assertFalse(migration.contains("DROP TABLE"));
+        Assert.assertFalse(migration.contains("DELETE FROM"));
+        Assert.assertTrue(fundMapper.contains("id=\"selectDetailRefreshTargets\""));
+        Assert.assertTrue(stockMapper.contains("id=\"selectDetailRefreshTargets\""));
+        for (String mapper : List.of(fundMapper, stockMapper)) {
+            Assert.assertTrue(mapper.contains("FROM watchlist_item"));
+            Assert.assertTrue(mapper.contains("FROM asset_record"));
+            Assert.assertTrue(mapper.contains("last_detail_view_time"));
+            Assert.assertTrue(mapper.contains("LIMIT #{limit}"));
+            Assert.assertFalse(mapper.contains("${"));
+        }
+    }
+
     private Path projectRoot() {
         Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
         while (current != null && !Files.exists(current.resolve("docs/dev-ops/mysql/sql/holdlens.sql"))) {

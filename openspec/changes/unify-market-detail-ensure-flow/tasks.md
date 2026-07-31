@@ -1,0 +1,31 @@
+## 1. 契约、领域语言与数据结构
+
+- [x] 1.1 更新根 contracts 与 callback slice result 语义
+- [x] 1.2 增加股票最近详情访问时间、索引、基线与向前迁移
+- [x] 1.3 增加统一状态/新鲜度领域值及 Repository 能力
+
+## 2. 统一详情确保与操作查询
+
+- [x] 2.1 实现统一 MarketAsset ensure-and-read Case/API，保留旧入口兼容
+- [x] 2.2 统一基金和股票任务标识、状态映射与无副作用操作查询
+- [x] 2.3 实现 MISSING、可信空冷却、陈旧数据后台刷新和并发任务复用
+- [x] 2.4 将详情访问写入移到 POST 并增加节流，确保 GET 无副作用
+
+## 3. 活动目标与调度
+
+- [x] 3.1 实现股票持有/自选/近 90 天活动目标查询
+- [x] 3.2 增加活动基金与股票详情调度并复用 ensure 领取规则
+- [x] 3.3 增加 A 股和美股交易时段全市场行情调度及休市/提前收盘判断
+- [x] 3.4 区分 quoteFetchedAt 与 quoteAsOf
+
+## 4. 回调与兼容
+
+- [x] 4.1 接收 Agent 显式 slice_results 并兼容旧 callback 推断
+- [x] 4.2 验证迟到 callback、派发失败和可信空不会覆盖当前事实或形成请求风暴
+
+## 5. 验证
+
+- [x] 5.1 增加 SQL、Repository、Case、Controller 和 Job 测试
+- [x] 5.2 使用 JDK 17 串行运行相关 Maven 测试和聚合构建
+- [x] 5.3 运行 `openspec validate --strict unify-market-detail-ensure-flow`
+- [x] 5.4 检查公共数据共享与用户私有资产隔离、日志脱敏和任务幂等

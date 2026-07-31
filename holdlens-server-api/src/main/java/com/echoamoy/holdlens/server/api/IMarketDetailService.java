@@ -15,4 +15,5 @@ public interface IMarketDetailService {
     Response<MarketDetailDTO.StockCompanyProfile> queryStockCompanyProfile(String assetRef);
     Response<MarketDetailDTO.StockDetailRefresh> ensureStockDetailData(MarketDetailRefreshRequest.EnsureStockDetail request);
     Response<MarketDetailDTO.StockDetailRefresh> queryStockDetailDataTask(String serverTaskId);
+    Response<MarketDetailDTO.DetailRefresh> queryDetailOperation(String operationId);
 }

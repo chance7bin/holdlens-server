@@ -19,6 +19,9 @@ public final class MarketDetailCommand {
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class SliceResult { private String slice; private String status; }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class Callback {
         private String schemaVersion;
         private String serverTaskId;
@@ -27,6 +30,7 @@ public final class MarketDetailCommand {
         private String generatedAt;
         private String assetKind;
         private String assetRef;
+        private List<SliceResult> sliceResults;
         private FundNavHistory fundNavHistory;
         private FundPeriodPerformance fundPeriodPerformance;
         private List<StockPriceHistory> stockPriceHistories;

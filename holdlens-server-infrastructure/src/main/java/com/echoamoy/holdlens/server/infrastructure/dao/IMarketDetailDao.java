@@ -21,11 +21,13 @@ public interface IMarketDetailDao {
     List<FundNavHistoryPO> selectFundNavHistory(@Param("fundCode") String fundCode,
                                                 @Param("startDate") Date startDate);
     Date selectLatestFundNavDate(@Param("fundCode") String fundCode);
+    Date selectLatestFundNavFetchedAt(@Param("fundCode") String fundCode);
     List<FundPeriodPerformancePO> selectFundPeriodPerformance(@Param("fundCode") String fundCode);
     void insertFundSliceStatesIfAbsent(@Param("fundCode") String fundCode,
                                        @Param("sliceTypes") List<String> sliceTypes);
     MarketDetailSliceStatePO selectFundSliceStateForUpdate(@Param("fundCode") String fundCode,
                                                             @Param("sliceType") String sliceType);
+    List<MarketDetailSliceStatePO> selectFundSliceStates(@Param("fundCode") String fundCode);
     int updateFundSliceState(MarketDetailSliceStatePO state);
     int updateFundSliceStateIfActiveTask(MarketDetailSliceStatePO state);
     List<StockPriceBarPO> selectStockPriceBars(@Param("stockCode") String stockCode,
@@ -34,6 +36,8 @@ public interface IMarketDetailDao {
                                                @Param("startTime") Date startTime);
     Date selectLatestStockBarTime(@Param("stockCode") String stockCode, @Param("market") String market,
                                   @Param("granularity") String granularity);
+    Date selectLatestStockBarFetchedAt(@Param("stockCode") String stockCode, @Param("market") String market,
+                                       @Param("granularity") String granularity);
     StockCompanyProfilePO selectStockCompanyProfile(@Param("stockCode") String stockCode,
                                                      @Param("market") String market);
     void insertStockSliceStatesIfAbsent(@Param("assetRef") String assetRef,

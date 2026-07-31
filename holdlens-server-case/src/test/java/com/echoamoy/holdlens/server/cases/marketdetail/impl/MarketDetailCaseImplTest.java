@@ -215,6 +215,111 @@ public class MarketDetailCaseImplTest {
     }
 
     @Test
+    public void unifiedFundEnsureDistinguishesMissingTrustedEmptyAndReusesOneOperation() throws Exception {
+        FakeProcessingRepository processing = new FakeProcessingRepository();
+        FakeDetailRepository detail = new FakeDetailRepository();
+        FakeAgentPort agent = new FakeAgentPort();
+        MarketDetailCaseImpl service = newService(processing, detail, agent);
+
+        MarketDetailResult.DetailRefresh first = service.ensureFundDetailData("000001", false);
+        MarketDetailResult.DetailRefresh concurrent = service.ensureFundDetailData("000001", false);
+
+        Assert.assertEquals("PROCESSING", first.getStatus());
+        Assert.assertEquals(first.getOperationId(), concurrent.getOperationId());
+        Assert.assertTrue(first.getSlices().stream().allMatch(slice -> "PROCESSING".equals(slice.getStatus())));
+        Assert.assertEquals(1, agent.dispatchCount);
+
+        String taskId = first.getOperationId();
+        service.handleCallback(MarketDetailCommand.Callback.builder()
+                .schemaVersion("market-detail-data-refresh-result/v1").serverTaskId(taskId)
+                .idempotencyKey(taskId + ":result:1").status("succeeded")
+                .generatedAt("2026-07-30T12:01:00Z").assetKind("fund").assetRef("fund:000001")
+                .sliceResults(List.of(
+                        MarketDetailCommand.SliceResult.builder().slice("nav_history").status("empty").build(),
+                        MarketDetailCommand.SliceResult.builder().slice("period_performance").status("empty").build()))
+                .build());
+
+        MarketDetailResult.DetailRefresh completed = service.queryDetailOperation(taskId);
+        MarketDetailResult.DetailRefresh cooling = service.ensureFundDetailData("000001", false);
+        Assert.assertEquals("EMPTY", completed.getStatus());
+        Assert.assertTrue(completed.getSlices().stream().allMatch(slice -> "EMPTY".equals(slice.getStatus())));
+        Assert.assertEquals("EMPTY", cooling.getStatus());
+        Assert.assertNull(cooling.getOperationId());
+        Assert.assertEquals(1, agent.dispatchCount);
+    }
+
+    @Test
+    public void staleFactsRemainAvailableWhileOneBackgroundOperationRefreshesThem() throws Exception {
+        FakeProcessingRepository processing = new FakeProcessingRepository();
+        FakeDetailRepository detail = new FakeDetailRepository();
+        LocalDateTime staleFetchedAt = LocalDateTime.now().minusDays(10);
+        detail.navPoints.add(FundNavHistoryEntity.builder().fundCode("000001")
+                .navDate(LocalDate.now().minusDays(1)).unitNav(BigDecimal.ONE)
+                .fetchedAt(staleFetchedAt).build());
+        detail.performanceRows.add(FundPeriodPerformanceEntity.builder().fundCode("000001").period("1m")
+                .asOf(LocalDate.now().minusDays(1)).fundReturn(BigDecimal.ONE)
+                .fetchedAt(staleFetchedAt).build());
+        FakeAgentPort agent = new FakeAgentPort();
+        MarketDetailCaseImpl service = newService(processing, detail, agent);
+
+        MarketDetailResult.DetailRefresh first = service.ensureFundDetailData("000001", false);
+        MarketDetailResult.DetailRefresh second = service.ensureFundDetailData("000001", false);
+
+        Assert.assertEquals("AVAILABLE", first.getStatus());
+        Assert.assertEquals(first.getOperationId(), second.getOperationId());
+        Assert.assertTrue(first.getSlices().stream().allMatch(slice -> Boolean.TRUE.equals(slice.getHasData())
+                && "AVAILABLE".equals(slice.getStatus()) && "STALE".equals(slice.getFreshness())));
+        Assert.assertEquals(1, agent.dispatchCount);
+    }
+
+    @Test
+    public void activitySchedulesUseNinetyDayCutoffWithoutExtendingViewTime() throws Exception {
+        FakeProcessingRepository processing = new FakeProcessingRepository();
+        FakeDetailRepository detail = new FakeDetailRepository();
+        FakeAgentPort agent = new FakeAgentPort();
+        MarketDetailCaseImpl service = newService(processing, detail, agent);
+        FakeFundRepository funds = new FakeFundRepository();
+        funds.detailTargets = List.of("000001");
+        FakeStockRepository stocks = new FakeStockRepository();
+        stocks.detailTargets = List.of(stocks.queryOne("600519", "A_SHARE"));
+        set(service, "fundDataRepository", funds);
+        set(service, "stockMarketRepository", stocks);
+        LocalDateTime expectedCutoff = LocalDateTime.now().minusDays(90);
+
+        Assert.assertEquals(1, service.scheduleActiveFundDetails());
+        Assert.assertEquals(1, service.scheduleActiveStockDetails("A_SHARE"));
+
+        Assert.assertTrue(funds.viewedSince.isAfter(expectedCutoff.minusSeconds(2)));
+        Assert.assertTrue(stocks.viewedSince.isAfter(expectedCutoff.minusSeconds(2)));
+        Assert.assertEquals(0, funds.viewWrites);
+        Assert.assertEquals(0, stocks.viewWrites);
+        Assert.assertEquals(2, agent.dispatchCount);
+    }
+
+    @Test
+    public void lateFundCallbackCannotOverwriteFactsOwnedByANewerOperation() throws Exception {
+        FakeProcessingRepository processing = new FakeProcessingRepository();
+        FakeDetailRepository detail = new FakeDetailRepository();
+        MarketDetailCaseImpl service = newService(processing, detail, new FakeAgentPort());
+        String taskId = service.ensureFundDetailData("000001", false).getOperationId();
+        for (MarketDetailSliceStateEntity state : detail.states.values()) state.setActiveTaskId("newer-task");
+
+        service.handleCallback(MarketDetailCommand.Callback.builder()
+                .schemaVersion("market-detail-data-refresh-result/v1").serverTaskId(taskId)
+                .idempotencyKey(taskId + ":result:1").status("partial_failed")
+                .generatedAt("2026-07-30T12:01:00Z").assetKind("fund").assetRef("fund:000001")
+                .sliceResults(List.of(
+                        MarketDetailCommand.SliceResult.builder().slice("nav_history").status("available").build(),
+                        MarketDetailCommand.SliceResult.builder().slice("period_performance").status("failed").build()))
+                .fundNavHistory(MarketDetailCommand.FundNavHistory.builder().fundCode("000001")
+                        .points(List.of(MarketDetailCommand.FundNavPoint.builder()
+                                .navDate("2026-07-30").unitNav("1.00").build())).build())
+                .errorSummary("period unavailable").build());
+
+        Assert.assertTrue(detail.navPoints.isEmpty());
+    }
+
+    @Test
     public void successfulFundPerformanceCallbackPersistsSnapshotAndConvergesSlicesIndependently() throws Exception {
         FakeProcessingRepository processing = new FakeProcessingRepository();
         FakeDetailRepository detail = new FakeDetailRepository();
@@ -291,7 +396,8 @@ public class MarketDetailCaseImplTest {
     public void periodPerformanceQueryReturnsOnlyRowsFromLatestSnapshot() throws Exception {
         FakeDetailRepository detail = new FakeDetailRepository();
         detail.performanceRows.add(FundPeriodPerformanceEntity.builder().fundCode("000001").period("1m")
-                .fundReturn(new BigDecimal("1.23")).asOf(LocalDate.of(2026, 7, 30)).build());
+                .fundReturn(new BigDecimal("1.23")).asOf(LocalDate.of(2026, 7, 30))
+                .fetchedAt(LocalDateTime.now()).build());
         detail.performanceRows.add(FundPeriodPerformanceEntity.builder().fundCode("000001").period("3m")
                 .fundReturn(new BigDecimal("4.56")).asOf(LocalDate.of(2026, 7, 20)).build());
         FakeAgentPort agent = new FakeAgentPort();
@@ -335,7 +441,10 @@ public class MarketDetailCaseImplTest {
         FakeProcessingRepository readyProcessing = new FakeProcessingRepository();
         FakeDetailRepository readyDetail = new FakeDetailRepository();
         readyDetail.latestBarTime = LocalDateTime.now();
-        readyDetail.profile = StockCompanyProfileEntity.builder().companyName("贵州茅台").build();
+        readyDetail.bars.add(StockPriceBarEntity.builder().stockCode("600519").market("A_SHARE")
+                .granularity("day").barTime(LocalDateTime.now()).fetchedAt(LocalDateTime.now()).build());
+        readyDetail.profile = StockCompanyProfileEntity.builder().companyName("贵州茅台")
+                .fetchedAt(LocalDateTime.now()).build();
         FakeAgentPort readyAgent = new FakeAgentPort();
         MarketDetailResult.StockDetailRefresh ready = newService(readyProcessing, readyDetail, readyAgent)
                 .ensureStockDetailData("stock:A_SHARE:600519");
@@ -439,6 +548,13 @@ public class MarketDetailCaseImplTest {
         set(service, "callbackUrl", "http://127.0.0.1:8091/internal/agent/market-detail-data-refresh/callback");
         set(service, "refreshCooldownMinutes", 10L);
         set(service, "refreshTimeoutMinutes", 10L);
+        set(service, "accessWriteThrottleMinutes", 60L);
+        set(service, "activeDays", 90L);
+        set(service, "scheduleBatchSize", 100);
+        set(service, "fundNavStaleHours", 36L);
+        set(service, "fundPerformanceStaleHours", 168L);
+        set(service, "stockPriceStaleHours", 36L);
+        set(service, "stockProfileStaleDays", 30L);
         return service;
     }
 
@@ -514,12 +630,24 @@ public class MarketDetailCaseImplTest {
     }
 
     private static class FakeFundRepository implements IFundDataRepository {
+        private List<String> detailTargets = List.of();
+        private LocalDateTime viewedSince;
+        private int viewWrites;
         @Override public Map<String, FundCurrentDataAggregate.FundDetail> queryCurrentDetails(Set<String> fundCodes) { return Map.of(); }
         @Override public Set<String> queryExistingFundCodes(Collection<String> fundCodes) { return Set.copyOf(fundCodes); }
         @Override public void upsertCatalogs(List<FundCurrentDataAggregate.FundDetail> funds) { }
+        @Override public void markDetailViewed(Collection<String> fundCodes, LocalDateTime viewedAt,
+                                               LocalDateTime updateBefore) { viewWrites++; }
+        @Override public List<String> queryDetailRefreshTargets(LocalDateTime viewedSince, int limit) {
+            this.viewedSince = viewedSince;
+            return detailTargets.stream().limit(limit).toList();
+        }
     }
 
     private static class FakeStockRepository implements IStockMarketRepository {
+        private List<StockMarketEntity> detailTargets = List.of();
+        private LocalDateTime viewedSince;
+        private int viewWrites;
         @Override public void registerQuoteTargets(List<StockMarketEntity> quoteTargets) { }
         @Override public void upsertMarkets(List<StockMarketEntity> markets) { }
         @Override public Map<String, StockMarketEntity> queryByStockKeys(Collection<String> stockKeys) { return Map.of(); }
@@ -529,6 +657,14 @@ public class MarketDetailCaseImplTest {
             return StockMarketEntity.builder().stockCode(stockCode).market(market)
                     .exchangeCode(aShare ? "SH" : null).providerMarketCode(aShare ? null : "105.DEMO")
                     .currency(aShare ? "CNY" : "USD").stockName("Demo").build();
+        }
+        @Override public void markDetailViewed(String stockCode, String market, LocalDateTime viewedAt,
+                                               LocalDateTime updateBefore) { viewWrites++; }
+        @Override public List<StockMarketEntity> queryDetailRefreshTargets(String market,
+                                                                           LocalDateTime viewedSince, int limit) {
+            this.viewedSince = viewedSince;
+            return detailTargets.stream().filter(stock -> market == null || market.equals(stock.getMarket()))
+                    .limit(limit).toList();
         }
     }
 
@@ -553,7 +689,16 @@ public class MarketDetailCaseImplTest {
             this.profile = profile;
         }
         @Override public List<FundNavHistoryEntity> queryFundNavHistory(String fundCode, LocalDate startDate) { return List.of(); }
-        @Override public LocalDate queryLatestFundNavDate(String fundCode) { return null; }
+        @Override public LocalDate queryLatestFundNavDate(String fundCode) {
+            return navPoints.stream().filter(point -> fundCode.equals(point.getFundCode()))
+                    .map(FundNavHistoryEntity::getNavDate).filter(java.util.Objects::nonNull)
+                    .max(LocalDate::compareTo).orElse(null);
+        }
+        @Override public LocalDateTime queryLatestFundNavFetchedAt(String fundCode) {
+            return navPoints.stream().filter(point -> fundCode.equals(point.getFundCode()))
+                    .map(FundNavHistoryEntity::getFetchedAt).filter(java.util.Objects::nonNull)
+                    .max(LocalDateTime::compareTo).orElse(null);
+        }
         @Override public List<FundPeriodPerformanceEntity> queryFundPeriodPerformance(String fundCode) {
             LocalDate latest = performanceRows.stream().filter(row -> fundCode.equals(row.getFundCode()))
                     .map(FundPeriodPerformanceEntity::getAsOf).filter(java.util.Objects::nonNull)
@@ -567,6 +712,9 @@ public class MarketDetailCaseImplTest {
                     .fundCode(fundCode).sliceType(slice).status("failed").build());
         }
         @Override public MarketDetailSliceStateEntity lockFundSliceState(String fundCode, String sliceType) { return states.get(sliceType); }
+        @Override public List<MarketDetailSliceStateEntity> queryFundSliceStates(String fundCode) {
+            return List.copyOf(states.values());
+        }
         @Override public void updateFundSliceState(MarketDetailSliceStateEntity state) { states.put(state.getSliceType(), state); }
         @Override public boolean updateFundSliceStateIfActiveTask(MarketDetailSliceStateEntity state) {
             MarketDetailSliceStateEntity current = states.get(state.getSliceType());
@@ -576,6 +724,10 @@ public class MarketDetailCaseImplTest {
         }
         @Override public List<StockPriceBarEntity> queryStockPriceBars(String stockCode, String market, String granularity, LocalDateTime startTime) { return bars; }
         @Override public LocalDateTime queryLatestStockBarTime(String stockCode, String market, String granularity) { return latestBarTime; }
+        @Override public LocalDateTime queryLatestStockBarFetchedAt(String stockCode, String market, String granularity) {
+            return bars.stream().map(StockPriceBarEntity::getFetchedAt).filter(java.util.Objects::nonNull)
+                    .max(LocalDateTime::compareTo).orElse(null);
+        }
         @Override public StockCompanyProfileEntity queryStockCompanyProfile(String stockCode, String market) { return profile; }
         @Override public void ensureStockSliceStates(String assetRef, List<String> sliceTypes) {
             for (String slice : sliceTypes) stockStates.putIfAbsent(slice, StockDetailSliceStateEntity.builder()

@@ -40,6 +40,15 @@ public final class MarketDetailDTO {
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class StockDetailSlice { private String slice; private String status; }
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class DetailRefresh {
+        private String assetKind; private String assetRef; private String operationId; private String status;
+        private Long retryAfterMs; private List<DetailSlice> slices;
+    }
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class DetailSlice {
+        private String slice; private String status; private String freshness; private Boolean hasData;
+    }
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class StockPriceHistory {
         private String assetRef; private String period; private String granularity; private String currency;
         private String asOf; private List<StockBar> points;

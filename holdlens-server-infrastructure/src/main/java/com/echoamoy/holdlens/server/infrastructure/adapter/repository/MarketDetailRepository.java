@@ -64,6 +64,11 @@ public class MarketDetailRepository implements IMarketDetailRepository {
     }
 
     @Override
+    public LocalDateTime queryLatestFundNavFetchedAt(String fundCode) {
+        return toLocalDateTime(marketDetailDao.selectLatestFundNavFetchedAt(fundCode));
+    }
+
+    @Override
     public List<FundPeriodPerformanceEntity> queryFundPeriodPerformance(String fundCode) {
         return marketDetailDao.selectFundPeriodPerformance(fundCode).stream().map(this::toEntity).toList();
     }
@@ -79,6 +84,11 @@ public class MarketDetailRepository implements IMarketDetailRepository {
     public MarketDetailSliceStateEntity lockFundSliceState(String fundCode, String sliceType) {
         MarketDetailSliceStatePO po = marketDetailDao.selectFundSliceStateForUpdate(fundCode, sliceType);
         return po == null ? null : toEntity(po);
+    }
+
+    @Override
+    public List<MarketDetailSliceStateEntity> queryFundSliceStates(String fundCode) {
+        return marketDetailDao.selectFundSliceStates(fundCode).stream().map(this::toEntity).toList();
     }
 
     @Override
@@ -101,6 +111,11 @@ public class MarketDetailRepository implements IMarketDetailRepository {
     @Override
     public LocalDateTime queryLatestStockBarTime(String stockCode, String market, String granularity) {
         return toLocalDateTime(marketDetailDao.selectLatestStockBarTime(stockCode, market, granularity));
+    }
+
+    @Override
+    public LocalDateTime queryLatestStockBarFetchedAt(String stockCode, String market, String granularity) {
+        return toLocalDateTime(marketDetailDao.selectLatestStockBarFetchedAt(stockCode, market, granularity));
     }
 
     @Override

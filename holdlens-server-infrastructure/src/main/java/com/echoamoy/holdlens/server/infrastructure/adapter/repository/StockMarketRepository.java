@@ -13,9 +13,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Date;
 
 @Repository
 public class StockMarketRepository implements IStockMarketRepository {
+
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
 
     @Resource
     private IStockMarketDao stockMarketDao;
@@ -76,6 +81,20 @@ public class StockMarketRepository implements IStockMarketRepository {
         return po == null ? null : toEntity(po);
     }
 
+    @Override
+    public void markDetailViewed(String stockCode, String market, LocalDateTime viewedAt,
+                                 LocalDateTime updateBefore) {
+        if (stockCode == null || market == null || viewedAt == null || updateBefore == null) return;
+        stockMarketDao.updateLastDetailViewTime(stockCode, market, toDate(viewedAt), toDate(updateBefore));
+    }
+
+    @Override
+    public List<StockMarketEntity> queryDetailRefreshTargets(String market, LocalDateTime viewedSince, int limit) {
+        if (viewedSince == null || limit <= 0) return List.of();
+        return stockMarketDao.selectDetailRefreshTargets(market, toDate(viewedSince), limit)
+                .stream().map(this::toEntity).toList();
+    }
+
     private StockMarketPO toPO(StockMarketEntity market) {
         return StockMarketPO.builder()
                 .id(market.getId())
@@ -110,6 +129,7 @@ public class StockMarketRepository implements IStockMarketRepository {
                 .listingDate(market.getListingDate())
                 .status(market.getStatus())
                 .refreshedAt(market.getRefreshedAt())
+                .lastDetailViewTime(market.getLastDetailViewTime())
                 .build();
     }
 
@@ -160,7 +180,12 @@ public class StockMarketRepository implements IStockMarketRepository {
                 .listingDate(po.getListingDate())
                 .status(po.getStatus())
                 .refreshedAt(po.getRefreshedAt())
+                .lastDetailViewTime(po.getLastDetailViewTime())
                 .build();
+    }
+
+    private Date toDate(LocalDateTime value) {
+        return value == null ? null : Date.from(value.atZone(BUSINESS_ZONE).toInstant());
     }
 
     private String stockKey(String stockCode, String market) {

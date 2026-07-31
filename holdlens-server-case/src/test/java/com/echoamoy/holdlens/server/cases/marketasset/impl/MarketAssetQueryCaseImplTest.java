@@ -42,6 +42,9 @@ public class MarketAssetQueryCaseImplTest {
         Assert.assertEquals(Integer.valueOf(1), fundsOnly.getFundCount());
         Assert.assertEquals(Integer.valueOf(1), fundsOnly.getStockCount());
         Assert.assertEquals("行情可能延迟", stock.getDelayNotice());
+        Assert.assertNull(stock.getQuoteAsOf());
+        Assert.assertNotNull(stock.getQuoteFetchedAt());
+        Assert.assertTrue(stock.getQuoteFetchedAt().startsWith("2026-07-17T22:41"));
         Assert.assertNull(stock.getPeRatio());
         Assert.assertEquals(0, portfolio.writeCount);
     }

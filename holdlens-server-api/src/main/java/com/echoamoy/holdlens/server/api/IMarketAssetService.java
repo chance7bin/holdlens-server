@@ -2,6 +2,7 @@ package com.echoamoy.holdlens.server.api;
 
 import com.echoamoy.holdlens.server.api.dto.MarketAssetDTO;
 import com.echoamoy.holdlens.server.api.response.Response;
+import com.echoamoy.holdlens.server.api.request.MarketAssetDetailEnsureRequest;
 
 public interface IMarketAssetService {
 
@@ -12,4 +13,6 @@ public interface IMarketAssetService {
     Response<MarketAssetDTO.Detail> queryDetail(Long userId, String assetKind, String assetRef);
 
     Response<MarketAssetDTO.StockDetail> queryStockDetail(Long userId, String assetRef);
+
+    Response<MarketAssetDTO.Detail> ensureDetail(MarketAssetDetailEnsureRequest request);
 }

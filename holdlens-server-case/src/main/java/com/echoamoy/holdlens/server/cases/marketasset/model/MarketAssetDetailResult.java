@@ -1,6 +1,7 @@
 package com.echoamoy.holdlens.server.cases.marketasset.model;
 
 import com.echoamoy.holdlens.server.cases.portfolio.model.PortfolioFundDetailResult;
+import com.echoamoy.holdlens.server.cases.marketdetail.model.MarketDetailResult;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -16,4 +17,5 @@ public class MarketAssetDetailResult {
     private Boolean watchlisted;
     private PortfolioFundDetailResult.FundDetail fund;
     private MarketAssetQueryResult.StockDetail stock;
+    private MarketDetailResult.DetailRefresh refresh;
 }

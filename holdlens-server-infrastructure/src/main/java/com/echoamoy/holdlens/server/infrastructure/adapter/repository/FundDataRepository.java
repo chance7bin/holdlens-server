@@ -144,10 +144,21 @@ public class FundDataRepository implements IFundDataRepository {
 
     @Override
     public void markDetailViewed(Collection<String> fundCodes, LocalDateTime viewedAt) {
+        markDetailViewed(fundCodes, viewedAt, viewedAt);
+    }
+
+    @Override
+    public void markDetailViewed(Collection<String> fundCodes, LocalDateTime viewedAt, LocalDateTime updateBefore) {
         if (fundCodes == null || fundCodes.isEmpty() || viewedAt == null) {
             return;
         }
-        fundDao.updateLastDetailViewTime(fundCodes, toDate(viewedAt));
+        fundDao.updateLastDetailViewTime(fundCodes, toDate(viewedAt), toDate(updateBefore));
+    }
+
+    @Override
+    public List<String> queryDetailRefreshTargets(LocalDateTime viewedSince, int limit) {
+        if (viewedSince == null || limit <= 0) return List.of();
+        return fundDao.selectDetailRefreshTargets(toDate(viewedSince), limit);
     }
 
     @Override

@@ -133,7 +133,8 @@ public class MarketAssetQueryCaseImpl implements IMarketAssetQueryCase {
                 .changePercent(stock.getChangePercent()).openPrice(stock.getOpenPrice()).highPrice(stock.getHighPrice())
                 .lowPrice(stock.getLowPrice()).previousClose(stock.getPreviousClose()).volume(stock.getVolume())
                 .volumeUnit(stock.getVolumeUnit()).peRatio(stock.getPeRatio()).totalMarketValue(stock.getTotalMarketValue())
-                .quoteAsOf(format(stock.getRefreshedAt())).delayNotice("行情可能延迟").watchlisted(watchlisted).build();
+                .quoteAsOf(null).quoteFetchedAt(format(stock.getRefreshedAt()))
+                .delayNotice("行情可能延迟").watchlisted(watchlisted).build();
     }
 
     private MarketAssetQueryResult.Item toFundItem(WatchlistAssetEntity relation,

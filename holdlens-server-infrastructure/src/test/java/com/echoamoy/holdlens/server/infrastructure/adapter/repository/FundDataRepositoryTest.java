@@ -22,6 +22,20 @@ import org.springframework.transaction.annotation.Transactional;
 public class FundDataRepositoryTest {
 
     @Test
+    public void detailRefreshTargetsAreDelegatedWithConfiguredLimit() throws Exception {
+        FundDataRepository repository = new FundDataRepository();
+        FakeFundDao dao = new FakeFundDao();
+        dao.detailTargets = List.of("000001", "000002");
+        setField(repository, "fundDao", dao);
+
+        List<String> targets = repository.queryDetailRefreshTargets(
+                LocalDateTime.of(2026, 5, 1, 0, 0), 25);
+
+        Assert.assertEquals(List.of("000001", "000002"), targets);
+        Assert.assertEquals(25, dao.detailLimit);
+    }
+
+    @Test
     public void upsertCatalogsMapsDomainFundsAndUsesOneDaoBatch() throws Exception {
         FundDataRepository repository = new FundDataRepository();
         FakeFundDao fundDao = new FakeFundDao();
@@ -287,6 +301,8 @@ public class FundDataRepositoryTest {
         private java.util.Date latestEndedQuarter;
         private java.util.Date unavailableRetryBefore;
         private FundPO lockedAssetAllocation;
+        private List<String> detailTargets = List.of();
+        private int detailLimit;
 
         @Override public void upsertCatalog(FundPO fundPO) { upserted = fundPO; }
         @Override public void upsertCatalogBatch(List<FundPO> funds) { catalogBatch = funds; }
@@ -295,8 +311,13 @@ public class FundDataRepositoryTest {
         @Override public int updateTopHoldingMetadata(FundPO fundPO) { upserted = fundPO; return 1; }
         @Override public int updateAssetAllocationMetadata(FundPO fundPO) { assetAllocationMetadata = fundPO; return 1; }
         @Override public int markAssetAllocationUnavailable(String fundCode, java.util.Date fetchedAt) { return 1; }
-        @Override public int updateLastDetailViewTime(Collection<String> fundCodes, java.util.Date viewedAt) { return fundCodes.size(); }
+        @Override public int updateLastDetailViewTime(Collection<String> fundCodes, java.util.Date viewedAt,
+                                                      java.util.Date updateBefore) { return fundCodes.size(); }
         @Override public List<String> selectTopHoldingRefreshTargets(java.util.Date viewedSince) { return List.of(); }
+        @Override public List<String> selectDetailRefreshTargets(java.util.Date viewedSince, int limit) {
+            detailLimit = limit;
+            return detailTargets;
+        }
         @Override public List<String> selectAssetAllocationRefreshTargets(
                 java.util.Date viewedSince, java.util.Date latestEndedQuarter,
                 java.util.Date unavailableRetryBefore) {

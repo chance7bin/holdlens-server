@@ -26,6 +26,7 @@ public final class MarketDetailRefreshRequest {
         @JsonProperty("generated_at") private String generatedAt;
         @JsonProperty("asset_kind") private String assetKind;
         @JsonProperty("asset_ref") private String assetRef;
+        @JsonProperty("slice_results") private List<SliceResult> sliceResults;
         @JsonProperty("fund_nav_history") private FundNavHistory fundNavHistory;
         @JsonProperty("fund_period_performance") private FundPeriodPerformance fundPeriodPerformance;
         @JsonProperty("stock_price_histories") private List<StockPriceHistory> stockPriceHistories;
@@ -33,6 +34,8 @@ public final class MarketDetailRefreshRequest {
         @JsonProperty("refresh_warnings") private List<RefreshWarning> refreshWarnings;
         @JsonProperty("error_summary") private String errorSummary;
     }
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class SliceResult { private String slice; private String status; }
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class FundNavHistory { @JsonProperty("fund_code") private String fundCode; private List<FundNavPoint> points; }
     @Data @Builder @NoArgsConstructor @AllArgsConstructor

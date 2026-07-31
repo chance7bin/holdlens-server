@@ -51,6 +51,7 @@ public class StockMarketPO implements Serializable {
     private LocalDate listingDate;
     private String status;
     private LocalDateTime refreshedAt;
+    private LocalDateTime lastDetailViewTime;
     private Date createTime;
     private Date updateTime;
 

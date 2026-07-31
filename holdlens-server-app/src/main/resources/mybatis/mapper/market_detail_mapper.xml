@@ -100,7 +100,7 @@
         INSERT IGNORE INTO market_detail_slice_state (fund_code, slice_type, status)
         VALUES
         <foreach collection="sliceTypes" item="slice" separator=",">
-            (#{fundCode}, #{slice}, 'failed')
+            (#{fundCode}, #{slice}, 'missing')
         </foreach>
     </insert>
 
@@ -122,6 +122,9 @@
     <select id="selectLatestFundNavDate" resultType="java.util.Date">
         SELECT MAX(nav_date) FROM fund_nav_history WHERE fund_code=#{fundCode}
     </select>
+    <select id="selectLatestFundNavFetchedAt" resultType="java.util.Date">
+        SELECT MAX(fetched_at) FROM fund_nav_history WHERE fund_code=#{fundCode}
+    </select>
     <select id="selectFundPeriodPerformance" resultMap="FundPeriodPerformanceMap">
         SELECT * FROM fund_period_performance
         WHERE fund_code=#{fundCode}
@@ -136,6 +139,9 @@
         SELECT * FROM market_detail_slice_state
         WHERE fund_code=#{fundCode} AND slice_type=#{sliceType}
         FOR UPDATE
+    </select>
+    <select id="selectFundSliceStates" resultMap="FundSliceStateMap">
+        SELECT * FROM market_detail_slice_state WHERE fund_code=#{fundCode} ORDER BY id ASC
     </select>
     <update id="updateFundSliceState" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.MarketDetailSliceStatePO">
         UPDATE market_detail_slice_state
@@ -158,6 +164,10 @@
         SELECT MAX(bar_time) FROM stock_price_bar
         WHERE stock_code=#{stockCode} AND market=#{market} AND granularity=#{granularity}
     </select>
+    <select id="selectLatestStockBarFetchedAt" resultType="java.util.Date">
+        SELECT MAX(fetched_at) FROM stock_price_bar
+        WHERE stock_code=#{stockCode} AND market=#{market} AND granularity=#{granularity}
+    </select>
     <select id="selectStockCompanyProfile" resultMap="ProfileMap">
         SELECT * FROM stock_company_profile WHERE stock_code=#{stockCode} AND market=#{market} LIMIT 1
     </select>
@@ -165,7 +175,7 @@
         INSERT IGNORE INTO stock_detail_slice_state (asset_ref, slice_type, status)
         VALUES
         <foreach collection="sliceTypes" item="slice" separator=",">
-            (#{assetRef}, #{slice}, 'failed')
+            (#{assetRef}, #{slice}, 'missing')
         </foreach>
     </insert>
     <select id="selectStockSliceStateForUpdate" resultMap="StockSliceStateMap">

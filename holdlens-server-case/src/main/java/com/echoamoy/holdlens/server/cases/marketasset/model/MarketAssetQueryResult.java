@@ -61,6 +61,7 @@ public final class MarketAssetQueryResult {
         private BigDecimal peRatio;
         private BigDecimal totalMarketValue;
         private String quoteAsOf;
+        private String quoteFetchedAt;
         private String delayNotice;
         private Boolean watchlisted;
     }

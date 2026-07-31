@@ -52,11 +52,11 @@ public class PortfolioFundDetailCaseImplTest {
         Assert.assertEquals("available", result.getHoldings().get(0).getFundDetail().getTopHoldings().get(1).getQuoteStatus());
         Assert.assertEquals(new BigDecimal("0.10"), result.getHoldings().get(0).getFundDetail().getTopHoldings().get(1).getChangePercent());
         Assert.assertEquals(new BigDecimal("123.45"), result.getHoldings().get(0).getAmount());
-        Assert.assertEquals(List.of("000001"), sliceCase.assetAllocationCodes);
+        Assert.assertTrue(sliceCase.assetAllocationCodes.isEmpty());
     }
 
     @Test
-    public void queryCatalogFundDetailReturnsDatabaseSnapshotAndMarksRecentView() throws Exception {
+    public void queryCatalogFundDetailReturnsDatabaseSnapshotWithoutSideEffects() throws Exception {
         PortfolioFundDetailCaseImpl fundDetailCase = new PortfolioFundDetailCaseImpl();
         FakeFundDataRepository fundRepository = new FakeFundDataRepository();
         setField(fundDetailCase, "portfolioRepository", new FakePortfolioRepository());
@@ -67,12 +67,12 @@ public class PortfolioFundDetailCaseImplTest {
 
         Assert.assertEquals("000001", result.getFundCode());
         Assert.assertEquals("stale", result.getDetailStatus());
-        Assert.assertEquals("refreshing", result.getTopHoldingRefreshStatus());
+        Assert.assertEquals("current", result.getTopHoldingRefreshStatus());
         Assert.assertEquals("available", result.getAssetAllocationStatus());
         Assert.assertEquals(2, result.getAssetAllocations().size());
         Assert.assertEquals("unknown", result.getAssetAllocations().get(0).getAssetType());
         Assert.assertEquals("其他资产A", result.getAssetAllocations().get(0).getAssetTypeName());
-        Assert.assertEquals(Set.of("000001"), fundRepository.viewedCodes);
+        Assert.assertTrue(fundRepository.viewedCodes.isEmpty());
     }
 
     @Test
@@ -87,7 +87,7 @@ public class PortfolioFundDetailCaseImplTest {
         setField(fundDetailCase, "fundSliceRefreshCase", sliceCase);
         setField(fundDetailCase, "threadPoolExecutor", new DirectExecutor());
 
-        PortfolioFundDetailResult.FundDetail result = fundDetailCase.queryFundDetail("000001");
+        PortfolioFundDetailResult.FundDetail result = fundDetailCase.ensureFundDetail("000001");
 
         Assert.assertEquals("000001", result.getFundCode());
         Assert.assertEquals(List.of("000001"), sliceCase.assetAllocationCodes);
@@ -107,7 +107,7 @@ public class PortfolioFundDetailCaseImplTest {
         setField(fundDetailCase, "fundSliceRefreshCase", sliceCase);
         setField(fundDetailCase, "threadPoolExecutor", new DirectExecutor());
 
-        fundDetailCase.queryFundDetail("000001");
+        fundDetailCase.ensureFundDetail("000001");
 
         Assert.assertTrue(sliceCase.assetAllocationCodes.isEmpty());
     }

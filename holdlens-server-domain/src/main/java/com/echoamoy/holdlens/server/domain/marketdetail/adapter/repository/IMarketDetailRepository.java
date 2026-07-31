@@ -18,14 +18,17 @@ public interface IMarketDetailRepository {
     void upsertStockCompanyProfile(StockCompanyProfileEntity profile);
     List<FundNavHistoryEntity> queryFundNavHistory(String fundCode, LocalDate startDate);
     LocalDate queryLatestFundNavDate(String fundCode);
+    LocalDateTime queryLatestFundNavFetchedAt(String fundCode);
     List<FundPeriodPerformanceEntity> queryFundPeriodPerformance(String fundCode);
     void ensureFundSliceStates(String fundCode, List<String> sliceTypes);
     MarketDetailSliceStateEntity lockFundSliceState(String fundCode, String sliceType);
+    List<MarketDetailSliceStateEntity> queryFundSliceStates(String fundCode);
     void updateFundSliceState(MarketDetailSliceStateEntity state);
     boolean updateFundSliceStateIfActiveTask(MarketDetailSliceStateEntity state);
     List<StockPriceBarEntity> queryStockPriceBars(String stockCode, String market, String granularity,
                                                   LocalDateTime startTime);
     LocalDateTime queryLatestStockBarTime(String stockCode, String market, String granularity);
+    LocalDateTime queryLatestStockBarFetchedAt(String stockCode, String market, String granularity);
     StockCompanyProfileEntity queryStockCompanyProfile(String stockCode, String market);
     void ensureStockSliceStates(String assetRef, List<String> sliceTypes);
     StockDetailSliceStateEntity lockStockSliceState(String assetRef, String sliceType);

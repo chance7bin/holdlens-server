@@ -2,7 +2,9 @@ package com.echoamoy.holdlens.server.trigger.http;
 
 import com.echoamoy.holdlens.server.api.IMarketAssetService;
 import com.echoamoy.holdlens.server.api.dto.MarketAssetDTO;
+import com.echoamoy.holdlens.server.api.dto.MarketDetailDTO;
 import com.echoamoy.holdlens.server.api.response.Response;
+import com.echoamoy.holdlens.server.api.request.MarketAssetDetailEnsureRequest;
 import com.echoamoy.holdlens.server.cases.marketasset.IMarketAssetQueryCase;
 import com.echoamoy.holdlens.server.cases.marketasset.IMarketAssetDetailCase;
 import com.echoamoy.holdlens.server.cases.marketasset.model.MarketAssetDetailResult;
@@ -11,6 +13,8 @@ import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
 
@@ -47,9 +51,16 @@ public class MarketAssetController implements IMarketAssetService {
                                                         @RequestParam("assetKind") String assetKind,
                                                         @RequestParam("assetRef") String assetRef) {
         MarketAssetDetailResult result = marketAssetDetailCase.queryDetail(userId, assetKind, assetRef);
-        return Response.ok(MarketAssetDTO.Detail.builder().assetKind(result.getAssetKind())
-                .assetRef(result.getAssetRef()).watchlisted(result.getWatchlisted())
-                .fund(FundDetailDtoMapper.toDTO(result.getFund())).stock(toStockDetail(result.getStock())).build());
+        return Response.ok(toDetail(result));
+    }
+
+    @Override
+    @PostMapping("/api/market-assets/detail/ensure")
+    public Response<MarketAssetDTO.Detail> ensureDetail(@RequestBody MarketAssetDetailEnsureRequest request) {
+        MarketAssetDetailResult result = marketAssetDetailCase.ensureDetail(
+                request == null ? null : request.getUserId(), request == null ? null : request.getAssetKind(),
+                request == null ? null : request.getAssetRef());
+        return Response.ok(toDetail(result));
     }
 
     @Override
@@ -69,7 +80,25 @@ public class MarketAssetController implements IMarketAssetService {
                 .openPrice(r.getOpenPrice()).highPrice(r.getHighPrice()).lowPrice(r.getLowPrice())
                 .previousClose(r.getPreviousClose()).volume(r.getVolume()).volumeUnit(r.getVolumeUnit())
                 .peRatio(r.getPeRatio()).totalMarketValue(r.getTotalMarketValue()).quoteAsOf(r.getQuoteAsOf())
-                .delayNotice(r.getDelayNotice()).watchlisted(r.getWatchlisted()).build();
+                .quoteFetchedAt(r.getQuoteFetchedAt()).delayNotice(r.getDelayNotice())
+                .watchlisted(r.getWatchlisted()).build();
+    }
+
+    private MarketAssetDTO.Detail toDetail(MarketAssetDetailResult result) {
+        return MarketAssetDTO.Detail.builder().assetKind(result.getAssetKind())
+                .assetRef(result.getAssetRef()).watchlisted(result.getWatchlisted())
+                .fund(FundDetailDtoMapper.toDTO(result.getFund())).stock(toStockDetail(result.getStock()))
+                .refresh(toRefresh(result.getRefresh())).build();
+    }
+
+    private MarketDetailDTO.DetailRefresh toRefresh(
+            com.echoamoy.holdlens.server.cases.marketdetail.model.MarketDetailResult.DetailRefresh result) {
+        if (result == null) return null;
+        return MarketDetailDTO.DetailRefresh.builder().assetKind(result.getAssetKind()).assetRef(result.getAssetRef())
+                .operationId(result.getOperationId()).status(result.getStatus()).retryAfterMs(result.getRetryAfterMs())
+                .slices(result.getSlices().stream().map(slice -> MarketDetailDTO.DetailSlice.builder()
+                        .slice(slice.getSlice()).status(slice.getStatus()).freshness(slice.getFreshness())
+                        .hasData(slice.getHasData()).build()).toList()).build();
     }
 
     private List<MarketAssetDTO.Item> toItems(List<MarketAssetQueryResult.Item> items) {

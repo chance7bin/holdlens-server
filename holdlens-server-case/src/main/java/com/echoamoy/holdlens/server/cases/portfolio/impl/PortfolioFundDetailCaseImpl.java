@@ -57,6 +57,9 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
     @Value("${holdlens.agent.fund-top-holding-refresh.detail-stale-days}")
     private int topHoldingStaleDays;
 
+    @Value("${holdlens.market-detail.access-write-throttle-minutes:60}")
+    private int accessWriteThrottleMinutes;
+
     @Override
     public PortfolioFundDetailResult queryPortfolioFundDetails(Long userId) {
         if (userId == null) {
@@ -73,29 +76,27 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
         }
         Map<String, FundCurrentDataAggregate.FundDetail> currentDetails = fundDataRepository.queryCurrentDetails(fundCodes);
         Map<String, StockMarketEntity> stockMarkets = stockMarketRepository.queryByStockKeys(collectStockKeys(currentDetails));
-        LocalDateTime viewedAt = LocalDateTime.now(BEIJING_ZONE);
-        fundDataRepository.markDetailViewed(fundCodes, viewedAt);
-        List<String> staleCodes = fundCodes.stream()
-                .filter(code -> needsTopHoldingRefresh(currentDetails.get(code), viewedAt))
-                .toList();
-        List<String> allocationStaleCodes = fundCodes.stream()
-                .filter(code -> currentDetails.get(code) != null)
-                .filter(code -> needsAssetAllocationRefresh(currentDetails.get(code), viewedAt))
-                .toList();
         PortfolioFundDetailResult result = PortfolioFundDetailResult.builder()
                 .userId(userId)
                 .holdings(holdings.stream()
                         .map(holding -> toHoldingDetail(holding, currentDetails.get(holding.fundCodeOrNull()), stockMarkets,
-                                staleCodes.contains(holding.fundCodeOrNull())))
+                                false))
                         .toList())
                 .build();
-        dispatchTopHoldingRefreshBestEffort(staleCodes);
-        dispatchAssetAllocationRefreshBestEffort(allocationStaleCodes);
         return result;
     }
 
     @Override
     public PortfolioFundDetailResult.FundDetail queryFundDetail(String fundCode) {
+        return buildFundDetail(fundCode, false);
+    }
+
+    @Override
+    public PortfolioFundDetailResult.FundDetail ensureFundDetail(String fundCode) {
+        return buildFundDetail(fundCode, true);
+    }
+
+    private PortfolioFundDetailResult.FundDetail buildFundDetail(String fundCode, boolean ensure) {
         if (isBlank(fundCode)) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "基金代码不能为空");
         }
@@ -107,16 +108,20 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
         }
 
         LocalDateTime viewedAt = LocalDateTime.now(BEIJING_ZONE);
-        fundDataRepository.markDetailViewed(Set.of(normalizedCode), viewedAt);
+        if (ensure) {
+            fundDataRepository.markDetailViewed(Set.of(normalizedCode), viewedAt,
+                    viewedAt.minusMinutes(Math.max(accessWriteThrottleMinutes, 1)));
+        }
         boolean stale = needsTopHoldingRefresh(detail, viewedAt);
         boolean allocationStale = needsAssetAllocationRefresh(detail, viewedAt);
         Map<String, StockMarketEntity> stockMarkets = stockMarketRepository
                 .queryByStockKeys(collectStockKeys(Map.of(normalizedCode, detail)));
-        PortfolioFundDetailResult.FundDetail result = toFundDetail(normalizedCode, detail, stockMarkets, stale);
-        if (stale) {
+        PortfolioFundDetailResult.FundDetail result = toFundDetail(
+                normalizedCode, detail, stockMarkets, ensure && stale);
+        if (ensure && stale) {
             dispatchTopHoldingRefreshBestEffort(List.of(normalizedCode));
         }
-        if (allocationStale) {
+        if (ensure && allocationStale) {
             dispatchAssetAllocationRefreshBestEffort(List.of(normalizedCode));
         }
         return result;

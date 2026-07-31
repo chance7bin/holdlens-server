@@ -130,10 +130,20 @@ public class AgentMarketDetailDataRefreshController implements IMarketDetailServ
         return Response.ok(toStockDetailRefresh(marketDetailCase.queryStockDetailDataTask(serverTaskId)));
     }
 
+    @Override
+    @GetMapping("/api/market-detail-data/operations/{operationId}")
+    public Response<MarketDetailDTO.DetailRefresh> queryDetailOperation(
+            @PathVariable("operationId") String operationId) {
+        return Response.ok(toDetailRefresh(marketDetailCase.queryDetailOperation(operationId)));
+    }
+
     private MarketDetailCommand.Callback toCommand(MarketDetailRefreshRequest.Callback r) {
         return MarketDetailCommand.Callback.builder().schemaVersion(r.getSchemaVersion()).serverTaskId(r.getServerTaskId())
                 .idempotencyKey(r.getIdempotencyKey()).status(r.getStatus()).generatedAt(r.getGeneratedAt())
                 .assetKind(r.getAssetKind()).assetRef(r.getAssetRef())
+                .sliceResults(r.getSliceResults() == null ? null : r.getSliceResults().stream()
+                        .map(slice -> MarketDetailCommand.SliceResult.builder().slice(slice.getSlice())
+                                .status(slice.getStatus()).build()).toList())
                 .fundNavHistory(toFundNav(r.getFundNavHistory()))
                 .fundPeriodPerformance(toFundPeriodPerformance(r.getFundPeriodPerformance()))
                 .stockPriceHistories(r.getStockPriceHistories() == null ? null : r.getStockPriceHistories().stream()
@@ -184,6 +194,14 @@ public class AgentMarketDetailDataRefreshController implements IMarketDetailServ
                 .serverTaskId(result.getServerTaskId()).status(result.getStatus())
                 .retryAfterMs(result.getRetryAfterMs()).slices(result.getSlices().stream()
                         .map(slice -> MarketDetailDTO.StockDetailSlice.builder().slice(slice.getSlice())
-                                .status(slice.getStatus()).build()).toList()).build();
+                        .status(slice.getStatus()).build()).toList()).build();
+    }
+
+    private MarketDetailDTO.DetailRefresh toDetailRefresh(MarketDetailResult.DetailRefresh result) {
+        return MarketDetailDTO.DetailRefresh.builder().assetKind(result.getAssetKind()).assetRef(result.getAssetRef())
+                .operationId(result.getOperationId()).status(result.getStatus()).retryAfterMs(result.getRetryAfterMs())
+                .slices(result.getSlices().stream().map(slice -> MarketDetailDTO.DetailSlice.builder()
+                        .slice(slice.getSlice()).status(slice.getStatus()).freshness(slice.getFreshness())
+                        .hasData(slice.getHasData()).build()).toList()).build();
     }
 }

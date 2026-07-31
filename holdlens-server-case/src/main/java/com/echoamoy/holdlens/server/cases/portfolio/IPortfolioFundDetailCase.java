@@ -8,4 +8,6 @@ public interface IPortfolioFundDetailCase {
 
     PortfolioFundDetailResult.FundDetail queryFundDetail(String fundCode);
 
+    PortfolioFundDetailResult.FundDetail ensureFundDetail(String fundCode);
+
 }

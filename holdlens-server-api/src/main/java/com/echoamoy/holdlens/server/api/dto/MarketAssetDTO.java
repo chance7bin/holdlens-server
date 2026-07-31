@@ -32,6 +32,7 @@ public final class MarketAssetDTO {
         private Boolean watchlisted;
         private FundDetailDTO fund;
         private StockDetail stock;
+        private MarketDetailDTO.DetailRefresh refresh;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
@@ -71,6 +72,7 @@ public final class MarketAssetDTO {
         private BigDecimal peRatio;
         private BigDecimal totalMarketValue;
         private String quoteAsOf;
+        private String quoteFetchedAt;
         private String delayNotice;
         private Boolean watchlisted;
     }

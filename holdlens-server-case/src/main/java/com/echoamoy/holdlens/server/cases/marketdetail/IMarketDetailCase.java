@@ -13,4 +13,9 @@ public interface IMarketDetailCase {
     MarketDetailResult.StockCompanyProfile queryStockCompanyProfile(String assetRef);
     MarketDetailResult.StockDetailRefresh ensureStockDetailData(String assetRef);
     MarketDetailResult.StockDetailRefresh queryStockDetailDataTask(String serverTaskId);
+    MarketDetailResult.DetailRefresh ensureFundDetailData(String fundCode, boolean recordView);
+    MarketDetailResult.DetailRefresh ensureStockDetailDataV2(String assetRef, boolean recordView);
+    MarketDetailResult.DetailRefresh queryDetailOperation(String operationId);
+    int scheduleActiveFundDetails();
+    int scheduleActiveStockDetails(String market);
 }

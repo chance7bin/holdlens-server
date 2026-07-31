@@ -4,4 +4,5 @@ import com.echoamoy.holdlens.server.cases.marketasset.model.MarketAssetDetailRes
 
 public interface IMarketAssetDetailCase {
     MarketAssetDetailResult queryDetail(Long userId, String assetKind, String assetRef);
+    MarketAssetDetailResult ensureDetail(Long userId, String assetKind, String assetRef);
 }

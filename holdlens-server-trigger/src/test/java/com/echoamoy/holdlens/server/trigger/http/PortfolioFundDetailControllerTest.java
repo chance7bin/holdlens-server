@@ -58,5 +58,10 @@ public class PortfolioFundDetailControllerTest {
                     .topHoldings(List.of())
                     .build();
         }
+
+        @Override
+        public PortfolioFundDetailResult.FundDetail ensureFundDetail(String fundCode) {
+            return queryFundDetail(fundCode);
+        }
     }
 }

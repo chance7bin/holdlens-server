@@ -36,6 +36,15 @@ public interface IFundDataRepository {
 
     default void markDetailViewed(Collection<String> fundCodes, LocalDateTime viewedAt) { }
 
+    default void markDetailViewed(Collection<String> fundCodes, LocalDateTime viewedAt,
+                                  LocalDateTime updateBefore) {
+        markDetailViewed(fundCodes, viewedAt);
+    }
+
+    default List<String> queryDetailRefreshTargets(LocalDateTime viewedSince, int limit) {
+        return queryTopHoldingRefreshTargets(viewedSince).stream().limit(Math.max(limit, 0)).toList();
+    }
+
     default List<FundCurrentDataAggregate.FundDetail> search(String keyword, int limit) { return List.of(); }
 
 }
