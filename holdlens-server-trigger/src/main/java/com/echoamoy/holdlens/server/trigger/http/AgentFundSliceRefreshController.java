@@ -37,11 +37,6 @@ public class AgentFundSliceRefreshController implements IAgentFundSliceRefreshSe
                                                                @RequestBody FundSliceRefreshCallbackRequest request) {
         return callback(header, ProcessingTaskEntity.FUND_PURCHASE_STATUS_REFRESH, request);
     }
-    @PostMapping("/internal/agent/fund-period-return-refresh/callback")
-    public Response<FundRefreshTaskDTO> periodReturnCallback(@RequestHeader(value="X-HoldLens-Agent-Callback", required=false) String header,
-                                                             @RequestBody FundSliceRefreshCallbackRequest request) {
-        return callback(header, ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH, request);
-    }
     @PostMapping("/internal/agent/fund-top-holding-refresh/callback")
     public Response<FundRefreshTaskDTO> topHoldingCallback(@RequestHeader(value="X-HoldLens-Agent-Callback", required=false) String header,
                                                            @RequestBody FundSliceRefreshCallbackRequest request) {
@@ -87,10 +82,6 @@ public class AgentFundSliceRefreshController implements IAgentFundSliceRefreshSe
         return FundSliceRefreshCallbackCommand.FundItem.builder().fundCode(f.getFundCode()).fundName(f.getFundName())
                 .fundType(f.getFundType()).pinyinAbbr(f.getPinyinAbbr()).pinyinFull(f.getPinyinFull())
                 .buyStatus(f.getBuyStatus()).dailyPurchaseLimit(f.getDailyPurchaseLimit())
-                .coverageStatus(f.getCoverageStatus()).returnsAsOf(f.getReturnsAsOf()).unitNav(f.getUnitNav())
-                .accumulatedNav(f.getAccumulatedNav()).dailyGrowthRate(f.getDailyGrowthRate())
-                .oneMonthReturn(f.getOneMonthReturn()).threeMonthsReturn(f.getThreeMonthsReturn())
-                .sixMonthsReturn(f.getSixMonthsReturn()).oneYearReturn(f.getOneYearReturn()).threeYearsReturn(f.getThreeYearsReturn())
                 .topHoldingsAsOf(f.getTopHoldingsAsOf()).publicHoldingsStatus(f.getPublicHoldingsStatus())
                 .topHoldings(f.getTopHoldings() == null ? List.of() : f.getTopHoldings().stream().map(h ->
                         FundSliceRefreshCallbackCommand.TopHolding.builder().rankNo(h.getRankNo()).stockName(h.getStockName())

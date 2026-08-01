@@ -37,13 +37,11 @@ public class FundSliceRefreshCaseImplTest {
         Fixture fixture = fixture();
         fixture.caseImpl.scheduleCatalog("schedule");
         fixture.caseImpl.schedulePurchaseStatus("schedule");
-        fixture.caseImpl.schedulePeriodReturn("schedule");
-        Assert.assertEquals(3, fixture.port.commands.size());
+        Assert.assertEquals(2, fixture.port.commands.size());
         Assert.assertEquals("fund-catalog-refresh-task/v1", fixture.port.commands.get(0).getSchemaVersion());
         Assert.assertEquals("fund-purchase-status-refresh-task/v1", fixture.port.commands.get(1).getSchemaVersion());
-        Assert.assertEquals("fund-period-return-refresh-task/v1", fixture.port.commands.get(2).getSchemaVersion());
         fixture.caseImpl.scheduleCatalog("schedule");
-        Assert.assertEquals(3, fixture.port.commands.size());
+        Assert.assertEquals(2, fixture.port.commands.size());
     }
 
     @Test
@@ -54,6 +52,7 @@ public class FundSliceRefreshCaseImplTest {
         Assert.assertEquals(20, fixture.port.commands.get(0).getFundCodes().size());
         Assert.assertEquals(20, fixture.port.commands.get(1).getFundCodes().size());
         Assert.assertEquals(1, fixture.port.commands.get(2).getFundCodes().size());
+        Assert.assertNotNull(fixture.funds.topHoldingStaleBefore);
     }
 
     @Test
@@ -283,20 +282,6 @@ public class FundSliceRefreshCaseImplTest {
     }
 
     @Test
-    public void sourceNotCoveredIsValidAndDoesNotClearReturnValues() throws Exception {
-        Fixture fixture = fixture();
-        fixture.funds.current.put("000001", FundCurrentDataAggregate.FundDetail.builder().fundCode("000001").build());
-        String taskId = fixture.caseImpl.schedulePeriodReturn("schedule").getServerTaskId();
-        FundSliceRefreshCallbackCommand.FundItem item = FundSliceRefreshCallbackCommand.FundItem.builder()
-                .fundCode("000001").coverageStatus("source_not_covered").build();
-        Assert.assertEquals("succeeded", fixture.caseImpl.handleCallback(ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH,
-                callback(taskId, "fund-period-return-refresh-result/v1", "succeeded", List.of(item))).getStatus());
-        Assert.assertEquals(1, fixture.funds.returnWrites);
-        Assert.assertEquals("source_not_covered", fixture.funds.lastReturn.getReturnCoverageStatus());
-        Assert.assertNull(fixture.funds.lastReturn.getReturnsAsOf());
-    }
-
-    @Test
     public void ordinaryEmptyHoldingsNeverClearButExplicitNoPublicMayClear() throws Exception {
         Fixture fixture = fixture();
         fixture.funds.current.put("000001", FundCurrentDataAggregate.FundDetail.builder().fundCode("000001")
@@ -350,7 +335,7 @@ public class FundSliceRefreshCaseImplTest {
         fixture.executor.runNext();
         Assert.assertEquals(1, fixture.funds.catalogWrites);
 
-        ProcessingTaskEntity old = ProcessingTaskEntity.builder().serverTaskId("old").taskType(ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH)
+        ProcessingTaskEntity old = ProcessingTaskEntity.builder().serverTaskId("old").taskType(ProcessingTaskEntity.FUND_PURCHASE_STATUS_REFRESH)
                 .status(ProcessingTaskStatusEnumVO.RUNNING).build();
         fixture.processing.timedOut.add(old);
         Assert.assertEquals(1, fixture.caseImpl.closeTimedOutCallbacks(30));
@@ -456,6 +441,7 @@ public class FundSliceRefreshCaseImplTest {
         set(impl, "transactionExecutor", new DirectTransactionExecutor());
         set(impl, "fundCatalogCallbackExecutor", executor);
         set(impl, "serverBaseUrl", "http://server");
+        set(impl, "topHoldingStaleDays", 15);
         return new Fixture(impl, processing, funds, port, executor);
     }
 
@@ -538,15 +524,14 @@ public class FundSliceRefreshCaseImplTest {
         final List<Integer> catalogBatchSizes = new ArrayList<>();
         int failCatalogBatchIndex;
         int catalogWrites;
-        int returnWrites;
         int holdingWrites;
         int allocationWrites;
         int unavailableWrites;
         boolean lastClear;
-        FundCurrentDataAggregate.FundDetail lastReturn;
         FundCurrentDataAggregate.FundDetail lastAllocation;
         LocalDate latestEndedQuarter;
         LocalDateTime unavailableRetryBefore;
+        LocalDateTime topHoldingStaleBefore;
         boolean replaceAllowed = true;
         public Map<String, FundCurrentDataAggregate.FundDetail> queryCurrentDetails(Set<String> codes) {
             Map<String, FundCurrentDataAggregate.FundDetail> result = new HashMap<>();
@@ -564,9 +549,11 @@ public class FundSliceRefreshCaseImplTest {
             funds.forEach(this::upsertCatalog);
         }
         public boolean updatePurchaseStatus(FundCurrentDataAggregate.FundDetail fund) { return current.containsKey(fund.getFundCode()); }
-        public boolean updatePeriodReturn(FundCurrentDataAggregate.FundDetail fund) { returnWrites++; lastReturn = fund; return current.containsKey(fund.getFundCode()); }
         public boolean updateTopHoldingSnapshot(FundCurrentDataAggregate.FundDetail fund, boolean clear) { holdingWrites++; lastClear = clear; return current.containsKey(fund.getFundCode()); }
-        public List<String> queryTopHoldingRefreshTargets(LocalDateTime since) { return targets; }
+        public List<String> queryTopHoldingRefreshTargets(LocalDateTime since, LocalDateTime staleBefore) {
+            topHoldingStaleBefore = staleBefore;
+            return targets;
+        }
         public List<String> queryAssetAllocationRefreshTargets(LocalDateTime since, LocalDate latestEndedQuarter,
                                                                LocalDateTime unavailableRetryBefore) {
             this.latestEndedQuarter = latestEndedQuarter;

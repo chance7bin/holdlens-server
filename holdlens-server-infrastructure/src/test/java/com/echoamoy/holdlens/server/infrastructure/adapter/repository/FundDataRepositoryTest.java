@@ -36,6 +36,21 @@ public class FundDataRepositoryTest {
     }
 
     @Test
+    public void topHoldingTargetQueryPassesActivityAndStalenessBoundaries() throws Exception {
+        FundDataRepository repository = new FundDataRepository();
+        FakeFundDao dao = new FakeFundDao();
+        dao.topHoldingTargets = List.of("000001");
+        setField(repository, "fundDao", dao);
+
+        LocalDateTime viewedSince = LocalDateTime.of(2026, 5, 1, 0, 0);
+        LocalDateTime staleBefore = LocalDateTime.of(2026, 7, 17, 0, 0);
+        Assert.assertEquals(List.of("000001"),
+                repository.queryTopHoldingRefreshTargets(viewedSince, staleBefore));
+        Assert.assertNotNull(dao.topHoldingViewedSince);
+        Assert.assertNotNull(dao.topHoldingStaleBefore);
+    }
+
+    @Test
     public void upsertCatalogsMapsDomainFundsAndUsesOneDaoBatch() throws Exception {
         FundDataRepository repository = new FundDataRepository();
         FakeFundDao fundDao = new FakeFundDao();
@@ -303,17 +318,24 @@ public class FundDataRepositoryTest {
         private FundPO lockedAssetAllocation;
         private List<String> detailTargets = List.of();
         private int detailLimit;
+        private List<String> topHoldingTargets = List.of();
+        private java.util.Date topHoldingViewedSince;
+        private java.util.Date topHoldingStaleBefore;
 
         @Override public void upsertCatalog(FundPO fundPO) { upserted = fundPO; }
         @Override public void upsertCatalogBatch(List<FundPO> funds) { catalogBatch = funds; }
         @Override public int updatePurchaseStatus(FundPO fundPO) { upserted = fundPO; return 1; }
-        @Override public int updatePeriodReturn(FundPO fundPO) { upserted = fundPO; return 1; }
         @Override public int updateTopHoldingMetadata(FundPO fundPO) { upserted = fundPO; return 1; }
         @Override public int updateAssetAllocationMetadata(FundPO fundPO) { assetAllocationMetadata = fundPO; return 1; }
         @Override public int markAssetAllocationUnavailable(String fundCode, java.util.Date fetchedAt) { return 1; }
         @Override public int updateLastDetailViewTime(Collection<String> fundCodes, java.util.Date viewedAt,
                                                       java.util.Date updateBefore) { return fundCodes.size(); }
-        @Override public List<String> selectTopHoldingRefreshTargets(java.util.Date viewedSince) { return List.of(); }
+        @Override public List<String> selectTopHoldingRefreshTargets(java.util.Date viewedSince,
+                                                                     java.util.Date staleBefore) {
+            topHoldingViewedSince = viewedSince;
+            topHoldingStaleBefore = staleBefore;
+            return topHoldingTargets;
+        }
         @Override public List<String> selectDetailRefreshTargets(java.util.Date viewedSince, int limit) {
             detailLimit = limit;
             return detailTargets;

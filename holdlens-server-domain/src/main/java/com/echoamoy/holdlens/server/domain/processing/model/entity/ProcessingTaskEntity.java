@@ -19,7 +19,6 @@ public class ProcessingTaskEntity {
 
     public static final String FUND_CATALOG_REFRESH = "fund_catalog_refresh";
     public static final String FUND_PURCHASE_STATUS_REFRESH = "fund_purchase_status_refresh";
-    public static final String FUND_PERIOD_RETURN_REFRESH = "fund_period_return_refresh";
     public static final String FUND_TOP_HOLDING_REFRESH = "fund_top_holding_refresh";
     public static final String FUND_ASSET_ALLOCATION_REFRESH = "fund_asset_allocation_refresh";
     public static final String A_SHARE_MARKET_REFRESH = "a_share_market_refresh";
@@ -29,7 +28,6 @@ public class ProcessingTaskEntity {
     public static boolean isFundSliceRefresh(String taskType) {
         return FUND_CATALOG_REFRESH.equals(taskType)
                 || FUND_PURCHASE_STATUS_REFRESH.equals(taskType)
-                || FUND_PERIOD_RETURN_REFRESH.equals(taskType)
                 || FUND_TOP_HOLDING_REFRESH.equals(taskType)
                 || FUND_ASSET_ALLOCATION_REFRESH.equals(taskType);
     }

@@ -84,23 +84,6 @@
         WHERE fund_code = #{fundCode}
     </update>
 
-    <update id="updatePeriodReturn" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundPO">
-        UPDATE fund
-        SET return_coverage_status = #{returnCoverageStatus},
-            returns_as_of = CASE WHEN #{returnCoverageStatus} = 'covered' THEN #{returnsAsOf} ELSE returns_as_of END,
-            unit_nav = CASE WHEN #{returnCoverageStatus} = 'covered' THEN #{unitNav} ELSE unit_nav END,
-            accumulated_nav = CASE WHEN #{returnCoverageStatus} = 'covered' THEN #{accumulatedNav} ELSE accumulated_nav END,
-            daily_growth_rate = CASE WHEN #{returnCoverageStatus} = 'covered' THEN #{dailyGrowthRate} ELSE daily_growth_rate END,
-            one_month_return = CASE WHEN #{returnCoverageStatus} = 'covered' THEN #{oneMonthReturn} ELSE one_month_return END,
-            three_months_return = CASE WHEN #{returnCoverageStatus} = 'covered' THEN #{threeMonthsReturn} ELSE three_months_return END,
-            six_months_return = CASE WHEN #{returnCoverageStatus} = 'covered' THEN #{sixMonthsReturn} ELSE six_months_return END,
-            one_year_return = CASE WHEN #{returnCoverageStatus} = 'covered' THEN #{oneYearReturn} ELSE one_year_return END,
-            three_years_return = CASE WHEN #{returnCoverageStatus} = 'covered' THEN #{threeYearsReturn} ELSE three_years_return END,
-            period_return_fetched_at = #{periodReturnFetchedAt},
-            update_time = CURRENT_TIMESTAMP
-        WHERE fund_code = #{fundCode}
-    </update>
-
     <update id="updateTopHoldingMetadata" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundPO">
         UPDATE fund
         SET top_holdings_as_of = #{topHoldingsAsOf},
@@ -176,6 +159,8 @@
             WHERE f.last_detail_view_time &gt;= #{viewedSince}
         ) targets
         INNER JOIN fund f ON f.fund_code = targets.fund_code
+        WHERE f.top_holding_fetched_at IS NULL
+           OR f.top_holding_fetched_at &lt;= #{staleBefore}
         ORDER BY targets.fund_code
     </select>
 

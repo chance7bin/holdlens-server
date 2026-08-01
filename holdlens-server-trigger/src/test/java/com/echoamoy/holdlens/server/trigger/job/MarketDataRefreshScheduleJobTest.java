@@ -60,6 +60,20 @@ public class MarketDataRefreshScheduleJobTest {
         Assert.assertEquals(false, properties.getProperty("holdlens.agent.us-stock-market-refresh-schedule.enabled"));
         Assert.assertEquals(false, properties.getProperty("holdlens.agent.active-fund-detail-refresh-schedule.enabled"));
         Assert.assertEquals(false, properties.getProperty("holdlens.agent.active-stock-detail-refresh-schedule.enabled"));
+        Assert.assertEquals("0 30 15 ? * MON-FRI", properties.getProperty(
+                "holdlens.agent.a-share-market-refresh-schedule.cron"));
+        Assert.assertEquals("0 15 13,16 ? * MON-FRI", properties.getProperty(
+                "holdlens.agent.us-stock-market-refresh-schedule.cron"));
+        Assert.assertEquals("0 30 22 ? * MON-FRI", properties.getProperty(
+                "holdlens.agent.active-fund-detail-refresh-schedule.cron"));
+        Assert.assertEquals("0 45 15 ? * MON-FRI", properties.getProperty(
+                "holdlens.agent.active-a-share-detail-refresh-schedule.cron"));
+        Assert.assertEquals("0 30 16 ? * MON-FRI", properties.getProperty(
+                "holdlens.agent.active-us-stock-detail-refresh-schedule.cron"));
+        Assert.assertEquals(20, properties.getProperty("holdlens.market-detail.fund-nav-stale-hours"));
+        Assert.assertEquals(168, properties.getProperty("holdlens.market-detail.fund-performance-stale-hours"));
+        Assert.assertEquals(20, properties.getProperty("holdlens.market-detail.stock-price-stale-hours"));
+        Assert.assertEquals(30, properties.getProperty("holdlens.market-detail.stock-profile-stale-days"));
         Assert.assertNotNull(CronExpression.parse((String) properties.getProperty(
                 "holdlens.agent.a-share-market-refresh-schedule.cron")));
         Assert.assertNotNull(CronExpression.parse((String) properties.getProperty(

@@ -217,7 +217,6 @@ public class PortfolioFundDetailCaseImplTest {
         private List<String> assetAllocationCodes = new ArrayList<>();
         public FundRefreshTaskResult scheduleCatalog(String trigger) { return null; }
         public FundRefreshTaskResult schedulePurchaseStatus(String trigger) { return null; }
-        public FundRefreshTaskResult schedulePeriodReturn(String trigger) { return null; }
         public List<FundRefreshTaskResult> scheduleTopHoldings(String trigger, int batchSize) { return List.of(); }
         public List<FundRefreshTaskResult> scheduleAssetAllocations(String trigger, int batchSize) { return List.of(); }
         public FundRefreshTaskResult dispatchTopHoldings(List<String> fundCodes, String trigger) { return null; }

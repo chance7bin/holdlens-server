@@ -8,7 +8,6 @@ import java.util.List;
 public interface IFundSliceRefreshCase {
     FundRefreshTaskResult scheduleCatalog(String trigger);
     FundRefreshTaskResult schedulePurchaseStatus(String trigger);
-    FundRefreshTaskResult schedulePeriodReturn(String trigger);
     List<FundRefreshTaskResult> scheduleTopHoldings(String trigger, int batchSize);
     List<FundRefreshTaskResult> scheduleAssetAllocations(String trigger, int batchSize);
     FundRefreshTaskResult dispatchTopHoldings(List<String> fundCodes, String trigger);

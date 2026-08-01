@@ -49,9 +49,9 @@ public class FundRefreshSqlStructureTest {
         Assert.assertTrue(batchSql.contains("pinyin_full = VALUES(pinyin_full)"));
         Assert.assertTrue(batchSql.contains("catalog_fetched_at = VALUES(catalog_fetched_at)"));
         Assert.assertTrue(mapper.contains("id=\"updatePurchaseStatus\""));
-        Assert.assertTrue(mapper.contains("id=\"updatePeriodReturn\""));
         Assert.assertTrue(mapper.contains("id=\"updateTopHoldingMetadata\""));
         Assert.assertTrue(mapper.contains("id=\"selectTopHoldingRefreshTargets\""));
+        Assert.assertTrue(mapper.contains("f.top_holding_fetched_at &lt;= #{staleBefore}"));
         Assert.assertTrue(mapper.contains("FROM watchlist_item wi"));
         Assert.assertTrue(mapper.contains("FROM asset_record ar"));
         Assert.assertFalse(mapper.contains("FROM asset_info"));

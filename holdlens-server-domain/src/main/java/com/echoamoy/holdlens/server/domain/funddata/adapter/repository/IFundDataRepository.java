@@ -21,11 +21,13 @@ public interface IFundDataRepository {
 
     default boolean updatePurchaseStatus(FundCurrentDataAggregate.FundDetail fund) { return false; }
 
-    default boolean updatePeriodReturn(FundCurrentDataAggregate.FundDetail fund) { return false; }
-
     default boolean updateTopHoldingSnapshot(FundCurrentDataAggregate.FundDetail fund, boolean clearHoldings) { return false; }
 
     default List<String> queryTopHoldingRefreshTargets(LocalDateTime viewedSince) { return List.of(); }
+
+    default List<String> queryTopHoldingRefreshTargets(LocalDateTime viewedSince, LocalDateTime staleBefore) {
+        return queryTopHoldingRefreshTargets(viewedSince);
+    }
 
     default List<String> queryAssetAllocationRefreshTargets(LocalDateTime viewedSince, LocalDate latestEndedQuarter,
                                                             LocalDateTime unavailableRetryBefore) { return List.of(); }

@@ -26,16 +26,6 @@ public class FundSliceRefreshCallbackRequest {
         @JsonProperty("pinyin_full") private String pinyinFull;
         @JsonProperty("buy_status") private String buyStatus;
         @JsonProperty("daily_purchase_limit") private String dailyPurchaseLimit;
-        @JsonProperty("coverage_status") private String coverageStatus;
-        @JsonProperty("returns_as_of") private String returnsAsOf;
-        @JsonProperty("unit_nav") private BigDecimal unitNav;
-        @JsonProperty("accumulated_nav") private BigDecimal accumulatedNav;
-        @JsonProperty("daily_growth_rate") private BigDecimal dailyGrowthRate;
-        @JsonProperty("one_month_return") private BigDecimal oneMonthReturn;
-        @JsonProperty("three_months_return") private BigDecimal threeMonthsReturn;
-        @JsonProperty("six_months_return") private BigDecimal sixMonthsReturn;
-        @JsonProperty("one_year_return") private BigDecimal oneYearReturn;
-        @JsonProperty("three_years_return") private BigDecimal threeYearsReturn;
         @JsonProperty("top_holdings_as_of") private String topHoldingsAsOf;
         @JsonProperty("public_holdings_status") private String publicHoldingsStatus;
         @JsonProperty("top_holdings") private List<TopHolding> topHoldings;

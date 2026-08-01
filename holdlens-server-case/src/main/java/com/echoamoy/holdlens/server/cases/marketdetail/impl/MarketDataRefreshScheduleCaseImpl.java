@@ -17,7 +17,6 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
@@ -29,6 +28,8 @@ public class MarketDataRefreshScheduleCaseImpl implements IMarketDataRefreshSche
 
     private static final ZoneId A_SHARE_ZONE = ZoneId.of("Asia/Shanghai");
     private static final ZoneId US_STOCK_ZONE = ZoneId.of("America/New_York");
+    private static final LocalTime A_SHARE_CLOSE = LocalTime.of(15, 0);
+    private static final LocalTime US_STOCK_CLOSE = LocalTime.of(16, 0);
     private static final String TRIGGER = "schedule";
 
     @Resource private IAgentFundRefreshCase agentFundRefreshCase;
@@ -42,7 +43,8 @@ public class MarketDataRefreshScheduleCaseImpl implements IMarketDataRefreshSche
     @Override
     public boolean runAShareMarketRefresh() {
         ZonedDateTime now = ZonedDateTime.now(clock).withZoneSameInstant(A_SHARE_ZONE);
-        if (!isTradingDay(now.toLocalDate(), parseDates(aShareClosedDates)) || !isAShareRefreshPoint(now.toLocalTime())) {
+        if (!isTradingDay(now.toLocalDate(), parseDates(aShareClosedDates))
+                || !isEndOfDayRefreshPoint(now.toLocalTime(), A_SHARE_CLOSE, 30)) {
             return false;
         }
         try {
@@ -60,8 +62,8 @@ public class MarketDataRefreshScheduleCaseImpl implements IMarketDataRefreshSche
         ZonedDateTime now = ZonedDateTime.now(clock).withZoneSameInstant(US_STOCK_ZONE);
         Map<LocalDate, LocalTime> earlyCloses = parseEarlyCloses(usStockEarlyCloses);
         if (!isTradingDay(now.toLocalDate(), parseDates(usStockClosedDates))
-                || !isSessionRefreshPoint(now.toLocalTime(), LocalTime.of(9, 30),
-                earlyCloses.getOrDefault(now.toLocalDate(), LocalTime.of(16, 0)))) {
+                || !isEndOfDayRefreshPoint(now.toLocalTime(),
+                earlyCloses.getOrDefault(now.toLocalDate(), US_STOCK_CLOSE), 15)) {
             return false;
         }
         try {
@@ -88,22 +90,9 @@ public class MarketDataRefreshScheduleCaseImpl implements IMarketDataRefreshSche
         return marketDetailCase.scheduleActiveStockDetails(market);
     }
 
-    private boolean isAShareRefreshPoint(LocalTime time) {
-        return isIntervalRefreshPoint(time, LocalTime.of(9, 30), LocalTime.of(11, 30))
-                || isSessionRefreshPoint(time, LocalTime.of(13, 0), LocalTime.of(15, 0));
-    }
-
-    private boolean isSessionRefreshPoint(LocalTime time, LocalTime open, LocalTime close) {
-        LocalTime minute = time.truncatedTo(ChronoUnit.MINUTES);
-        if (minute.equals(close.plusMinutes(5))) return true;
-        return isIntervalRefreshPoint(minute, open, close);
-    }
-
-    private boolean isIntervalRefreshPoint(LocalTime time, LocalTime open, LocalTime close) {
-        LocalTime minute = time.truncatedTo(ChronoUnit.MINUTES);
-        LocalTime first = open.plusMinutes(5);
-        if (minute.isBefore(first) || !minute.isBefore(close)) return false;
-        return ChronoUnit.MINUTES.between(first, minute) % 30 == 0;
+    private boolean isEndOfDayRefreshPoint(LocalTime time, LocalTime close, int delayMinutes) {
+        return time.getHour() == close.plusMinutes(delayMinutes).getHour()
+                && time.getMinute() == close.plusMinutes(delayMinutes).getMinute();
     }
 
     private boolean isTradingDay(LocalDate date, Set<LocalDate> closedDates) {

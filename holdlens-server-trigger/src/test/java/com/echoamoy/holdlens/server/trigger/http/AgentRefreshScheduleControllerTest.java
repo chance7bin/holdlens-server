@@ -107,11 +107,6 @@ public class AgentRefreshScheduleControllerTest {
         }
 
         @Override
-        public FundRefreshTaskResult schedulePeriodReturn(String trigger) {
-            return null;
-        }
-
-        @Override
         public List<FundRefreshTaskResult> scheduleTopHoldings(String trigger, int batchSize) {
             fundTopHoldingRunCount++;
             fundTopHoldingTrigger = trigger;

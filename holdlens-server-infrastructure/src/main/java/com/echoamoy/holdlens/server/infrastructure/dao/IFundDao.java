@@ -15,8 +15,6 @@ public interface IFundDao {
 
     int updatePurchaseStatus(FundPO fundPO);
 
-    int updatePeriodReturn(FundPO fundPO);
-
     int updateTopHoldingMetadata(FundPO fundPO);
 
     int updateAssetAllocationMetadata(FundPO fundPO);
@@ -34,7 +32,8 @@ public interface IFundDao {
 
     List<FundPO> selectByFundCodes(@Param("fundCodes") java.util.Collection<String> fundCodes);
 
-    List<String> selectTopHoldingRefreshTargets(@Param("viewedSince") java.util.Date viewedSince);
+    List<String> selectTopHoldingRefreshTargets(@Param("viewedSince") java.util.Date viewedSince,
+                                                @Param("staleBefore") java.util.Date staleBefore);
 
     List<String> selectDetailRefreshTargets(@Param("viewedSince") java.util.Date viewedSince,
                                             @Param("limit") int limit);

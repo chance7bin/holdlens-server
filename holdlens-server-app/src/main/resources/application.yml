@@ -8,7 +8,6 @@ holdlens:
   agent:
     fund-catalog-refresh-url: http://127.0.0.1:8765/tasks/fund-catalog-refresh
     fund-purchase-status-refresh-url: http://127.0.0.1:8765/tasks/fund-purchase-status-refresh
-    fund-period-return-refresh-url: http://127.0.0.1:8765/tasks/fund-period-return-refresh
     fund-top-holding-refresh-url: http://127.0.0.1:8765/tasks/fund-top-holding-refresh
     fund-asset-allocation-refresh-url: http://127.0.0.1:8765/tasks/fund-asset-allocation-refresh
     fund-top-holding-refresh:
@@ -29,13 +28,10 @@ holdlens:
     fund-purchase-status-refresh-schedule:
       enabled: false
       cron: "0 10 2 * * ?"
-    fund-period-return-refresh-schedule:
-      enabled: false
-      cron: "0 20 2 * * ?"
     fund-top-holding-refresh-schedule:
       enabled: false
       batch-size: 20
-      cron: "0 30 2 1,15 * ?"
+      cron: "0 0 4 ? * MON"
     fund-asset-allocation-refresh-schedule:
       enabled: false
       cron: "0 30 4 ? * MON"
@@ -47,31 +43,31 @@ holdlens:
       cron: "0 */5 * * * ?"
     a-share-market-refresh-schedule:
       enabled: false
-      cron: "0 5,35 9-15 ? * MON-FRI"
+      cron: "0 30 15 ? * MON-FRI"
       zone: Asia/Shanghai
     us-stock-market-refresh-schedule:
       enabled: false
-      cron: "0 5,35 9-16 ? * MON-FRI"
+      cron: "0 15 13,16 ? * MON-FRI"
       zone: America/New_York
     active-fund-detail-refresh-schedule:
       enabled: false
-      cron: "0 40 2 ? * MON-FRI"
+      cron: "0 30 22 ? * MON-FRI"
       zone: Asia/Shanghai
     active-stock-detail-refresh-schedule:
       enabled: false
     active-a-share-detail-refresh-schedule:
-      cron: "0 10 15 ? * MON-FRI"
+      cron: "0 45 15 ? * MON-FRI"
       zone: Asia/Shanghai
     active-us-stock-detail-refresh-schedule:
-      cron: "0 10 16 ? * MON-FRI"
+      cron: "0 30 16 ? * MON-FRI"
       zone: America/New_York
   market-detail:
     access-write-throttle-minutes: 60
     active-days: 90
     schedule-batch-size: 100
-    fund-nav-stale-hours: 36
+    fund-nav-stale-hours: 20
     fund-performance-stale-hours: 168
-    stock-price-stale-hours: 36
+    stock-price-stale-hours: 20
     stock-profile-stale-days: 30
   market-calendar:
     a-share:

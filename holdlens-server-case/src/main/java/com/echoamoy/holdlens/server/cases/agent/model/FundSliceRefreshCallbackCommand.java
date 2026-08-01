@@ -31,16 +31,6 @@ public class FundSliceRefreshCallbackCommand {
         private String pinyinFull;
         private String buyStatus;
         private String dailyPurchaseLimit;
-        private String coverageStatus;
-        private String returnsAsOf;
-        private BigDecimal unitNav;
-        private BigDecimal accumulatedNav;
-        private BigDecimal dailyGrowthRate;
-        private BigDecimal oneMonthReturn;
-        private BigDecimal threeMonthsReturn;
-        private BigDecimal sixMonthsReturn;
-        private BigDecimal oneYearReturn;
-        private BigDecimal threeYearsReturn;
         private String topHoldingsAsOf;
         private String publicHoldingsStatus;
         private List<TopHolding> topHoldings;

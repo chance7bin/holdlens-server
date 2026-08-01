@@ -86,11 +86,6 @@ public class FundDataRepository implements IFundDataRepository {
     }
 
     @Override
-    public boolean updatePeriodReturn(FundCurrentDataAggregate.FundDetail fund) {
-        return fundDao.updatePeriodReturn(toFundPO(fund)) > 0;
-    }
-
-    @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean updateTopHoldingSnapshot(FundCurrentDataAggregate.FundDetail fund, boolean clearHoldings) {
         if (fundDao.updateTopHoldingMetadata(toFundPO(fund)) == 0) {
@@ -105,8 +100,8 @@ public class FundDataRepository implements IFundDataRepository {
     }
 
     @Override
-    public List<String> queryTopHoldingRefreshTargets(LocalDateTime viewedSince) {
-        return fundDao.selectTopHoldingRefreshTargets(toDate(viewedSince));
+    public List<String> queryTopHoldingRefreshTargets(LocalDateTime viewedSince, LocalDateTime staleBefore) {
+        return fundDao.selectTopHoldingRefreshTargets(toDate(viewedSince), toDate(staleBefore));
     }
 
     @Override

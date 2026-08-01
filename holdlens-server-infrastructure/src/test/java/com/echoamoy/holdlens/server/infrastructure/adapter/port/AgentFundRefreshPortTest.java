@@ -32,14 +32,12 @@ public class AgentFundRefreshPortTest {
         AgentFundRefreshPort port = new AgentFundRefreshPort();
         set(port, "fundCatalogRefreshUrl", "/tasks/fund-catalog-refresh");
         set(port, "fundPurchaseStatusRefreshUrl", "/tasks/fund-purchase-status-refresh");
-        set(port, "fundPeriodReturnRefreshUrl", "/tasks/fund-period-return-refresh");
         set(port, "fundTopHoldingRefreshUrl", "/tasks/fund-top-holding-refresh");
         set(port, "fundAssetAllocationRefreshUrl", "/tasks/fund-asset-allocation-refresh");
         Method route = AgentFundRefreshPort.class.getDeclaredMethod("sliceUrl", String.class);
         route.setAccessible(true);
         Assert.assertEquals("/tasks/fund-catalog-refresh", route.invoke(port, ProcessingTaskEntity.FUND_CATALOG_REFRESH));
         Assert.assertEquals("/tasks/fund-purchase-status-refresh", route.invoke(port, ProcessingTaskEntity.FUND_PURCHASE_STATUS_REFRESH));
-        Assert.assertEquals("/tasks/fund-period-return-refresh", route.invoke(port, ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH));
         Assert.assertEquals("/tasks/fund-top-holding-refresh", route.invoke(port, ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH));
         Assert.assertEquals("/tasks/fund-asset-allocation-refresh",
                 route.invoke(port, ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH));

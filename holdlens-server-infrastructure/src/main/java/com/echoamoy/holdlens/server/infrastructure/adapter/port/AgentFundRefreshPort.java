@@ -29,9 +29,6 @@ public class AgentFundRefreshPort implements IAgentFundSliceRefreshPort, IAgentA
     @Value("${holdlens.agent.fund-purchase-status-refresh-url}")
     private String fundPurchaseStatusRefreshUrl;
 
-    @Value("${holdlens.agent.fund-period-return-refresh-url}")
-    private String fundPeriodReturnRefreshUrl;
-
     @Value("${holdlens.agent.fund-top-holding-refresh-url}")
     private String fundTopHoldingRefreshUrl;
 
@@ -68,7 +65,6 @@ public class AgentFundRefreshPort implements IAgentFundSliceRefreshPort, IAgentA
         return switch (taskType) {
             case ProcessingTaskEntity.FUND_CATALOG_REFRESH -> fundCatalogRefreshUrl;
             case ProcessingTaskEntity.FUND_PURCHASE_STATUS_REFRESH -> fundPurchaseStatusRefreshUrl;
-            case ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH -> fundPeriodReturnRefreshUrl;
             case ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH -> fundTopHoldingRefreshUrl;
             case ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH -> fundAssetAllocationRefreshUrl;
             default -> throw new IllegalArgumentException("unsupported fund slice task type: " + taskType);

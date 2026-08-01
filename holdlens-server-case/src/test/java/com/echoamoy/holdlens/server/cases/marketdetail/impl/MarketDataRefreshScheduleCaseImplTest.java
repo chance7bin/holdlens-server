@@ -16,19 +16,17 @@ import java.util.List;
 public class MarketDataRefreshScheduleCaseImplTest {
 
     @Test
-    public void aShareRefreshRunsAtThirtyMinutePointsAndCloseButSkipsClosedDays() throws Exception {
+    public void aShareRefreshRunsOnlyThirtyMinutesAfterCloseAndSkipsClosedDays() throws Exception {
         List<String> calls = new ArrayList<>();
         MarketDataRefreshScheduleCaseImpl schedule = newSchedule(calls);
 
         set(schedule, "clock", fixed("2026-07-31T01:35:00Z"));
+        Assert.assertFalse(schedule.runAShareMarketRefresh());
+        Assert.assertTrue(calls.isEmpty());
+
+        set(schedule, "clock", fixed("2026-07-31T07:30:00Z"));
         Assert.assertTrue(schedule.runAShareMarketRefresh());
         Assert.assertEquals(List.of("createAndDispatchAShareMarket"), calls);
-
-        calls.clear();
-        set(schedule, "clock", fixed("2026-07-31T01:40:00Z"));
-        Assert.assertFalse(schedule.runAShareMarketRefresh());
-        set(schedule, "clock", fixed("2026-07-31T07:05:00Z"));
-        Assert.assertTrue(schedule.runAShareMarketRefresh());
 
         calls.clear();
         set(schedule, "aShareClosedDates", "2026-07-31");
@@ -37,11 +35,11 @@ public class MarketDataRefreshScheduleCaseImplTest {
     }
 
     @Test
-    public void usEarlyCloseRefreshesFiveMinutesAfterConfiguredClose() throws Exception {
+    public void usMarketRefreshesFifteenMinutesAfterRegularOrEarlyClose() throws Exception {
         List<String> calls = new ArrayList<>();
         MarketDataRefreshScheduleCaseImpl schedule = newSchedule(calls);
         set(schedule, "usStockEarlyCloses", "2026-07-02=13:00");
-        set(schedule, "clock", fixed("2026-07-02T17:05:00Z"));
+        set(schedule, "clock", fixed("2026-07-02T17:15:00Z"));
 
         Assert.assertTrue(schedule.runUSStockMarketRefresh());
         Assert.assertEquals(List.of("createAndDispatchUSStockMarket"), calls);
@@ -50,6 +48,10 @@ public class MarketDataRefreshScheduleCaseImplTest {
         set(schedule, "clock", fixed("2026-07-02T17:35:00Z"));
         Assert.assertFalse(schedule.runUSStockMarketRefresh());
         Assert.assertTrue(calls.isEmpty());
+
+        set(schedule, "usStockEarlyCloses", "");
+        set(schedule, "clock", fixed("2026-07-02T20:15:00Z"));
+        Assert.assertTrue(schedule.runUSStockMarketRefresh());
     }
 
     @Test

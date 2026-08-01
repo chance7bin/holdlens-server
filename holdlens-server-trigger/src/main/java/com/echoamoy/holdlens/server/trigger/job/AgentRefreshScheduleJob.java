@@ -18,7 +18,6 @@ public class AgentRefreshScheduleJob {
     @Resource private IFundSliceRefreshCase fundSliceRefreshCase;
     @Value("${holdlens.agent.fund-catalog-refresh-schedule.enabled}") private boolean catalogEnabled;
     @Value("${holdlens.agent.fund-purchase-status-refresh-schedule.enabled}") private boolean purchaseEnabled;
-    @Value("${holdlens.agent.fund-period-return-refresh-schedule.enabled}") private boolean returnEnabled;
     @Value("${holdlens.agent.fund-top-holding-refresh-schedule.enabled}") private boolean holdingEnabled;
     @Value("${holdlens.agent.fund-top-holding-refresh-schedule.batch-size}") private int holdingBatchSize;
     @Value("${holdlens.agent.fund-asset-allocation-refresh-schedule.enabled}") private boolean allocationEnabled;
@@ -35,11 +34,6 @@ public class AgentRefreshScheduleJob {
     @Scheduled(cron="${holdlens.agent.fund-purchase-status-refresh-schedule.cron}", zone="${holdlens.agent.fund-refresh-schedule-zone}")
     public void runFundPurchaseStatusRefreshSchedule() {
         if (purchaseEnabled) fundSliceRefreshCase.schedulePurchaseStatus(TRIGGER);
-    }
-
-    @Scheduled(cron="${holdlens.agent.fund-period-return-refresh-schedule.cron}", zone="${holdlens.agent.fund-refresh-schedule-zone}")
-    public void runFundPeriodReturnRefreshSchedule() {
-        if (returnEnabled) fundSliceRefreshCase.schedulePeriodReturn(TRIGGER);
     }
 
     @Scheduled(cron="${holdlens.agent.fund-top-holding-refresh-schedule.cron}", zone="${holdlens.agent.fund-refresh-schedule-zone}")

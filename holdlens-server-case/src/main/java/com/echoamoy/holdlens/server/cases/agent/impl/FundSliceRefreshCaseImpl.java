@@ -55,19 +55,16 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
     private static final Map<String, String> TASK_SCHEMAS = Map.of(
             ProcessingTaskEntity.FUND_CATALOG_REFRESH, "fund-catalog-refresh-task/v1",
             ProcessingTaskEntity.FUND_PURCHASE_STATUS_REFRESH, "fund-purchase-status-refresh-task/v1",
-            ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH, "fund-period-return-refresh-task/v1",
             ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH, "fund-top-holding-refresh-task/v1",
             ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH, "fund-asset-allocation-refresh-task/v1");
     private static final Map<String, String> RESULT_SCHEMAS = Map.of(
             ProcessingTaskEntity.FUND_CATALOG_REFRESH, "fund-catalog-refresh-result/v1",
             ProcessingTaskEntity.FUND_PURCHASE_STATUS_REFRESH, "fund-purchase-status-refresh-result/v1",
-            ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH, "fund-period-return-refresh-result/v1",
             ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH, "fund-top-holding-refresh-result/v1",
             ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH, "fund-asset-allocation-refresh-result/v1");
     private static final Map<String, String> CALLBACK_PATHS = Map.of(
             ProcessingTaskEntity.FUND_CATALOG_REFRESH, "/internal/agent/fund-catalog-refresh/callback",
             ProcessingTaskEntity.FUND_PURCHASE_STATUS_REFRESH, "/internal/agent/fund-purchase-status-refresh/callback",
-            ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH, "/internal/agent/fund-period-return-refresh/callback",
             ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH, "/internal/agent/fund-top-holding-refresh/callback",
             ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH, "/internal/agent/fund-asset-allocation-refresh/callback");
 
@@ -79,6 +76,8 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
 
     @Value("${holdlens.agent.server-base-url}")
     private String serverBaseUrl;
+    @Value("${holdlens.agent.fund-top-holding-refresh.detail-stale-days:15}")
+    private int topHoldingStaleDays;
 
     @Override public FundRefreshTaskResult scheduleCatalog(String trigger) {
         return scheduleGlobal(ProcessingTaskEntity.FUND_CATALOG_REFRESH, trigger);
@@ -86,10 +85,6 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
 
     @Override public FundRefreshTaskResult schedulePurchaseStatus(String trigger) {
         return scheduleGlobal(ProcessingTaskEntity.FUND_PURCHASE_STATUS_REFRESH, trigger);
-    }
-
-    @Override public FundRefreshTaskResult schedulePeriodReturn(String trigger) {
-        return scheduleGlobal(ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH, trigger);
     }
 
     @Override
@@ -102,8 +97,9 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
             log.info("跳过基金重仓刷新，本轮开始前已有非终态任务");
             return List.of();
         }
+        LocalDateTime now = LocalDateTime.now(BEIJING_ZONE);
         List<String> targets = normalizeCodes(fundDataRepository.queryTopHoldingRefreshTargets(
-                LocalDateTime.now(BEIJING_ZONE).minusDays(90)));
+                now.minusDays(90), now.minusDays(Math.max(topHoldingStaleDays, 1))));
         List<FundRefreshTaskResult> results = new ArrayList<>();
         for (int start = 0; start < targets.size(); start += batchSize) {
             results.add(dispatchTopHoldings(targets.subList(start, Math.min(start + batchSize, targets.size())), trigger));
@@ -365,7 +361,6 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
             }
             boolean accepted = switch (taskType) {
                 case ProcessingTaskEntity.FUND_PURCHASE_STATUS_REFRESH -> applyPurchase(item, fetchedAt);
-                case ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH -> applyReturn(item, fetchedAt, logs, taskId);
                 case ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH -> applyHolding(item, fetchedAt, logs, taskId);
                 case ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH ->
                         applyAssetAllocation(item, fetchedAt, logs, taskId);
@@ -373,8 +368,7 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
             };
             if (accepted) {
                 valid++;
-            } else if (!ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH.equals(taskType)
-                    && !ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH.equals(taskType)) {
+            } else if (!ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH.equals(taskType)) {
                 logs.add(log(taskId, taskType, "row_skipped", "基金记录无效或基金不存在: " + item.getFundCode()));
             }
         }
@@ -433,36 +427,6 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
         if (!PURCHASE_STATUSES.contains(item.getBuyStatus())) return false;
         return fundDataRepository.updatePurchaseStatus(base(item).buyStatus(item.getBuyStatus())
                 .dailyPurchaseLimit(trim(item.getDailyPurchaseLimit())).purchaseStatusFetchedAt(fetchedAt).build());
-    }
-
-    private boolean applyReturn(FundSliceRefreshCallbackCommand.FundItem item, LocalDateTime fetchedAt,
-                                List<ProcessingLogEntity> logs, String taskId) {
-        if (!Set.of("covered", "source_not_covered", "unknown").contains(item.getCoverageStatus())) {
-            logs.add(log(taskId, ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH, "invalid_coverage", "收益覆盖状态无效: " + item.getFundCode()));
-            return false;
-        }
-        Date asOf = parseDate(item.getReturnsAsOf());
-        if ("covered".equals(item.getCoverageStatus()) && asOf == null) {
-            logs.add(log(taskId, ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH, "invalid_returns_date", "收益日期缺失: " + item.getFundCode()));
-            return false;
-        }
-        FundCurrentDataAggregate.FundDetail current = current(item.getFundCode());
-        if (current == null) {
-            logs.add(log(taskId, ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH, "unknown_fund", "收益基金不存在: " + item.getFundCode()));
-            return false;
-        }
-        if (asOf != null && current.getReturnsAsOf() != null && asOf.before(current.getReturnsAsOf())) {
-            logs.add(log(taskId, ProcessingTaskEntity.FUND_PERIOD_RETURN_REFRESH, "older_snapshot", "收益日期早于当前值: " + item.getFundCode()));
-            return false;
-        }
-        FundCurrentDataAggregate.FundDetail incoming = base(item)
-                .returnCoverageStatus(item.getCoverageStatus()).returnsAsOf(asOf)
-                .unitNav(item.getUnitNav()).accumulatedNav(item.getAccumulatedNav()).dailyGrowthRate(item.getDailyGrowthRate())
-                .oneMonthReturn(item.getOneMonthReturn()).threeMonthsReturn(item.getThreeMonthsReturn())
-                .sixMonthsReturn(item.getSixMonthsReturn()).oneYearReturn(item.getOneYearReturn())
-                .threeYearsReturn(item.getThreeYearsReturn()).periodReturnFetchedAt(fetchedAt).build();
-        if (sameReturn(current, incoming)) return true;
-        return fundDataRepository.updatePeriodReturn(incoming);
     }
 
     private boolean applyHolding(FundSliceRefreshCallbackCommand.FundItem item, LocalDateTime fetchedAt,
@@ -610,21 +574,6 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
                     .quarterChangeValue(row.getQuarterChangeValue()).build());
         }
         return byRank.values().stream().sorted(java.util.Comparator.comparing(FundCurrentDataAggregate.TopHolding::getRankNo)).toList();
-    }
-
-    private boolean sameReturn(FundCurrentDataAggregate.FundDetail left, FundCurrentDataAggregate.FundDetail right) {
-        if (!Objects.equals(left.getReturnCoverageStatus(), right.getReturnCoverageStatus())) return false;
-        if (!"covered".equals(right.getReturnCoverageStatus())) return true;
-        return
-                Objects.equals(left.getReturnsAsOf(), right.getReturnsAsOf())
-                && decimalEquals(left.getUnitNav(), right.getUnitNav())
-                && decimalEquals(left.getAccumulatedNav(), right.getAccumulatedNav())
-                && decimalEquals(left.getDailyGrowthRate(), right.getDailyGrowthRate())
-                && decimalEquals(left.getOneMonthReturn(), right.getOneMonthReturn())
-                && decimalEquals(left.getThreeMonthsReturn(), right.getThreeMonthsReturn())
-                && decimalEquals(left.getSixMonthsReturn(), right.getSixMonthsReturn())
-                && decimalEquals(left.getOneYearReturn(), right.getOneYearReturn())
-                && decimalEquals(left.getThreeYearsReturn(), right.getThreeYearsReturn());
     }
 
     private boolean sameHoldings(FundCurrentDataAggregate.FundDetail left, FundCurrentDataAggregate.FundDetail right) {
