@@ -107,12 +107,14 @@ public class FundDataRepositoryTest {
                         FundCurrentDataAggregate.TopHolding.builder()
                                 .rankNo(1)
                                 .stockCode("600000")
-                                .market("1")
+                                .market("A_SHARE")
+                                .providerMarketCode("1")
                                 .build(),
                         FundCurrentDataAggregate.TopHolding.builder()
                                 .rankNo(3)
                                 .stockCode("600003")
-                                .market("1")
+                                .market("A_SHARE")
+                                .providerMarketCode("1")
                                 .build()))
                 .build(), false);
 
@@ -121,6 +123,8 @@ public class FundDataRepositoryTest {
         Assert.assertEquals(Long.valueOf(101L), fundTopHoldingDao.updated.get(0).getId());
         Assert.assertEquals(Integer.valueOf(1), fundTopHoldingDao.updated.get(0).getRankNo());
         Assert.assertEquals("600000", fundTopHoldingDao.updated.get(0).getStockCode());
+        Assert.assertEquals("A_SHARE", fundTopHoldingDao.updated.get(0).getMarket());
+        Assert.assertEquals("1", fundTopHoldingDao.updated.get(0).getProviderMarketCode());
         Assert.assertEquals(1, fundTopHoldingDao.inserted.size());
         Assert.assertEquals(Integer.valueOf(3), fundTopHoldingDao.inserted.get(0).getRankNo());
         Assert.assertEquals("600003", fundTopHoldingDao.inserted.get(0).getStockCode());
@@ -240,6 +244,8 @@ public class FundDataRepositoryTest {
         allocationDao.existing = List.of(FundAssetAllocationPO.builder().fundCode("000001")
                 .assetType("stock").assetTypeName("股票")
                 .allocationRatio(new BigDecimal("70.0000")).displayOrder(1).build());
+        topHoldingDao.existing = List.of(FundTopHoldingPO.builder().fundCode("000001").rankNo(1)
+                .stockCode("MU").market("US_STOCK").providerMarketCode("105").build());
         setField(repository, "fundDao", fundDao);
         setField(repository, "fundTopHoldingDao", topHoldingDao);
         setField(repository, "fundAssetAllocationDao", allocationDao);
@@ -249,6 +255,8 @@ public class FundDataRepositoryTest {
 
         Assert.assertEquals("available", detail.getAssetAllocationStatus());
         Assert.assertEquals(1, detail.getAssetAllocations().size());
+        Assert.assertEquals("US_STOCK", detail.getTopHoldings().get(0).getMarket());
+        Assert.assertEquals("105", detail.getTopHoldings().get(0).getProviderMarketCode());
         Assert.assertEquals(1, allocationDao.selectCount);
     }
 

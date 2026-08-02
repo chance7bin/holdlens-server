@@ -49,6 +49,7 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
     private static final Set<String> PURCHASE_STATUSES = Set.of("open", "closed", "limited", "suspended", "unknown");
     private static final Set<String> ASSET_ALLOCATION_TYPES =
             Set.of("stock", "bond", "cash", "fund", "other", "unknown");
+    private static final Set<String> HOLDING_MARKETS = Set.of("A_SHARE", "US_STOCK");
     private static final int FUND_CATALOG_UPSERT_BATCH_SIZE = 500;
     private static final Pattern SENSITIVE_VALUE = Pattern.compile(
             "(?i)(api[_-]?key|authorization|callback[_-]?auth|cookie|password|secret|token)\\s*[:=]\\s*[^,\\s;]+");
@@ -315,7 +316,7 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
                 batchCount = applied.batchCount();
                 if (validCount == 0) {
                     target = ProcessingTaskStatusEnumVO.FAILED;
-                } else if (validCount < funds.size() || !logs.isEmpty()
+                } else if (validCount < funds.size() || hasOutcomeDegradingLogs(logs)
                         || target == ProcessingTaskStatusEnumVO.PARTIAL_FAILED) {
                     target = ProcessingTaskStatusEnumVO.PARTIAL_FAILED;
                 }
@@ -446,10 +447,15 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
             logs.add(log(taskId, ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH, "missing_snapshot", "重仓状态不允许覆盖: " + item.getFundCode()));
             return false;
         }
-        List<FundCurrentDataAggregate.TopHolding> holdings = normalizeHoldings(item.getFundCode(), item.getTopHoldings());
-        if (item.getTopHoldings() != null && holdings.size() < item.getTopHoldings().size()) {
+        HoldingNormalization normalization = normalizeHoldings(item.getFundCode(), item.getTopHoldings());
+        List<FundCurrentDataAggregate.TopHolding> holdings = normalization.rows();
+        if (normalization.invalidRowCount() > 0) {
             logs.add(log(taskId, ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH, "invalid_holding_rows",
                     "部分重仓行排名或增减类型无效: " + item.getFundCode()));
+        }
+        if (normalization.unsupportedMarketCount() > 0) {
+            logs.add(log(taskId, ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH, "unsupported_holding_market",
+                    "部分重仓行包含不支持的业务市场，已按空值保存: " + item.getFundCode()));
         }
         if (!clear && holdings.isEmpty()) {
             logs.add(log(taskId, ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH, "empty_holdings", "公开重仓列表为空，保留旧数据: " + item.getFundCode()));
@@ -560,20 +566,36 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
         return new AllocationNormalization(rows, invalid);
     }
 
-    private List<FundCurrentDataAggregate.TopHolding> normalizeHoldings(String fundCode,
-                                                                        List<FundSliceRefreshCallbackCommand.TopHolding> source) {
-        if (source == null) return List.of();
+    private HoldingNormalization normalizeHoldings(String fundCode,
+                                                    List<FundSliceRefreshCallbackCommand.TopHolding> source) {
+        if (source == null) return new HoldingNormalization(List.of(), 0, 0);
         Map<Integer, FundCurrentDataAggregate.TopHolding> byRank = new LinkedHashMap<>();
+        int invalidRowCount = 0;
+        int unsupportedMarketCount = 0;
         for (FundSliceRefreshCallbackCommand.TopHolding row : source) {
             if (row == null || row.getRankNo() == null || row.getRankNo() < 1 || row.getRankNo() > 10
-                    || blank(row.getQuarterChangeType())) continue;
-            byRank.put(row.getRankNo(), FundCurrentDataAggregate.TopHolding.builder()
+                    || blank(row.getQuarterChangeType())) {
+                invalidRowCount++;
+                continue;
+            }
+            String market = trim(row.getMarket());
+            if (market != null && !HOLDING_MARKETS.contains(market)) {
+                market = null;
+                unsupportedMarketCount++;
+            }
+            FundCurrentDataAggregate.TopHolding normalized = FundCurrentDataAggregate.TopHolding.builder()
                     .fundCode(fundCode).rankNo(row.getRankNo()).stockName(trim(row.getStockName()))
-                    .stockCode(trim(row.getStockCode())).market(trim(row.getMarket()))
+                    .stockCode(trim(row.getStockCode())).market(market)
+                    .providerMarketCode(trim(row.getProviderMarketCode()))
                     .holdingRatio(row.getHoldingRatio()).quarterChangeType(trim(row.getQuarterChangeType()))
-                    .quarterChangeValue(row.getQuarterChangeValue()).build());
+                    .quarterChangeValue(row.getQuarterChangeValue()).build();
+            if (byRank.put(row.getRankNo(), normalized) != null) {
+                invalidRowCount++;
+            }
         }
-        return byRank.values().stream().sorted(java.util.Comparator.comparing(FundCurrentDataAggregate.TopHolding::getRankNo)).toList();
+        List<FundCurrentDataAggregate.TopHolding> rows = byRank.values().stream()
+                .sorted(java.util.Comparator.comparing(FundCurrentDataAggregate.TopHolding::getRankNo)).toList();
+        return new HoldingNormalization(rows, invalidRowCount, unsupportedMarketCount);
     }
 
     private boolean sameHoldings(FundCurrentDataAggregate.FundDetail left, FundCurrentDataAggregate.FundDetail right) {
@@ -587,6 +609,7 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
             FundCurrentDataAggregate.TopHolding b = rightRows.get(i);
             if (!Objects.equals(a.getRankNo(), b.getRankNo()) || !Objects.equals(trim(a.getStockName()), trim(b.getStockName()))
                     || !Objects.equals(trim(a.getStockCode()), trim(b.getStockCode())) || !Objects.equals(trim(a.getMarket()), trim(b.getMarket()))
+                    || !Objects.equals(trim(a.getProviderMarketCode()), trim(b.getProviderMarketCode()))
                     || !decimalEquals(a.getHoldingRatio(), b.getHoldingRatio())
                     || !Objects.equals(trim(a.getQuarterChangeType()), trim(b.getQuarterChangeType()))
                     || !decimalEquals(a.getQuarterChangeValue(), b.getQuarterChangeValue())) return false;
@@ -714,6 +737,10 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
                 .anyMatch(w -> w != null && event.equals(w.getEvent()));
     }
 
+    private boolean hasOutcomeDegradingLogs(List<ProcessingLogEntity> logs) {
+        return logs.stream().anyMatch(item -> !"unsupported_holding_market".equals(item.getEvent()));
+    }
+
     private FundCurrentDataAggregate.FundDetail.FundDetailBuilder base(FundSliceRefreshCallbackCommand.FundItem item) {
         return FundCurrentDataAggregate.FundDetail.builder().fundCode(item.getFundCode().trim());
     }
@@ -779,4 +806,7 @@ public class FundSliceRefreshCaseImpl implements IFundSliceRefreshCase {
     private record AssetAllocationKey(String assetType, String assetTypeName) { }
 
     private record AllocationNormalization(List<FundCurrentDataAggregate.AssetAllocation> rows, boolean invalid) { }
+
+    private record HoldingNormalization(List<FundCurrentDataAggregate.TopHolding> rows,
+                                        int invalidRowCount, int unsupportedMarketCount) { }
 }

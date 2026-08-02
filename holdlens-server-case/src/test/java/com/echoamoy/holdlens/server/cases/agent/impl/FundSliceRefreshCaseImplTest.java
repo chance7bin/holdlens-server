@@ -304,6 +304,39 @@ public class FundSliceRefreshCaseImplTest {
     }
 
     @Test
+    public void topHoldingSoftValidatesBusinessMarketAndPreservesProviderCode() throws Exception {
+        Fixture fixture = fixture();
+        fixture.funds.current.put("270023", FundCurrentDataAggregate.FundDetail.builder()
+                .fundCode("270023").topHoldingsAsOf(java.sql.Date.valueOf("2026-03-31"))
+                .publicHoldingsStatus("public").topHoldings(List.of()).build());
+        String taskId = fixture.caseImpl.dispatchTopHoldings(List.of("270023"), "detail_view").getServerTaskId();
+        FundSliceRefreshCallbackCommand.FundItem item = FundSliceRefreshCallbackCommand.FundItem.builder()
+                .fundCode("270023").topHoldingsAsOf("2026-06-30").publicHoldingsStatus("public")
+                .topHoldings(List.of(
+                        FundSliceRefreshCallbackCommand.TopHolding.builder()
+                                .rankNo(1).stockName("美光科技").stockCode("MU")
+                                .market("US_STOCK").providerMarketCode("105")
+                                .holdingRatio(new BigDecimal("9.01")).quarterChangeType("increased").build(),
+                        FundSliceRefreshCallbackCommand.TopHolding.builder()
+                                .rankNo(2).stockName("示例港股").stockCode("02513")
+                                .market("116").providerMarketCode("116")
+                                .holdingRatio(new BigDecimal("4.07")).quarterChangeType("new").build()))
+                .build();
+
+        Assert.assertEquals("succeeded", fixture.caseImpl.handleCallback(
+                ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH,
+                callback(taskId, "fund-top-holding-refresh-result/v1", "succeeded", List.of(item))).getStatus());
+
+        List<FundCurrentDataAggregate.TopHolding> rows = fixture.funds.lastHolding.getTopHoldings();
+        Assert.assertEquals("US_STOCK", rows.get(0).getMarket());
+        Assert.assertEquals("105", rows.get(0).getProviderMarketCode());
+        Assert.assertNull(rows.get(1).getMarket());
+        Assert.assertEquals("116", rows.get(1).getProviderMarketCode());
+        Assert.assertTrue(fixture.processing.logs.stream()
+                .anyMatch(log -> "unsupported_holding_market".equals(log.getEvent())));
+    }
+
+    @Test
     public void fullyInflightOverlapIsSuccessfulNoopAndCallbackFailedIsRejected() throws Exception {
         Fixture fixture = fixture();
         String taskId = fixture.caseImpl.dispatchTopHoldings(List.of("000001"), "detail_view").getServerTaskId();
@@ -528,6 +561,7 @@ public class FundSliceRefreshCaseImplTest {
         int allocationWrites;
         int unavailableWrites;
         boolean lastClear;
+        FundCurrentDataAggregate.FundDetail lastHolding;
         FundCurrentDataAggregate.FundDetail lastAllocation;
         LocalDate latestEndedQuarter;
         LocalDateTime unavailableRetryBefore;
@@ -549,7 +583,12 @@ public class FundSliceRefreshCaseImplTest {
             funds.forEach(this::upsertCatalog);
         }
         public boolean updatePurchaseStatus(FundCurrentDataAggregate.FundDetail fund) { return current.containsKey(fund.getFundCode()); }
-        public boolean updateTopHoldingSnapshot(FundCurrentDataAggregate.FundDetail fund, boolean clear) { holdingWrites++; lastClear = clear; return current.containsKey(fund.getFundCode()); }
+        public boolean updateTopHoldingSnapshot(FundCurrentDataAggregate.FundDetail fund, boolean clear) {
+            holdingWrites++;
+            lastClear = clear;
+            lastHolding = fund;
+            return current.containsKey(fund.getFundCode());
+        }
         public List<String> queryTopHoldingRefreshTargets(LocalDateTime since, LocalDateTime staleBefore) {
             topHoldingStaleBefore = staleBefore;
             return targets;

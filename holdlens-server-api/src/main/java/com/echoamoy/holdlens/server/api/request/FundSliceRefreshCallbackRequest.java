@@ -40,6 +40,7 @@ public class FundSliceRefreshCallbackRequest {
         @JsonProperty("stock_name") private String stockName;
         @JsonProperty("stock_code") private String stockCode;
         private String market;
+        @JsonProperty("provider_market_code") private String providerMarketCode;
         @JsonProperty("holding_ratio") private BigDecimal holdingRatio;
         @JsonProperty("quarter_change_type") private String quarterChangeType;
         @JsonProperty("quarter_change_value") private BigDecimal quarterChangeValue;

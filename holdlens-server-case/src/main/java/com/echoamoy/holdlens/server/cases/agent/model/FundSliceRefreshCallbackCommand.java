@@ -45,6 +45,7 @@ public class FundSliceRefreshCallbackCommand {
         private String stockName;
         private String stockCode;
         private String market;
+        private String providerMarketCode;
         private BigDecimal holdingRatio;
         private String quarterChangeType;
         private BigDecimal quarterChangeValue;

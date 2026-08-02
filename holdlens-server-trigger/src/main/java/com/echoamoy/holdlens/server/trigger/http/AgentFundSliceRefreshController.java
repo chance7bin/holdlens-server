@@ -85,7 +85,8 @@ public class AgentFundSliceRefreshController implements IAgentFundSliceRefreshSe
                 .topHoldingsAsOf(f.getTopHoldingsAsOf()).publicHoldingsStatus(f.getPublicHoldingsStatus())
                 .topHoldings(f.getTopHoldings() == null ? List.of() : f.getTopHoldings().stream().map(h ->
                         FundSliceRefreshCallbackCommand.TopHolding.builder().rankNo(h.getRankNo()).stockName(h.getStockName())
-                                .stockCode(h.getStockCode()).market(h.getMarket()).holdingRatio(h.getHoldingRatio())
+                                .stockCode(h.getStockCode()).market(h.getMarket())
+                                .providerMarketCode(h.getProviderMarketCode()).holdingRatio(h.getHoldingRatio())
                                 .quarterChangeType(h.getQuarterChangeType()).quarterChangeValue(h.getQuarterChangeValue()).build()).toList())
                 .assetAllocationAsOf(f.getAssetAllocationAsOf()).allocationStatus(f.getAllocationStatus())
                 .assetAllocations(f.getAssetAllocations() == null ? List.of() : f.getAssetAllocations().stream().map(a ->

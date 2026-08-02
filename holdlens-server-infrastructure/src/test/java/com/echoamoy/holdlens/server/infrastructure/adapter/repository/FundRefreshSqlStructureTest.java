@@ -117,6 +117,25 @@ public class FundRefreshSqlStructureTest {
         Assert.assertEquals(2, occurrences(taskMapper, "'fund_asset_allocation_refresh'"));
     }
 
+    @Test
+    public void topHoldingMarketMigrationPreservesProviderCodeAndMapperPersistsBothFields() throws Exception {
+        Path root = projectRoot();
+        String baseline = Files.readString(root.resolve("docs/dev-ops/mysql/sql/holdlens.sql"));
+        String migration = Files.readString(root.resolve(
+                "docs/dev-ops/mysql/sql/migrations/20260803_normalize_fund_top_holding_market.sql"));
+        String mapper = Files.readString(root.resolve(
+                "holdlens-server-app/src/main/resources/mybatis/mapper/fund_top_holding_mapper.xml"));
+
+        Assert.assertTrue(baseline.contains("`provider_market_code` VARCHAR(20)"));
+        Assert.assertTrue(migration.contains("ADD COLUMN `provider_market_code`"));
+        Assert.assertTrue(migration.contains("SET `provider_market_code` = `market`"));
+        Assert.assertTrue(migration.contains("WHEN `market` IN ('0', '1') THEN 'A_SHARE'"));
+        Assert.assertTrue(migration.contains("WHEN `market` IN ('105', '106', '107') THEN 'US_STOCK'"));
+        Assert.assertTrue(migration.contains("ELSE NULL"));
+        Assert.assertTrue(mapper.contains("column=\"provider_market_code\" property=\"providerMarketCode\""));
+        Assert.assertTrue(mapper.contains("#{providerMarketCode}"));
+    }
+
     private int occurrences(String value, String target) {
         int count = 0;
         int index = 0;

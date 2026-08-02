@@ -46,6 +46,17 @@ public class AgentFundSliceRefreshControllerTest {
         Assert.assertEquals(ProcessingTaskEntity.FUND_TOP_HOLDING_REFRESH, fake.lastTaskType);
         FundSliceRefreshCallbackRequest.FundItem item = new FundSliceRefreshCallbackRequest.FundItem();
         item.setFundCode("000001");
+        FundSliceRefreshCallbackRequest.TopHolding holding = new FundSliceRefreshCallbackRequest.TopHolding();
+        holding.setRankNo(1);
+        holding.setStockCode("MU");
+        holding.setMarket("US_STOCK");
+        holding.setProviderMarketCode("105");
+        holding.setQuarterChangeType("increased");
+        item.setTopHoldings(List.of(holding));
+        request.setFunds(List.of(item));
+        controller.topHoldingCallback("internal", request);
+        Assert.assertEquals("105", fake.lastCommand.getFunds().get(0)
+                .getTopHoldings().get(0).getProviderMarketCode());
         item.setAssetAllocationAsOf("2026-06-30");
         item.setAllocationStatus("available");
         FundSliceRefreshCallbackRequest.AssetAllocation allocation =
@@ -55,7 +66,6 @@ public class AgentFundSliceRefreshControllerTest {
         allocation.setAllocationRatio(new java.math.BigDecimal("70.0000"));
         allocation.setDisplayOrder(1);
         item.setAssetAllocations(List.of(allocation));
-        request.setFunds(List.of(item));
         controller.assetAllocationCallback("internal", request);
         Assert.assertEquals(ProcessingTaskEntity.FUND_ASSET_ALLOCATION_REFRESH, fake.lastTaskType);
         Assert.assertEquals("股票", fake.lastCommand.getFunds().get(0)

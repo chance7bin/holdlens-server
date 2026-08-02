@@ -9,6 +9,7 @@
         <result column="stock_name" property="stockName"/>
         <result column="stock_code" property="stockCode"/>
         <result column="market" property="market"/>
+        <result column="provider_market_code" property="providerMarketCode"/>
         <result column="holding_ratio" property="holdingRatio"/>
         <result column="quarter_change_type" property="quarterChangeType"/>
         <result column="quarter_change_value" property="quarterChangeValue"/>
@@ -17,16 +18,16 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, fund_code, rank_no, stock_name, stock_code, market,
+        id, fund_code, rank_no, stock_name, stock_code, market, provider_market_code,
         holding_ratio, quarter_change_type, quarter_change_value, create_time, update_time
     </sql>
 
     <insert id="insert" parameterType="com.echoamoy.holdlens.server.infrastructure.dao.po.FundTopHoldingPO" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO fund_top_holding (
-            fund_code, rank_no, stock_name, stock_code, market,
+            fund_code, rank_no, stock_name, stock_code, market, provider_market_code,
             holding_ratio, quarter_change_type, quarter_change_value
         ) VALUES (
-            #{fundCode}, #{rankNo}, #{stockName}, #{stockCode}, #{market},
+            #{fundCode}, #{rankNo}, #{stockName}, #{stockCode}, #{market}, #{providerMarketCode},
             #{holdingRatio}, #{quarterChangeType}, #{quarterChangeValue}
         )
     </insert>
@@ -36,6 +37,7 @@
         SET stock_name = #{stockName},
             stock_code = #{stockCode},
             market = #{market},
+            provider_market_code = #{providerMarketCode},
             holding_ratio = #{holdingRatio},
             quarter_change_type = #{quarterChangeType},
             quarter_change_value = #{quarterChangeValue},

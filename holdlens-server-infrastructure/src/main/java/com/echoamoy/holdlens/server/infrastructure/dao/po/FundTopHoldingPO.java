@@ -35,6 +35,9 @@ public class FundTopHoldingPO implements Serializable {
     /** 市场标识 */
     private String market;
 
+    /** 第三方数据源市场编码 */
+    private String providerMarketCode;
+
     /** 持仓占比 */
     private BigDecimal holdingRatio;
 
