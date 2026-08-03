@@ -39,6 +39,25 @@ public class MarketDetailSqlStructureTest {
     }
 
     @Test
+    public void fundNavHistoryKeepsOnlyTheUniqueCodeDateIndex() throws Exception {
+        Path root = projectRoot();
+        String baseline = Files.readString(root.resolve("docs/dev-ops/mysql/sql/holdlens.sql"));
+        String migration = Files.readString(root.resolve(
+                "docs/dev-ops/mysql/sql/migrations/20260804_drop_redundant_fund_nav_index.sql"));
+
+        Assert.assertTrue(baseline.contains("UNIQUE KEY `uk_fund_nav_history_code_date` (`fund_code`,`nav_date`)"));
+        Assert.assertFalse(baseline.contains("KEY `idx_fund_nav_history_code_date`"));
+        Assert.assertTrue(migration.contains("FROM `information_schema`.`statistics`"));
+        Assert.assertTrue(migration.contains("AND `index_name` = 'idx_fund_nav_history_code_date'"));
+        Assert.assertTrue(migration.contains(
+                "ALTER TABLE `fund_nav_history` DROP INDEX `idx_fund_nav_history_code_date`"));
+        Assert.assertTrue(migration.contains("PREPARE holdlens_drop_fund_nav_index_stmt"));
+        Assert.assertTrue(migration.contains("DEALLOCATE PREPARE holdlens_drop_fund_nav_index_stmt"));
+        Assert.assertFalse(migration.contains("DROP TABLE"));
+        Assert.assertFalse(migration.contains("DELETE FROM"));
+    }
+
+    @Test
     public void enrichmentMigrationAndMapperProtectSnapshotsAndUseRowLocks() throws Exception {
         Path root = projectRoot();
         String baseline = Files.readString(root.resolve("docs/dev-ops/mysql/sql/holdlens.sql"));
