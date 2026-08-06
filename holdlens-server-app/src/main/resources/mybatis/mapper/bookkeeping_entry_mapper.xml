@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.echoamoy.holdlens.server.infrastructure.dao.IBookkeepingEntryDao">
+
+    <resultMap id="entryMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.BookkeepingEntryPO">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="request_id" property="requestId"/>
+        <result column="category_code" property="categoryCode"/>
+        <result column="entry_date" property="entryDate"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="columns">
+        id, user_id, request_id, type, category_code, amount, currency, entry_date, note, status,
+        create_time, update_time
+    </sql>
+
+    <select id="selectByUserAndRequestId" resultMap="entryMap">
+        SELECT <include refid="columns"/>
+        FROM bookkeeping_entry
+        WHERE user_id = #{userId}
+          AND request_id = #{requestId}
+    </select>
+
+    <select id="selectActiveByUserAndId" resultMap="entryMap">
+        SELECT <include refid="columns"/>
+        FROM bookkeeping_entry
+        WHERE user_id = #{userId}
+          AND id = #{id}
+          AND status = 'ACTIVE'
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO bookkeeping_entry (
+            user_id, request_id, type, category_code, amount, currency, entry_date, note, status
+        ) VALUES (
+            #{userId}, #{requestId}, #{type}, #{categoryCode}, #{amount}, #{currency}, #{entryDate}, #{note}, #{status}
+        )
+        ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)
+    </insert>
+
+    <update id="update">
+        UPDATE bookkeeping_entry
+        SET type = #{type},
+            category_code = #{categoryCode},
+            amount = #{amount},
+            entry_date = #{entryDate},
+            note = #{note},
+            status = #{status}
+        WHERE id = #{id}
+          AND user_id = #{userId}
+          AND status = 'ACTIVE'
+    </update>
+
+    <select id="selectActiveEntries" resultMap="entryMap">
+        SELECT <include refid="columns"/>
+        FROM bookkeeping_entry
+        WHERE user_id = #{userId}
+          AND status = 'ACTIVE'
+          AND entry_date BETWEEN #{startDate} AND #{endDate}
+        <if test="type != null">
+          AND type = #{type}
+        </if>
+        <if test="categoryCode != null">
+          AND category_code = #{categoryCode}
+        </if>
+        ORDER BY entry_date DESC, id DESC
+    </select>
+
+    <select id="selectActiveYears" resultType="java.lang.Integer">
+        SELECT DISTINCT YEAR(entry_date)
+        FROM bookkeeping_entry
+        WHERE user_id = #{userId}
+          AND status = 'ACTIVE'
+        ORDER BY YEAR(entry_date) DESC
+    </select>
+</mapper>
