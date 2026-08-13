@@ -1,5 +1,6 @@
 package com.echoamoy.holdlens.server.cases.bookkeeping.model;
 
+import com.echoamoy.holdlens.server.domain.bookkeeping.model.entity.BookkeepingCategoryEntity;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.entity.BookkeepingEntryEntity;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.valobj.BookkeepingEntryTypeEnumVO;
 import lombok.AllArgsConstructor;
@@ -64,6 +65,16 @@ public final class BookkeepingResult {
         private String categoryName;
         private BigDecimal amount;
         private BigDecimal ratio;
+        private String categoryIconKey;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CategorySettings {
+        private List<BookkeepingCategoryEntity> enabled;
+        private List<BookkeepingCategoryEntity> disabled;
     }
 
     @Data

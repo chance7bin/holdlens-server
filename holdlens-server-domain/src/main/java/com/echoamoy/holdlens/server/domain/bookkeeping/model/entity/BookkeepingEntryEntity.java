@@ -1,6 +1,5 @@
 package com.echoamoy.holdlens.server.domain.bookkeeping.model.entity;
 
-import com.echoamoy.holdlens.server.domain.bookkeeping.model.valobj.BookkeepingCategoryEnumVO;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.valobj.BookkeepingEntryStatusEnumVO;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.valobj.BookkeepingEntryTypeEnumVO;
 import lombok.AllArgsConstructor;
@@ -26,6 +25,8 @@ public class BookkeepingEntryEntity {
     private String requestId;
     private BookkeepingEntryTypeEnumVO type;
     private String categoryCode;
+    private String categoryName;
+    private String categoryIconKey;
     private BigDecimal amount;
     private String currency;
     private LocalDate entryDate;
@@ -83,7 +84,9 @@ public class BookkeepingEntryEntity {
         if (type == null) {
             throw new IllegalArgumentException("收支类型不合法");
         }
-        BookkeepingCategoryEnumVO.require(categoryCode, type);
+        if (categoryCode == null || categoryCode.isBlank() || categoryCode.length() > 50) {
+            throw new IllegalArgumentException("收支分类不合法");
+        }
         if (amount == null || amount.signum() <= 0 || amount.scale() > 2
                 || Math.max(amount.precision() - amount.scale(), 0) > 18) {
             throw new IllegalArgumentException("金额不合法");

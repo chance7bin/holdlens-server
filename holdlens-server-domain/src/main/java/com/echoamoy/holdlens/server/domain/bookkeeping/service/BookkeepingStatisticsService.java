@@ -3,7 +3,6 @@ package com.echoamoy.holdlens.server.domain.bookkeeping.service;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.entity.BookkeepingBillEntity;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.entity.BookkeepingEntryEntity;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.entity.BookkeepingStatisticsEntity;
-import com.echoamoy.holdlens.server.domain.bookkeeping.model.valobj.BookkeepingCategoryEnumVO;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.valobj.BookkeepingEntryTypeEnumVO;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.valobj.BookkeepingGranularityEnumVO;
 
@@ -185,10 +184,9 @@ public class BookkeepingStatisticsService {
         return categoryAmounts.entrySet().stream()
                 .sorted(Map.Entry.<String, BigDecimal>comparingByValue().reversed())
                 .map(item -> {
-                    BookkeepingCategoryEnumVO category = BookkeepingCategoryEnumVO.require(item.getKey());
                     return BookkeepingStatisticsEntity.Category.builder()
                             .categoryCode(item.getKey())
-                            .categoryName(category.getName())
+                            .categoryName(null)
                             .amount(scale(item.getValue()))
                             .ratio(item.getValue()
                                     .multiply(BigDecimal.valueOf(100))

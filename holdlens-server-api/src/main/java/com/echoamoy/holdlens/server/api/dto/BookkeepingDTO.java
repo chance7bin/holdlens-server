@@ -24,6 +24,9 @@ public final class BookkeepingDTO {
         private String name;
         private String type;
         private Integer sortOrder;
+        private String iconKey;
+        private String scope;
+        private Long activeEntryCount;
     }
 
     @Data
@@ -35,6 +38,7 @@ public final class BookkeepingDTO {
         private String type;
         private String categoryCode;
         private String categoryName;
+        private String categoryIconKey;
         private BigDecimal amount;
         private String currency;
         private LocalDate entryDate;
@@ -90,8 +94,38 @@ public final class BookkeepingDTO {
     public static class CategoryAmount {
         private String categoryCode;
         private String categoryName;
+        private String categoryIconKey;
         private BigDecimal amount;
         private BigDecimal ratio;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CategorySettings {
+        private List<Category> enabled;
+        private List<Category> disabled;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CategoryOperation {
+        private Category category;
+        private Integer deletedEntryCount;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class IconGroup {
+        private String key;
+        private String name;
+        private Integer sortOrder;
+        private List<String> iconKeys;
     }
 
     @Data

@@ -2,7 +2,9 @@ package com.echoamoy.holdlens.server.cases.bookkeeping.impl;
 
 import com.echoamoy.holdlens.server.cases.bookkeeping.model.BookkeepingCommand;
 import com.echoamoy.holdlens.server.cases.bookkeeping.model.BookkeepingResult;
+import com.echoamoy.holdlens.server.domain.bookkeeping.adapter.repository.IBookkeepingCategoryRepository;
 import com.echoamoy.holdlens.server.domain.bookkeeping.adapter.repository.IBookkeepingRepository;
+import com.echoamoy.holdlens.server.domain.bookkeeping.model.entity.BookkeepingCategoryEntity;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.entity.BookkeepingEntryEntity;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.valobj.BookkeepingEntryTypeEnumVO;
 import com.echoamoy.holdlens.server.types.exception.AppException;
@@ -30,7 +32,12 @@ public class BookkeepingCaseImplTest {
         command.setAmount(new BigDecimal("2.00"));
 
         assertEquals(first.getId(), fixture.caseService.create(command).getId());
+        assertEquals("餐饮", first.getCategoryName());
+        assertEquals("food", first.getCategoryIconKey());
         assertEquals(1, fixture.repository.entries.size());
+        expectIllegalArgument(() -> fixture.caseService.create(
+                create(1L, "wrong-type", "EXPENSE", "SALARY", "1.00", LocalDate.now(ZONE))
+        ));
     }
 
     @Test
@@ -86,6 +93,9 @@ public class BookkeepingCaseImplTest {
         Field field = BookkeepingCaseImpl.class.getDeclaredField("bookkeepingRepository");
         field.setAccessible(true);
         field.set(caseService, repository);
+        Field categoryField = BookkeepingCaseImpl.class.getDeclaredField("categoryRepository");
+        categoryField.setAccessible(true);
+        categoryField.set(caseService, new FakeCategoryRepository());
         return new Fixture(caseService, repository);
     }
 
@@ -119,5 +129,67 @@ public class BookkeepingCaseImplTest {
             return entries.stream().filter(e -> e.getUserId().equals(userId) && e.getStatus().name().equals("ACTIVE") && !e.getEntryDate().isBefore(start) && !e.getEntryDate().isAfter(end) && (type == null || e.getType() == type) && (categoryCode == null || categoryCode.equals(e.getCategoryCode()))).sorted(Comparator.comparing(BookkeepingEntryEntity::getEntryDate).reversed().thenComparing(BookkeepingEntryEntity::getId, Comparator.reverseOrder())).toList();
         }
         public List<Integer> queryActiveYears(Long userId) { return entries.stream().filter(e -> e.getUserId().equals(userId) && e.getStatus().name().equals("ACTIVE")).map(e -> e.getEntryDate().getYear()).distinct().sorted(Comparator.reverseOrder()).toList(); }
+    }
+
+    private static class FakeCategoryRepository implements IBookkeepingCategoryRepository {
+        @Override
+        public List<BookkeepingCategoryEntity> queryVisible(
+                Long userId,
+                BookkeepingEntryTypeEnumVO type
+        ) {
+            return type == BookkeepingEntryTypeEnumVO.EXPENSE
+                    ? List.of(category(1L, "FOOD", type, "餐饮", "food"))
+                    : List.of(category(2L, "SALARY", type, "工资", "salary"));
+        }
+
+        @Override
+        public BookkeepingCategoryEntity queryVisibleByCode(Long userId, String code) {
+            if ("FOOD".equals(code)) {
+                return category(1L, "FOOD", BookkeepingEntryTypeEnumVO.EXPENSE, "餐饮", "food");
+            }
+            if ("SALARY".equals(code)) {
+                return category(2L, "SALARY", BookkeepingEntryTypeEnumVO.INCOME, "工资", "salary");
+            }
+            return null;
+        }
+
+        @Override
+        public BookkeepingCategoryEntity queryByOwnerAndRequestId(Long userId, String requestId) {
+            return null;
+        }
+
+        @Override
+        public boolean insertUserCategory(BookkeepingCategoryEntity category) {
+            return true;
+        }
+
+        @Override
+        public void upsertConfig(Long userId, Long categoryId, String status, Integer sortOrder) {
+        }
+
+        @Override
+        public int disableAndDeleteActiveEntries(Long userId, String type, String categoryCode) {
+            return 0;
+        }
+
+        private BookkeepingCategoryEntity category(
+                Long id,
+                String code,
+                BookkeepingEntryTypeEnumVO type,
+                String name,
+                String iconKey
+        ) {
+            return BookkeepingCategoryEntity.builder()
+                    .id(id)
+                    .code(code)
+                    .scope("SYSTEM")
+                    .type(type)
+                    .name(name)
+                    .iconKey(iconKey)
+                    .status("ENABLED")
+                    .sortOrder(10)
+                    .activeEntryCount(0L)
+                    .build();
+        }
     }
 }

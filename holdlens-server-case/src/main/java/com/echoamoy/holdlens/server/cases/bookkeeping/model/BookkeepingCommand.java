@@ -40,4 +40,16 @@ public final class BookkeepingCommand {
         private LocalDate entryDate;
         private String note;
     }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateCategory {
+        private Long userId;
+        private String requestId;
+        private String type;
+        private String name;
+        private String iconKey;
+    }
 }

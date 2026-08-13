@@ -2,15 +2,25 @@ package com.echoamoy.holdlens.server.cases.bookkeeping;
 
 import com.echoamoy.holdlens.server.cases.bookkeeping.model.BookkeepingCommand;
 import com.echoamoy.holdlens.server.cases.bookkeeping.model.BookkeepingResult;
+import com.echoamoy.holdlens.server.domain.bookkeeping.model.entity.BookkeepingCategoryEntity;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.entity.BookkeepingEntryEntity;
-import com.echoamoy.holdlens.server.domain.bookkeeping.model.valobj.BookkeepingCategoryEnumVO;
 
 import java.time.LocalDate;
 import java.util.List;
 
 public interface IBookkeepingCase {
 
-    List<BookkeepingCategoryEnumVO> queryCategories(String type);
+    List<BookkeepingCategoryEntity> queryCategories(Long userId, String type);
+
+    BookkeepingResult.CategorySettings queryCategorySettings(Long userId, String type);
+
+    BookkeepingCategoryEntity createCategory(BookkeepingCommand.CreateCategory command);
+
+    BookkeepingCategoryEntity enableCategory(Long userId, String categoryCode);
+
+    int disableCategory(Long userId, String categoryCode);
+
+    void reorderCategories(Long userId, String type, List<String> categoryCodes);
 
     BookkeepingEntryEntity create(BookkeepingCommand.Create command);
 

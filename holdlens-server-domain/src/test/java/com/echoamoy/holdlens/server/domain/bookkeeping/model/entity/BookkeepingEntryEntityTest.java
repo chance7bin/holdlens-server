@@ -44,12 +44,12 @@ public class BookkeepingEntryEntityTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void rejectsWrongCategory() {
+    public void rejectsInvalidCategoryCode() {
         BookkeepingEntryEntity.create(
                 1L,
                 "r",
                 BookkeepingEntryTypeEnumVO.EXPENSE,
-                "SALARY",
+                " ",
                 BigDecimal.ONE,
                 LocalDate.now(ZONE),
                 null

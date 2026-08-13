@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.echoamoy.holdlens.server.infrastructure.dao.IBookkeepingCategoryDao">
+
+    <resultMap id="category" type="com.echoamoy.holdlens.server.infrastructure.dao.po.BookkeepingCategoryPO">
+        <id column="id" property="id"/>
+        <result column="code" property="code"/>
+        <result column="scope" property="scope"/>
+        <result column="owner_user_id" property="ownerUserId"/>
+        <result column="entry_type" property="entryType"/>
+        <result column="name" property="name"/>
+        <result column="icon_key" property="iconKey"/>
+        <result column="default_enabled" property="defaultEnabled"/>
+        <result column="default_sort_order" property="defaultSortOrder"/>
+        <result column="create_request_id" property="createRequestId"/>
+        <result column="status" property="status"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="active_entry_count" property="activeEntryCount"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="visibleColumns">
+        SELECT c.*,
+               COALESCE(
+                   cfg.status,
+                   CASE WHEN c.default_enabled THEN 'ENABLED' ELSE 'DISABLED' END
+               ) AS status,
+               COALESCE(cfg.sort_order, c.default_sort_order) AS sort_order,
+               (
+                   SELECT COUNT(1)
+                   FROM bookkeeping_entry e
+                   WHERE e.user_id = #{userId}
+                     AND e.category_code = c.code
+                     AND e.status = 'ACTIVE'
+               ) AS active_entry_count
+        FROM bookkeeping_category c
+        LEFT JOIN bookkeeping_user_category_config cfg
+               ON cfg.category_id = c.id
+              AND cfg.user_id = #{userId}
+    </sql>
+
+    <select id="selectVisible" resultMap="category">
+        <include refid="visibleColumns"/>
+        WHERE c.entry_type = #{type}
+          AND (c.scope = 'SYSTEM' OR c.owner_user_id = #{userId})
+        ORDER BY status DESC, sort_order, c.id
+    </select>
+
+    <select id="selectVisibleByCode" resultMap="category">
+        <include refid="visibleColumns"/>
+        WHERE c.code = #{code}
+          AND (c.scope = 'SYSTEM' OR c.owner_user_id = #{userId})
+    </select>
+
+    <select id="selectByOwnerAndRequestId" resultMap="category">
+        <include refid="visibleColumns"/>
+        WHERE c.scope = 'USER'
+          AND c.owner_user_id = #{userId}
+          AND c.create_request_id = #{requestId}
+    </select>
+
+    <select id="selectByOwnerAndRequestIdForUpdate" resultMap="category">
+        SELECT c.*
+        FROM bookkeeping_category c
+        WHERE c.scope = 'USER'
+          AND c.owner_user_id = #{userId}
+          AND c.create_request_id = #{requestId}
+        FOR UPDATE
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO bookkeeping_category (
+            code,
+            scope,
+            owner_user_id,
+            entry_type,
+            name,
+            icon_key,
+            default_enabled,
+            default_sort_order,
+            create_request_id
+        ) VALUES (
+            #{code},
+            #{scope},
+            #{ownerUserId},
+            #{entryType},
+            #{name},
+            #{iconKey},
+            #{defaultEnabled},
+            #{defaultSortOrder},
+            #{createRequestId}
+        )
+    </insert>
+
+    <insert id="upsertConfig">
+        INSERT INTO bookkeeping_user_category_config (
+            user_id,
+            category_id,
+            status,
+            sort_order
+        ) VALUES (
+            #{userId},
+            #{categoryId},
+            #{status},
+            #{sortOrder}
+        )
+        ON DUPLICATE KEY UPDATE
+            status = VALUES(status),
+            sort_order = VALUES(sort_order)
+    </insert>
+
+    <update id="deleteActiveEntries">
+        UPDATE bookkeeping_entry
+        SET status = 'DELETED'
+        WHERE user_id = #{userId}
+          AND type = #{type}
+          AND category_code = #{categoryCode}
+          AND status = 'ACTIVE'
+    </update>
+
+</mapper>

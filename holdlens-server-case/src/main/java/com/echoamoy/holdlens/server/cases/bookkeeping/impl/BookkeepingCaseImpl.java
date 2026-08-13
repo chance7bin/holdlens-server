@@ -4,10 +4,12 @@ import com.echoamoy.holdlens.server.cases.bookkeeping.IBookkeepingCase;
 import com.echoamoy.holdlens.server.cases.bookkeeping.model.BookkeepingCommand;
 import com.echoamoy.holdlens.server.cases.bookkeeping.model.BookkeepingResult;
 import com.echoamoy.holdlens.server.domain.bookkeeping.adapter.repository.IBookkeepingRepository;
+import com.echoamoy.holdlens.server.domain.bookkeeping.adapter.repository.IBookkeepingCategoryRepository;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.entity.BookkeepingBillEntity;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.entity.BookkeepingEntryEntity;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.entity.BookkeepingStatisticsEntity;
-import com.echoamoy.holdlens.server.domain.bookkeeping.model.valobj.BookkeepingCategoryEnumVO;
+import com.echoamoy.holdlens.server.domain.bookkeeping.model.entity.BookkeepingCategoryEntity;
+import com.echoamoy.holdlens.server.domain.bookkeeping.model.valobj.BookkeepingCategoryCatalog;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.valobj.BookkeepingEntryTypeEnumVO;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.valobj.BookkeepingGranularityEnumVO;
 import com.echoamoy.holdlens.server.domain.bookkeeping.service.BookkeepingStatisticsService;
@@ -20,7 +22,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class BookkeepingCaseImpl implements IBookkeepingCase {
@@ -32,9 +41,154 @@ public class BookkeepingCaseImpl implements IBookkeepingCase {
     @Resource
     private IBookkeepingRepository bookkeepingRepository;
 
+    @Resource
+    private IBookkeepingCategoryRepository categoryRepository;
+
     @Override
-    public List<BookkeepingCategoryEnumVO> queryCategories(String type) {
-        return BookkeepingCategoryEnumVO.byType(requireType(type));
+    public List<BookkeepingCategoryEntity> queryCategories(Long userId, String type) {
+        BookkeepingEntryEntity.validateUserId(userId);
+        return categoryRepository.queryVisible(userId, requireType(type)).stream()
+                .filter(BookkeepingCategoryEntity::isEnabled)
+                .toList();
+    }
+
+    @Override
+    public BookkeepingResult.CategorySettings queryCategorySettings(Long userId, String type) {
+        BookkeepingEntryEntity.validateUserId(userId);
+        List<BookkeepingCategoryEntity> all = categoryRepository.queryVisible(userId, requireType(type));
+        return BookkeepingResult.CategorySettings.builder()
+                .enabled(all.stream().filter(BookkeepingCategoryEntity::isEnabled).toList())
+                .disabled(all.stream().filter(category -> !category.isEnabled()).toList())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public BookkeepingCategoryEntity createCategory(BookkeepingCommand.CreateCategory command) {
+        if (command == null) {
+            throw new IllegalArgumentException("类别创建参数不能为空");
+        }
+        BookkeepingEntryEntity.validateUserId(command.getUserId());
+        BookkeepingEntryEntity.validateRequestId(command.getRequestId());
+
+        String requestId = command.getRequestId().trim();
+        BookkeepingCategoryEntity existed = categoryRepository.queryByOwnerAndRequestId(
+                command.getUserId(),
+                requestId
+        );
+        if (existed != null) {
+            return existed;
+        }
+
+        BookkeepingEntryTypeEnumVO type = requireType(command.getType());
+        String name = normalizeCategoryName(command.getName());
+        if (!BookkeepingCategoryCatalog.isIconKey(command.getIconKey())) {
+            throw new IllegalArgumentException("类别图标不合法");
+        }
+
+        List<BookkeepingCategoryEntity> visible = categoryRepository.queryVisible(command.getUserId(), type);
+        if (visible.stream().anyMatch(category -> name.equals(category.getName()))) {
+            throw new IllegalArgumentException("收支分类名称重复");
+        }
+        int sortOrder = visible.stream()
+                .filter(BookkeepingCategoryEntity::isEnabled)
+                .map(BookkeepingCategoryEntity::getSortOrder)
+                .filter(Objects::nonNull)
+                .max(Integer::compareTo)
+                .orElse(0) + 10;
+
+        BookkeepingCategoryEntity category = BookkeepingCategoryEntity.builder()
+                .code("CUS_" + UUID.randomUUID().toString().replace("-", "").toUpperCase())
+                .scope("USER")
+                .ownerUserId(command.getUserId())
+                .type(type)
+                .name(name)
+                .iconKey(command.getIconKey())
+                .defaultEnabled(true)
+                .defaultSortOrder(sortOrder)
+                .sortOrder(sortOrder)
+                .createRequestId(requestId)
+                .status("ENABLED")
+                .activeEntryCount(0L)
+                .build();
+        boolean created = categoryRepository.insertUserCategory(category);
+        if (!created) {
+            return category;
+        }
+        categoryRepository.upsertConfig(command.getUserId(), category.getId(), "ENABLED", sortOrder);
+        return category;
+    }
+
+    @Override
+    @Transactional
+    public BookkeepingCategoryEntity enableCategory(Long userId, String code) {
+        BookkeepingEntryEntity.validateUserId(userId);
+        BookkeepingCategoryEntity category = requireCategory(userId, code);
+        if (!category.isEnabled()) {
+            int lastOrder = categoryRepository.queryVisible(userId, category.getType()).stream()
+                    .filter(BookkeepingCategoryEntity::isEnabled)
+                    .map(BookkeepingCategoryEntity::getSortOrder)
+                    .filter(Objects::nonNull)
+                    .max(Integer::compareTo)
+                    .orElse(0) + 10;
+            categoryRepository.upsertConfig(userId, category.getId(), "ENABLED", lastOrder);
+            category.setStatus("ENABLED");
+            category.setSortOrder(lastOrder);
+        }
+        return category;
+    }
+
+    @Override
+    @Transactional
+    public int disableCategory(Long userId, String code) {
+        BookkeepingEntryEntity.validateUserId(userId);
+        BookkeepingCategoryEntity category = requireCategory(userId, code);
+        if (!category.isEnabled()) {
+            return 0;
+        }
+
+        categoryRepository.upsertConfig(userId, category.getId(), "DISABLED", category.getSortOrder());
+        int deleted = categoryRepository.disableAndDeleteActiveEntries(
+                userId,
+                category.getType().name(),
+                category.getCode()
+        );
+        List<BookkeepingCategoryEntity> enabled = queryCategories(userId, category.getType().name());
+        for (int index = 0; index < enabled.size(); index++) {
+            categoryRepository.upsertConfig(
+                    userId,
+                    enabled.get(index).getId(),
+                    "ENABLED",
+                    (index + 1) * 10
+            );
+        }
+        return deleted;
+    }
+
+    @Override
+    @Transactional
+    public void reorderCategories(Long userId, String type, List<String> codes) {
+        BookkeepingEntryEntity.validateUserId(userId);
+        BookkeepingEntryTypeEnumVO entryType = requireType(type);
+        List<BookkeepingCategoryEntity> current = queryCategories(userId, type);
+        Set<String> submitted = codes == null ? Set.of() : new HashSet<>(codes);
+        Set<String> expected = current.stream()
+                .map(BookkeepingCategoryEntity::getCode)
+                .collect(Collectors.toSet());
+        if (codes == null || codes.size() != current.size()
+                || submitted.size() != codes.size() || !submitted.equals(expected)) {
+            throw new IllegalArgumentException("类别排序集合不一致");
+        }
+
+        Map<String, BookkeepingCategoryEntity> categories = current.stream()
+                .collect(Collectors.toMap(BookkeepingCategoryEntity::getCode, category -> category));
+        for (int index = 0; index < codes.size(); index++) {
+            BookkeepingCategoryEntity category = categories.get(codes.get(index));
+            if (category == null || category.getType() != entryType || !category.isEnabled()) {
+                throw new IllegalArgumentException("类别排序集合不一致");
+            }
+            categoryRepository.upsertConfig(userId, category.getId(), "ENABLED", (index + 1) * 10);
+        }
     }
 
     @Override
@@ -49,25 +203,27 @@ public class BookkeepingCaseImpl implements IBookkeepingCase {
         String requestId = command.getRequestId().trim();
         BookkeepingEntryEntity existed = bookkeepingRepository.queryByUserAndRequestId(command.getUserId(), requestId);
         if (existed != null) {
-            return existed;
+            return decorateEntry(existed);
         }
 
+        BookkeepingEntryTypeEnumVO entryType = requireType(command.getType());
+        requireEnabledCategory(command.getUserId(), command.getCategoryCode(), entryType);
         BookkeepingEntryEntity entry = BookkeepingEntryEntity.create(
                 command.getUserId(),
                 command.getRequestId(),
-                requireType(command.getType()),
+                entryType,
                 command.getCategoryCode(),
                 command.getAmount(),
                 command.getEntryDate(),
                 command.getNote()
         );
         bookkeepingRepository.insert(entry);
-        return queryPersistedEntry(command.getUserId(), requestId, entry);
+        return decorateEntry(queryPersistedEntry(command.getUserId(), requestId, entry));
     }
 
     @Override
     public BookkeepingEntryEntity queryEntry(Long userId, Long entryId) {
-        return requireEntry(userId, entryId);
+        return decorateEntry(requireEntry(userId, entryId));
     }
 
     @Override
@@ -79,7 +235,7 @@ public class BookkeepingCaseImpl implements IBookkeepingCase {
             String categoryCode
     ) {
         validateRange(userId, startDate, endDate);
-        BookkeepingEntryTypeEnumVO resolvedType = resolveFilter(type, categoryCode);
+        BookkeepingEntryTypeEnumVO resolvedType = resolveFilter(userId, type, categoryCode);
         List<BookkeepingEntryEntity> entries = bookkeepingRepository.queryActiveEntries(
                 userId,
                 startDate,
@@ -94,7 +250,7 @@ public class BookkeepingCaseImpl implements IBookkeepingCase {
                 .income(totals.getIncome())
                 .expense(totals.getExpense())
                 .balance(totals.getBalance())
-                .entries(entries)
+                .entries(decorateEntries(userId, entries))
                 .build();
     }
 
@@ -105,8 +261,10 @@ public class BookkeepingCaseImpl implements IBookkeepingCase {
             throw new IllegalArgumentException("收支条目修订参数不能为空");
         }
         BookkeepingEntryEntity entry = requireEntry(command.getUserId(), command.getEntryId());
+        BookkeepingEntryTypeEnumVO entryType = requireType(command.getType());
+        requireEnabledCategory(command.getUserId(), command.getCategoryCode(), entryType);
         entry.revise(
-                requireType(command.getType()),
+                entryType,
                 command.getCategoryCode(),
                 command.getAmount(),
                 command.getEntryDate(),
@@ -117,7 +275,7 @@ public class BookkeepingCaseImpl implements IBookkeepingCase {
                 command.getUserId(),
                 command.getEntryId()
         );
-        return persisted == null ? entry : persisted;
+        return decorateEntry(persisted == null ? entry : persisted);
     }
 
     @Override
@@ -154,7 +312,7 @@ public class BookkeepingCaseImpl implements IBookkeepingCase {
                 entryType,
                 null
         );
-        return toStatistics(statisticsService.statistics(entryType, unit, range, today, entries));
+        return toStatistics(userId, statisticsService.statistics(entryType, unit, range, today, entries));
     }
 
     @Override
@@ -243,13 +401,13 @@ public class BookkeepingCaseImpl implements IBookkeepingCase {
         return result;
     }
 
-    private BookkeepingEntryTypeEnumVO resolveFilter(String type, String categoryCode) {
+    private BookkeepingEntryTypeEnumVO resolveFilter(Long userId, String type, String categoryCode) {
         BookkeepingEntryTypeEnumVO explicitType = type == null ? null : requireType(type);
         if (categoryCode == null) {
             return explicitType;
         }
-        BookkeepingCategoryEnumVO category = BookkeepingCategoryEnumVO.require(categoryCode);
-        if (explicitType != null && category.getType() != explicitType) {
+        BookkeepingCategoryEntity category = categoryRepository.queryVisibleByCode(userId, categoryCode);
+        if (category == null || (explicitType != null && category.getType() != explicitType)) {
             throw new IllegalArgumentException("收支分类与类型不匹配");
         }
         return category.getType();
@@ -264,7 +422,74 @@ public class BookkeepingCaseImpl implements IBookkeepingCase {
         }
     }
 
-    private BookkeepingResult.Statistics toStatistics(BookkeepingStatisticsEntity value) {
+    private BookkeepingCategoryEntity requireCategory(Long userId, String code) {
+        if (code == null || code.isBlank()) {
+            throw new IllegalArgumentException("收支分类不合法");
+        }
+        BookkeepingCategoryEntity category = categoryRepository.queryVisibleByCode(userId, code.trim());
+        if (category == null) {
+            throw new IllegalArgumentException("收支分类不存在或不可见");
+        }
+        return category;
+    }
+
+    private void requireEnabledCategory(Long userId, String code, BookkeepingEntryTypeEnumVO type) {
+        BookkeepingCategoryEntity category = requireCategory(userId, code);
+        if (category.getType() != type || !category.isEnabled()) {
+            throw new IllegalArgumentException("收支分类与类型不匹配或未启用");
+        }
+    }
+
+    private String normalizeCategoryName(String raw) {
+        String value = raw == null ? "" : raw.trim();
+        int visibleCharacters = value.codePointCount(0, value.length());
+        if (visibleCharacters < 1 || visibleCharacters > 4
+                || value.codePoints().anyMatch(Character::isWhitespace)) {
+            throw new IllegalArgumentException("收支分类名称不合法");
+        }
+        return value;
+    }
+
+    private BookkeepingEntryEntity decorateEntry(BookkeepingEntryEntity entry) {
+        if (entry == null) {
+            return null;
+        }
+        BookkeepingCategoryEntity category = requireCategory(entry.getUserId(), entry.getCategoryCode());
+        entry.setCategoryName(category.getName());
+        entry.setCategoryIconKey(category.getIconKey());
+        return entry;
+    }
+
+    private List<BookkeepingEntryEntity> decorateEntries(
+            Long userId,
+            List<BookkeepingEntryEntity> entries
+    ) {
+        Map<BookkeepingEntryTypeEnumVO, Map<String, BookkeepingCategoryEntity>> byType = new HashMap<>();
+        for (BookkeepingEntryEntity entry : entries) {
+            Map<String, BookkeepingCategoryEntity> categories = byType.computeIfAbsent(
+                    entry.getType(),
+                    type -> visibleCategoryMap(userId, type)
+            );
+            BookkeepingCategoryEntity category = categories.get(entry.getCategoryCode());
+            if (category == null) {
+                throw new IllegalArgumentException("收支分类不存在或不可见");
+            }
+            entry.setCategoryName(category.getName());
+            entry.setCategoryIconKey(category.getIconKey());
+        }
+        return entries;
+    }
+
+    private Map<String, BookkeepingCategoryEntity> visibleCategoryMap(
+            Long userId,
+            BookkeepingEntryTypeEnumVO type
+    ) {
+        return categoryRepository.queryVisible(userId, type).stream()
+                .collect(Collectors.toMap(BookkeepingCategoryEntity::getCode, category -> category));
+    }
+
+    private BookkeepingResult.Statistics toStatistics(Long userId, BookkeepingStatisticsEntity value) {
+        Map<String, BookkeepingCategoryEntity> definitions = visibleCategoryMap(userId, value.getType());
         return BookkeepingResult.Statistics.builder()
                 .type(value.getType())
                 .granularity(value.getGranularity().name())
@@ -278,12 +503,19 @@ public class BookkeepingCaseImpl implements IBookkeepingCase {
                         .label(point.getLabel())
                         .amount(point.getAmount())
                         .build()).toList())
-                .categories(value.getCategories().stream().map(category -> BookkeepingResult.Category.builder()
-                        .categoryCode(category.getCategoryCode())
-                        .categoryName(category.getCategoryName())
-                        .amount(category.getAmount())
-                        .ratio(category.getRatio())
-                        .build()).toList())
+                .categories(value.getCategories().stream().map(category -> {
+                    BookkeepingCategoryEntity definition = definitions.get(category.getCategoryCode());
+                    if (definition == null) {
+                        throw new IllegalArgumentException("收支分类不存在或不可见");
+                    }
+                    return BookkeepingResult.Category.builder()
+                            .categoryCode(category.getCategoryCode())
+                            .categoryName(definition.getName())
+                            .categoryIconKey(definition.getIconKey())
+                            .amount(category.getAmount())
+                            .ratio(category.getRatio())
+                            .build();
+                }).toList())
                 .build();
     }
 

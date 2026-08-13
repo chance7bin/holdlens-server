@@ -11,6 +11,18 @@ public interface IBookkeepingService {
 
     Response<List<BookkeepingDTO.Category>> queryCategories(Long userId, String type);
 
+    Response<BookkeepingDTO.CategorySettings> queryCategorySettings(Long userId, String type);
+
+    Response<List<BookkeepingDTO.IconGroup>> queryCategoryIcons();
+
+    Response<BookkeepingDTO.Category> createCategory(BookkeepingRequestDTO.CreateCategoryDTO request);
+
+    Response<BookkeepingDTO.CategoryOperation> enableCategory(String categoryCode, BookkeepingRequestDTO.CategoryOperationDTO request);
+
+    Response<BookkeepingDTO.CategoryOperation> disableCategory(String categoryCode, BookkeepingRequestDTO.CategoryOperationDTO request);
+
+    Response<Void> reorderCategories(BookkeepingRequestDTO.ReorderCategoriesDTO request);
+
     Response<BookkeepingDTO.Entry> createEntry(BookkeepingRequestDTO.CreateEntryDTO request);
 
     Response<BookkeepingDTO.Entry> queryEntry(Long entryId, Long userId);
