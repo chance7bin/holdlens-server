@@ -14,7 +14,9 @@ import com.echoamoy.holdlens.server.cases.agent.model.FundRefreshTaskResult;
 import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCallbackCommand;
 import com.echoamoy.holdlens.server.cases.agent.model.USStockMarketRefreshCreateCommand;
 import com.echoamoy.holdlens.server.types.enums.ResponseCode;
+import com.echoamoy.holdlens.server.types.exception.AppException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -51,9 +53,18 @@ public class AgentFundRefreshController implements IAgentFundRefreshService {
     public Response<FundRefreshTaskDTO> aShareMarketCallback(@RequestHeader(value = "X-HoldLens-Agent-Callback", required = false) String callbackHeader,
                                                              @RequestBody AShareMarketRefreshCallbackRequest request) {
         if (!callbackHeaderValue.equals(callbackHeader)) {
-            return Response.fail(ResponseCode.ILLEGAL_PARAMETER.getCode(), "未授权 agent 回调");
+            throw new AgentCallbackHttpException(HttpStatus.UNAUTHORIZED,
+                    ResponseCode.ILLEGAL_PARAMETER.getCode(), "未授权 agent 回调", null);
         }
-        return Response.ok(toTaskDTO(agentFundRefreshCase.handleAShareMarketCallback(toAShareMarketCallbackCommand(request))));
+        try {
+            return Response.ok(toTaskDTO(agentFundRefreshCase.handleAShareMarketCallback(toAShareMarketCallbackCommand(request))));
+        } catch (AppException exception) {
+            throw new AgentCallbackHttpException(HttpStatus.BAD_REQUEST,
+                    exception.getCode(), exception.getInfo(), exception);
+        } catch (RuntimeException exception) {
+            throw new AgentCallbackHttpException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    ResponseCode.UN_ERROR.getCode(), "agent 回调事务处理失败", exception);
+        }
     }
 
     @PostMapping("/internal/agent/us-stock-market-refresh/callback")
@@ -61,9 +72,18 @@ public class AgentFundRefreshController implements IAgentFundRefreshService {
     public Response<FundRefreshTaskDTO> usStockMarketCallback(@RequestHeader(value = "X-HoldLens-Agent-Callback", required = false) String callbackHeader,
                                                               @RequestBody USStockMarketRefreshCallbackRequest request) {
         if (!callbackHeaderValue.equals(callbackHeader)) {
-            return Response.fail(ResponseCode.ILLEGAL_PARAMETER.getCode(), "未授权 agent 回调");
+            throw new AgentCallbackHttpException(HttpStatus.UNAUTHORIZED,
+                    ResponseCode.ILLEGAL_PARAMETER.getCode(), "未授权 agent 回调", null);
         }
-        return Response.ok(toTaskDTO(agentFundRefreshCase.handleUSStockMarketCallback(toUSStockMarketCallbackCommand(request))));
+        try {
+            return Response.ok(toTaskDTO(agentFundRefreshCase.handleUSStockMarketCallback(toUSStockMarketCallbackCommand(request))));
+        } catch (AppException exception) {
+            throw new AgentCallbackHttpException(HttpStatus.BAD_REQUEST,
+                    exception.getCode(), exception.getInfo(), exception);
+        } catch (RuntimeException exception) {
+            throw new AgentCallbackHttpException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    ResponseCode.UN_ERROR.getCode(), "agent 回调事务处理失败", exception);
+        }
     }
 
     private AShareMarketRefreshCreateCommand toAShareMarketCreateCommand(AShareMarketRefreshCreateRequest request) {

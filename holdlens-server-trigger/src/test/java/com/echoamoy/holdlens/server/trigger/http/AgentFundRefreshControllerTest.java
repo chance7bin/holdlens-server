@@ -75,9 +75,13 @@ public class AgentFundRefreshControllerTest {
     public void aShareMarketCallbackRejectsUnauthorizedHeader() throws Exception {
         AgentFundRefreshController controller = newController(new FakeAgentFundRefreshCase());
 
-        Response<FundRefreshTaskDTO> response = controller.aShareMarketCallback("bad", AShareMarketRefreshCallbackRequest.builder().build());
-
-        Assert.assertEquals("0002", response.getCode());
+        try {
+            controller.aShareMarketCallback("bad", AShareMarketRefreshCallbackRequest.builder().build());
+            Assert.fail("unauthorized callback must use a non-2xx HTTP exception");
+        } catch (AgentCallbackHttpException exception) {
+            Assert.assertEquals(401, exception.getHttpStatus().value());
+            Assert.assertEquals("0002", exception.getCode());
+        }
     }
 
     @Test
