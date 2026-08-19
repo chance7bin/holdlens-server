@@ -7,12 +7,17 @@ import com.echoamoy.holdlens.server.api.response.WatchlistAssetBatchAddResponseD
 import com.echoamoy.holdlens.server.cases.portfolio.IWatchlistAssetBatchAddCase;
 import com.echoamoy.holdlens.server.cases.portfolio.model.WatchlistAssetBatchAddCommand;
 import com.echoamoy.holdlens.server.cases.portfolio.model.WatchlistAssetBatchAddResult;
+import com.echoamoy.holdlens.server.trigger.http.auth.CurrentUser;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
 import org.junit.Assert;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PostMapping;
 
 import java.lang.reflect.Method;
@@ -21,6 +26,17 @@ import java.util.List;
 import java.util.Set;
 
 public class WatchlistAssetControllerTest {
+
+    @Before
+    public void setUpCurrentUser() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(new CurrentUser(1001L, null), null, List.of()));
+    }
+
+    @After
+    public void clearCurrentUser() {
+        SecurityContextHolder.clearContext();
+    }
 
     @Test
     public void batchAddMapsInvalidItemsOnly() {
@@ -92,6 +108,17 @@ public class WatchlistAssetControllerTest {
         PostMapping mapping = method.getAnnotation(PostMapping.class);
         Assert.assertNotNull(mapping);
         Assert.assertArrayEquals(new String[]{"/api/watchlist/assets/remove"}, mapping.value());
+    }
+
+    @Test
+    public void batchAddRejectsMismatchedTransitionUserIdBeforeCallingCase() {
+        FakeWatchlistAssetBatchAddCase fake = new FakeWatchlistAssetBatchAddCase();
+        WatchlistAssetController controller = new WatchlistAssetController(fake);
+
+        Assert.assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> controller.batchAdd(WatchlistAssetBatchAddRequestDTO.builder().userId(2L).items(List.of(
+                        WatchlistAssetBatchAddRequestDTO.Item.builder().assetKind("fund").assetRef("fund:000001").build())).build()));
+        Assert.assertNull(fake.command);
     }
 
     @Test

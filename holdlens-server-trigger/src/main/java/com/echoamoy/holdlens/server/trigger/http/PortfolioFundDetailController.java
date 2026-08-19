@@ -6,6 +6,7 @@ import com.echoamoy.holdlens.server.api.dto.PortfolioFundDetailDTO;
 import com.echoamoy.holdlens.server.api.response.Response;
 import com.echoamoy.holdlens.server.cases.portfolio.IPortfolioFundDetailCase;
 import com.echoamoy.holdlens.server.cases.portfolio.model.PortfolioFundDetailResult;
+import com.echoamoy.holdlens.server.trigger.http.auth.CurrentUserContext;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -23,7 +24,7 @@ public class PortfolioFundDetailController implements IPortfolioFundDetailServic
     @GetMapping("/api/portfolio/assets/fund-details")
     @Override
     public Response<PortfolioFundDetailDTO> queryPortfolioFundDetails(@RequestParam("userId") Long userId) {
-        return Response.ok(toDTO(portfolioFundDetailCase.queryPortfolioFundDetails(userId)));
+        return Response.ok(toDTO(portfolioFundDetailCase.queryPortfolioFundDetails(CurrentUserContext.requireMatchingUserId(userId))));
     }
 
     @GetMapping("/api/funds/{fundCode}")

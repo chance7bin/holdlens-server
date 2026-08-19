@@ -5,6 +5,9 @@ spring:
     active: dev
 
 holdlens:
+  auth:
+    mode: fixed
+    fixed-user-id: 1
   agent:
     fund-catalog-refresh-url: http://127.0.0.1:8765/tasks/fund-catalog-refresh
     fund-purchase-status-refresh-url: http://127.0.0.1:8765/tasks/fund-purchase-status-refresh

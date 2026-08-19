@@ -10,6 +10,7 @@ import com.echoamoy.holdlens.server.cases.bookkeeping.model.BookkeepingResult;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.entity.BookkeepingEntryEntity;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.entity.BookkeepingCategoryEntity;
 import com.echoamoy.holdlens.server.domain.bookkeeping.model.valobj.BookkeepingCategoryCatalog;
+import com.echoamoy.holdlens.server.trigger.http.auth.CurrentUserContext;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,8 +43,7 @@ public class BookkeepingController implements IBookkeepingService {
             @RequestParam("userId") Long userId,
             @RequestParam("type") String type
     ) {
-        requireUser(userId);
-        return Response.ok(bookkeepingCase.queryCategories(userId, type).stream().map(this::toCategory).toList());
+        return Response.ok(bookkeepingCase.queryCategories(CurrentUserContext.requireMatchingUserId(userId), type).stream().map(this::toCategory).toList());
     }
 
     @Override
@@ -52,7 +52,7 @@ public class BookkeepingController implements IBookkeepingService {
             @RequestParam("userId") Long userId,
             @RequestParam("type") String type
     ) {
-        BookkeepingResult.CategorySettings value = bookkeepingCase.queryCategorySettings(userId, type);
+        BookkeepingResult.CategorySettings value = bookkeepingCase.queryCategorySettings(CurrentUserContext.requireMatchingUserId(userId), type);
         return Response.ok(BookkeepingDTO.CategorySettings.builder()
                 .enabled(value.getEnabled().stream().map(this::toCategory).toList())
                 .disabled(value.getDisabled().stream().map(this::toCategory).toList())
@@ -88,7 +88,7 @@ public class BookkeepingController implements IBookkeepingService {
             @Valid @RequestBody BookkeepingRequestDTO.CreateCategoryDTO request
     ) {
         BookkeepingCommand.CreateCategory command = BookkeepingCommand.CreateCategory.builder()
-                .userId(request.getUserId())
+                .userId(CurrentUserContext.requireMatchingUserId(request.getUserId()))
                 .requestId(request.getRequestId())
                 .type(request.getType())
                 .name(request.getName())
@@ -104,7 +104,7 @@ public class BookkeepingController implements IBookkeepingService {
             @Valid @RequestBody BookkeepingRequestDTO.CategoryOperationDTO request
     ) {
         return Response.ok(BookkeepingDTO.CategoryOperation.builder()
-                .category(toCategory(bookkeepingCase.enableCategory(request.getUserId(), categoryCode)))
+                .category(toCategory(bookkeepingCase.enableCategory(CurrentUserContext.requireMatchingUserId(request.getUserId()), categoryCode)))
                 .deletedEntryCount(0)
                 .build());
     }
@@ -116,7 +116,7 @@ public class BookkeepingController implements IBookkeepingService {
             @Valid @RequestBody BookkeepingRequestDTO.CategoryOperationDTO request
     ) {
         return Response.ok(BookkeepingDTO.CategoryOperation.builder()
-                .deletedEntryCount(bookkeepingCase.disableCategory(request.getUserId(), categoryCode))
+                .deletedEntryCount(bookkeepingCase.disableCategory(CurrentUserContext.requireMatchingUserId(request.getUserId()), categoryCode))
                 .build());
     }
 
@@ -126,7 +126,7 @@ public class BookkeepingController implements IBookkeepingService {
             @Valid @RequestBody BookkeepingRequestDTO.ReorderCategoriesDTO request
     ) {
         bookkeepingCase.reorderCategories(
-                request.getUserId(),
+                CurrentUserContext.requireMatchingUserId(request.getUserId()),
                 request.getType(),
                 request.getCategoryCodes()
         );
@@ -139,7 +139,7 @@ public class BookkeepingController implements IBookkeepingService {
             @Valid @RequestBody BookkeepingRequestDTO.CreateEntryDTO request
     ) {
         BookkeepingCommand.Create command = BookkeepingCommand.Create.builder()
-                .userId(request.getUserId())
+                .userId(CurrentUserContext.requireMatchingUserId(request.getUserId()))
                 .requestId(request.getRequestId())
                 .type(request.getType())
                 .categoryCode(request.getCategoryCode())
@@ -156,7 +156,7 @@ public class BookkeepingController implements IBookkeepingService {
             @PathVariable("entryId") Long entryId,
             @RequestParam("userId") Long userId
     ) {
-        return Response.ok(toEntry(bookkeepingCase.queryEntry(userId, entryId)));
+        return Response.ok(toEntry(bookkeepingCase.queryEntry(CurrentUserContext.requireMatchingUserId(userId), entryId)));
     }
 
     @Override
@@ -169,7 +169,7 @@ public class BookkeepingController implements IBookkeepingService {
             @RequestParam(value = "categoryCode", required = false) String categoryCode
     ) {
         return Response.ok(toEntryList(bookkeepingCase.queryEntries(
-                userId,
+                CurrentUserContext.requireMatchingUserId(userId),
                 startDate,
                 endDate,
                 type,
@@ -184,7 +184,7 @@ public class BookkeepingController implements IBookkeepingService {
             @Valid @RequestBody BookkeepingRequestDTO.ReviseEntryDTO request
     ) {
         BookkeepingCommand.Revise command = BookkeepingCommand.Revise.builder()
-                .userId(request.getUserId())
+                .userId(CurrentUserContext.requireMatchingUserId(request.getUserId()))
                 .entryId(entryId)
                 .type(request.getType())
                 .categoryCode(request.getCategoryCode())
@@ -201,7 +201,7 @@ public class BookkeepingController implements IBookkeepingService {
             @PathVariable("entryId") Long entryId,
             @Valid @RequestBody BookkeepingRequestDTO.UserOperationDTO request
     ) {
-        bookkeepingCase.delete(request.getUserId(), entryId);
+        bookkeepingCase.delete(CurrentUserContext.requireMatchingUserId(request.getUserId()), entryId);
         return Response.ok(null);
     }
 
@@ -213,7 +213,7 @@ public class BookkeepingController implements IBookkeepingService {
             @RequestParam("granularity") String granularity,
             @RequestParam("anchorDate") LocalDate anchorDate
     ) {
-        return Response.ok(toStatistics(bookkeepingCase.statistics(userId, type, granularity, anchorDate)));
+        return Response.ok(toStatistics(bookkeepingCase.statistics(CurrentUserContext.requireMatchingUserId(userId), type, granularity, anchorDate)));
     }
 
     @Override
@@ -222,19 +222,13 @@ public class BookkeepingController implements IBookkeepingService {
             @RequestParam("userId") Long userId,
             @RequestParam("year") Integer year
     ) {
-        return Response.ok(toMonthlyBill(bookkeepingCase.monthlyBill(userId, year)));
+        return Response.ok(toMonthlyBill(bookkeepingCase.monthlyBill(CurrentUserContext.requireMatchingUserId(userId), year)));
     }
 
     @Override
     @GetMapping("/api/bookkeeping/bills/yearly")
     public Response<BookkeepingDTO.YearlyBill> yearlyBill(@RequestParam("userId") Long userId) {
-        return Response.ok(toYearlyBill(bookkeepingCase.yearlyBill(userId)));
-    }
-
-    private void requireUser(Long userId) {
-        if (userId == null || userId <= 0) {
-            throw new IllegalArgumentException("用户ID不合法");
-        }
+        return Response.ok(toYearlyBill(bookkeepingCase.yearlyBill(CurrentUserContext.requireMatchingUserId(userId))));
     }
 
     private BookkeepingDTO.Category toCategory(BookkeepingCategoryEntity value) {

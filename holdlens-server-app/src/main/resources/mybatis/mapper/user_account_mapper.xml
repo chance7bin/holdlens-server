@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.echoamoy.holdlens.server.infrastructure.dao.IUserAccountDao">
+
+    <resultMap id="accountMap" type="com.echoamoy.holdlens.server.infrastructure.dao.po.UserAccountPO">
+        <id column="id" property="id"/>
+        <result column="username" property="username"/>
+        <result column="password_hash" property="passwordHash"/>
+        <result column="status" property="status"/>
+        <result column="failed_login_count" property="failedLoginCount"/>
+        <result column="locked_until" property="lockedUntil"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="columns">
+        id, username, password_hash, status, failed_login_count, locked_until, create_time, update_time
+    </sql>
+
+    <select id="selectByUsername" resultMap="accountMap">
+        SELECT <include refid="columns"/>
+        FROM user_account
+        WHERE username = #{username}
+    </select>
+
+    <select id="selectByUsernameForUpdate" resultMap="accountMap">
+        SELECT <include refid="columns"/>
+        FROM user_account
+        WHERE username = #{username}
+        FOR UPDATE
+    </select>
+
+    <select id="selectById" resultMap="accountMap">
+        SELECT <include refid="columns"/>
+        FROM user_account
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user_account (username, password_hash, status, failed_login_count, locked_until)
+        VALUES (#{username}, #{passwordHash}, #{status}, #{failedLoginCount}, #{lockedUntil})
+    </insert>
+
+    <update id="updateLoginState">
+        UPDATE user_account
+        SET failed_login_count = CASE
+                WHEN #{failedLoginCount} = 0 THEN 0
+                WHEN #{failedLoginCount} &gt; failed_login_count THEN failed_login_count + 1
+                ELSE failed_login_count
+            END,
+            locked_until = CASE
+                WHEN #{failedLoginCount} = 0 THEN NULL
+                WHEN #{lockedUntil} IS NOT NULL THEN #{lockedUntil}
+                ELSE locked_until
+            END
+        WHERE id = #{id}
+          AND status = 'ACTIVE'
+    </update>
+</mapper>

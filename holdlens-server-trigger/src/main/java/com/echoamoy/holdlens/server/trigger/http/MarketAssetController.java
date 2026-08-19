@@ -9,6 +9,7 @@ import com.echoamoy.holdlens.server.cases.marketasset.IMarketAssetQueryCase;
 import com.echoamoy.holdlens.server.cases.marketasset.IMarketAssetDetailCase;
 import com.echoamoy.holdlens.server.cases.marketasset.model.MarketAssetDetailResult;
 import com.echoamoy.holdlens.server.cases.marketasset.model.MarketAssetQueryResult;
+import com.echoamoy.holdlens.server.trigger.http.auth.CurrentUserContext;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -28,7 +29,7 @@ public class MarketAssetController implements IMarketAssetService {
     @GetMapping("/api/watchlist/assets")
     public Response<MarketAssetDTO.Watchlist> queryWatchlist(@RequestParam("userId") Long userId,
                                                              @RequestParam(value = "assetKind", required = false) String assetKind) {
-        MarketAssetQueryResult.Watchlist result = marketAssetQueryCase.queryWatchlist(userId, assetKind);
+        MarketAssetQueryResult.Watchlist result = marketAssetQueryCase.queryWatchlist(CurrentUserContext.requireMatchingUserId(userId), assetKind);
         return Response.ok(MarketAssetDTO.Watchlist.builder()
                 .fundCount(result.getFundCount()).stockCount(result.getStockCount())
                 .items(toItems(result.getItems())).build());
@@ -41,7 +42,7 @@ public class MarketAssetController implements IMarketAssetService {
                                                    @RequestParam(value = "market", required = false) String market,
                                                    @RequestParam(value = "limit", required = false) Integer limit) {
         return Response.ok(MarketAssetDTO.Search.builder()
-                .items(toItems(marketAssetQueryCase.search(userId, keyword, assetKind, market, limit).getItems()))
+                .items(toItems(marketAssetQueryCase.search(CurrentUserContext.requireMatchingUserId(userId), keyword, assetKind, market, limit).getItems()))
                 .build());
     }
 
@@ -50,7 +51,7 @@ public class MarketAssetController implements IMarketAssetService {
     public Response<MarketAssetDTO.Detail> queryDetail(@RequestParam("userId") Long userId,
                                                         @RequestParam("assetKind") String assetKind,
                                                         @RequestParam("assetRef") String assetRef) {
-        MarketAssetDetailResult result = marketAssetDetailCase.queryDetail(userId, assetKind, assetRef);
+        MarketAssetDetailResult result = marketAssetDetailCase.queryDetail(CurrentUserContext.requireMatchingUserId(userId), assetKind, assetRef);
         return Response.ok(toDetail(result));
     }
 
@@ -58,7 +59,7 @@ public class MarketAssetController implements IMarketAssetService {
     @PostMapping("/api/market-assets/detail/ensure")
     public Response<MarketAssetDTO.Detail> ensureDetail(@RequestBody MarketAssetDetailEnsureRequest request) {
         MarketAssetDetailResult result = marketAssetDetailCase.ensureDetail(
-                request == null ? null : request.getUserId(), request == null ? null : request.getAssetKind(),
+                CurrentUserContext.requireMatchingUserId(request == null ? null : request.getUserId()), request == null ? null : request.getAssetKind(),
                 request == null ? null : request.getAssetRef());
         return Response.ok(toDetail(result));
     }
@@ -67,7 +68,7 @@ public class MarketAssetController implements IMarketAssetService {
     @GetMapping("/api/stocks/detail")
     public Response<MarketAssetDTO.StockDetail> queryStockDetail(@RequestParam("userId") Long userId,
                                                                   @RequestParam("assetRef") String assetRef) {
-        MarketAssetQueryResult.StockDetail r = marketAssetQueryCase.queryStockDetail(userId, assetRef);
+        MarketAssetQueryResult.StockDetail r = marketAssetQueryCase.queryStockDetail(CurrentUserContext.requireMatchingUserId(userId), assetRef);
         return Response.ok(toStockDetail(r));
     }
 

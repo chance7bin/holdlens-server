@@ -10,8 +10,13 @@ import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetOverviewE
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetRecordEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetSummaryEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.ExchangeRateEntity;
+import com.echoamoy.holdlens.server.trigger.http.auth.CurrentUser;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 
@@ -23,6 +28,17 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public class AssetControllerTest {
+
+    @Before
+    public void setUpCurrentUser() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(new CurrentUser(1L, null), null, List.of()));
+    }
+
+    @After
+    public void clearCurrentUser() {
+        SecurityContextHolder.clearContext();
+    }
 
     @Test
     public void createRecordExposesOpaqueAssetRefWithoutPublicTechnicalId() throws Exception {
@@ -96,6 +112,16 @@ public class AssetControllerTest {
                 }
             }
         }
+    }
+
+    @Test
+    public void queryRecordRejectsMismatchedTransitionUserIdBeforeCallingCase() {
+        FakeAssetCase fake = new FakeAssetCase();
+        AssetController controller = new AssetController(fake);
+
+        Assert.assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> controller.queryRecord(10L, 2L));
+        Assert.assertNull(fake.queriedAssetRef);
     }
 
     private static class FakeAssetCase implements IAssetManagementCase {

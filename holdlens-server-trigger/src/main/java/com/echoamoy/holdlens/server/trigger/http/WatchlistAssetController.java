@@ -8,6 +8,7 @@ import com.echoamoy.holdlens.server.api.response.WatchlistAssetBatchAddResponseD
 import com.echoamoy.holdlens.server.cases.portfolio.IWatchlistAssetBatchAddCase;
 import com.echoamoy.holdlens.server.cases.portfolio.model.WatchlistAssetBatchAddCommand;
 import com.echoamoy.holdlens.server.cases.portfolio.model.WatchlistAssetBatchAddResult;
+import com.echoamoy.holdlens.server.trigger.http.auth.CurrentUserContext;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -38,7 +39,7 @@ public class WatchlistAssetController implements IWatchlistAssetService {
     @PostMapping("/api/watchlist/assets/remove")
     @Override
     public Response<Void> remove(@Valid @RequestBody WatchlistAssetRemoveRequestDTO request) {
-        watchlistAssetBatchAddCase.remove(request.getUserId(), request.getAssetKind(), request.getAssetRef());
+        watchlistAssetBatchAddCase.remove(CurrentUserContext.requireMatchingUserId(request.getUserId()), request.getAssetKind(), request.getAssetRef());
         return Response.ok(null);
     }
 
@@ -47,7 +48,7 @@ public class WatchlistAssetController implements IWatchlistAssetService {
             return null;
         }
         return WatchlistAssetBatchAddCommand.builder()
-                .userId(request.getUserId())
+                .userId(CurrentUserContext.requireMatchingUserId(request.getUserId()))
                 .items(toCommandItems(request.getItems()))
                 .build();
     }

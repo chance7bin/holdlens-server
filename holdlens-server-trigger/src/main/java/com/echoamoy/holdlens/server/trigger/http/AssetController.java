@@ -11,6 +11,7 @@ import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetOverviewE
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetRecordEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.AssetSummaryEntity;
 import com.echoamoy.holdlens.server.domain.portfolio.model.entity.ExchangeRateEntity;
+import com.echoamoy.holdlens.server.trigger.http.auth.CurrentUserContext;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,14 +38,14 @@ public class AssetController implements IAssetService {
     @Override
     @GetMapping("/api/asset-catalogs")
     public Response<List<AssetDTO.Catalog>> queryCatalogs(@RequestParam("userId") Long userId) {
-        return Response.ok(assetManagementCase.queryCatalogs(userId).stream().map(this::toCatalog).toList());
+        return Response.ok(assetManagementCase.queryCatalogs(CurrentUserContext.requireMatchingUserId(userId)).stream().map(this::toCatalog).toList());
     }
 
     @Override
     @PostMapping("/api/asset-catalogs")
     public Response<AssetDTO.Catalog> createCatalog(@Valid @RequestBody AssetRequestDTO.CreateCatalog request) {
         return Response.ok(toCatalog(assetManagementCase.createCatalog(AssetManagementCommand.CreateCatalog.builder()
-                .userId(request.getUserId()).parentId(request.getParentId()).catalogName(request.getCatalogName())
+                .userId(CurrentUserContext.requireMatchingUserId(request.getUserId())).parentId(request.getParentId()).catalogName(request.getCatalogName())
                 .balanceDirection(request.getBalanceDirection()).sortOrder(request.getSortOrder()).build())));
     }
 
@@ -53,7 +54,7 @@ public class AssetController implements IAssetService {
     public Response<AssetDTO.Catalog> updateCatalog(@PathVariable("catalogId") Long catalogId,
                                                     @Valid @RequestBody AssetRequestDTO.UpdateCatalog request) {
         return Response.ok(toCatalog(assetManagementCase.updateCatalog(AssetManagementCommand.UpdateCatalog.builder()
-                .userId(request.getUserId()).catalogId(catalogId).parentId(request.getParentId())
+                .userId(CurrentUserContext.requireMatchingUserId(request.getUserId())).catalogId(catalogId).parentId(request.getParentId())
                 .catalogName(request.getCatalogName()).balanceDirection(request.getBalanceDirection())
                 .sortOrder(request.getSortOrder()).build())));
     }
@@ -62,7 +63,7 @@ public class AssetController implements IAssetService {
     @PostMapping("/api/asset-catalogs/{catalogId}/delete")
     public Response<Void> deleteCatalog(@PathVariable("catalogId") Long catalogId,
                                         @Valid @RequestBody AssetRequestDTO.UserOperation request) {
-        assetManagementCase.deleteCatalog(request.getUserId(), catalogId);
+        assetManagementCase.deleteCatalog(CurrentUserContext.requireMatchingUserId(request.getUserId()), catalogId);
         return Response.ok(null);
     }
 
@@ -70,21 +71,21 @@ public class AssetController implements IAssetService {
     @GetMapping("/api/asset-records")
     public Response<List<AssetDTO.Record>> queryRecords(@RequestParam("userId") Long userId,
                                                         @RequestParam(value = "assetRef", required = false) String assetRef) {
-        return Response.ok(assetManagementCase.queryRecords(userId, assetRef).stream().map(this::toRecord).toList());
+        return Response.ok(assetManagementCase.queryRecords(CurrentUserContext.requireMatchingUserId(userId), assetRef).stream().map(this::toRecord).toList());
     }
 
     @Override
     @GetMapping("/api/asset-records/{recordId}")
     public Response<AssetDTO.Record> queryRecord(@PathVariable("recordId") Long recordId,
                                                   @RequestParam("userId") Long userId) {
-        return Response.ok(toRecord(assetManagementCase.queryRecord(userId, recordId)));
+        return Response.ok(toRecord(assetManagementCase.queryRecord(CurrentUserContext.requireMatchingUserId(userId), recordId)));
     }
 
     @Override
     @PostMapping("/api/asset-records")
     public Response<AssetDTO.Record> createRecord(@Valid @RequestBody AssetRequestDTO.CreateRecord request) {
         return Response.ok(toRecord(assetManagementCase.createRecord(AssetManagementCommand.CreateRecord.builder()
-                .userId(request.getUserId()).catalogId(request.getCatalogId()).assetRef(request.getAssetRef())
+                .userId(CurrentUserContext.requireMatchingUserId(request.getUserId())).catalogId(request.getCatalogId()).assetRef(request.getAssetRef())
                 .recordName(request.getRecordName()).amount(request.getAmount()).currency(request.getCurrency())
                 .remark(request.getRemark()).build())));
     }
@@ -94,7 +95,7 @@ public class AssetController implements IAssetService {
     public Response<AssetDTO.Record> updateRecordDetails(@PathVariable("recordId") Long recordId,
                                                          @Valid @RequestBody AssetRequestDTO.UpdateDetails request) {
         return Response.ok(toRecord(assetManagementCase.updateRecordDetails(AssetManagementCommand.UpdateDetails.builder()
-                .userId(request.getUserId()).recordId(recordId).recordName(request.getRecordName())
+                .userId(CurrentUserContext.requireMatchingUserId(request.getUserId())).recordId(recordId).recordName(request.getRecordName())
                 .remark(request.getRemark()).build())));
     }
 
@@ -103,7 +104,7 @@ public class AssetController implements IAssetService {
     public Response<AssetDTO.Record> updateRecordAmount(@PathVariable("recordId") Long recordId,
                                                         @Valid @RequestBody AssetRequestDTO.UpdateAmount request) {
         return Response.ok(toRecord(assetManagementCase.updateRecordAmount(AssetManagementCommand.UpdateAmount.builder()
-                .userId(request.getUserId()).recordId(recordId).amount(request.getAmount()).build())));
+                .userId(CurrentUserContext.requireMatchingUserId(request.getUserId())).recordId(recordId).amount(request.getAmount()).build())));
     }
 
     @Override
@@ -112,9 +113,9 @@ public class AssetController implements IAssetService {
                                                         @PathVariable("action") String action,
                                                         @Valid @RequestBody AssetRequestDTO.UserOperation request) {
         AssetRecordEntity record = switch (action) {
-            case "archive" -> assetManagementCase.archiveRecord(request.getUserId(), recordId);
-            case "restore" -> assetManagementCase.restoreRecord(request.getUserId(), recordId);
-            case "delete" -> assetManagementCase.deleteRecord(request.getUserId(), recordId);
+            case "archive" -> assetManagementCase.archiveRecord(CurrentUserContext.requireMatchingUserId(request.getUserId()), recordId);
+            case "restore" -> assetManagementCase.restoreRecord(CurrentUserContext.requireMatchingUserId(request.getUserId()), recordId);
+            case "delete" -> assetManagementCase.deleteRecord(CurrentUserContext.requireMatchingUserId(request.getUserId()), recordId);
             default -> throw new IllegalArgumentException("资产状态操作不支持");
         };
         return Response.ok(toRecord(record));
@@ -125,7 +126,7 @@ public class AssetController implements IAssetService {
     public Response<AssetDTO.Record> splitRecord(@PathVariable("recordId") Long recordId,
                                                  @Valid @RequestBody AssetRequestDTO.SplitRecord request) {
         return Response.ok(toRecord(assetManagementCase.splitRecord(AssetManagementCommand.SplitRecord.builder()
-                .userId(request.getUserId()).sourceRecordId(recordId).assetRef(request.getAssetRef())
+                .userId(CurrentUserContext.requireMatchingUserId(request.getUserId())).sourceRecordId(recordId).assetRef(request.getAssetRef())
                 .amount(request.getAmount()).remark(request.getRemark()).build())));
     }
 
@@ -134,7 +135,7 @@ public class AssetController implements IAssetService {
     public Response<AssetDTO.Summary> summarize(@RequestParam("userId") Long userId,
                                                 @RequestParam(value = "targetCurrency", required = false)
                                                 String targetCurrency) {
-        return Response.ok(toSummary(assetManagementCase.summarize(userId, targetCurrency)));
+        return Response.ok(toSummary(assetManagementCase.summarize(CurrentUserContext.requireMatchingUserId(userId), targetCurrency)));
     }
 
     @Override
@@ -142,7 +143,7 @@ public class AssetController implements IAssetService {
     public Response<AssetDTO.Overview> overview(@RequestParam("userId") Long userId,
                                                 @RequestParam(value = "targetCurrency", required = false)
                                                 String targetCurrency) {
-        return Response.ok(toOverview(assetManagementCase.overview(userId, targetCurrency)));
+        return Response.ok(toOverview(assetManagementCase.overview(CurrentUserContext.requireMatchingUserId(userId), targetCurrency)));
     }
 
     @Override
