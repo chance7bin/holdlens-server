@@ -19,12 +19,19 @@ public class BookkeepingPersistenceSqlStructureTest {
         String mapper = Files.readString(root.resolve(
                 "holdlens-server-app/src/main/resources/mybatis/mapper/bookkeeping_entry_mapper.xml"
         ));
+        String categoryMapper = Files.readString(root.resolve(
+                "holdlens-server-app/src/main/resources/mybatis/mapper/bookkeeping_category_mapper.xml"
+        ));
         String ddl = Files.readString(root.resolve("docs/dev-ops/mysql/sql/holdlens.sql"));
 
         assertTrue(mapper.contains("user_id = #{userId}"));
         assertTrue(mapper.contains("status = 'ACTIVE'"));
         assertTrue(mapper.contains("ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)"));
         assertFalse(mapper.contains("${"));
+        assertTrue(categoryMapper.contains("c.owner_user_id = #{userId}"));
+        assertTrue(categoryMapper.contains("cfg.user_id = #{userId}"));
+        assertTrue(categoryMapper.contains("WHERE user_id = #{userId}"));
+        assertFalse(categoryMapper.contains("${"));
         assertTrue(ddl.contains("uk_bookkeeping_entry_user_request"));
         assertTrue(ddl.contains("idx_bookkeeping_entry_detail"));
     }
