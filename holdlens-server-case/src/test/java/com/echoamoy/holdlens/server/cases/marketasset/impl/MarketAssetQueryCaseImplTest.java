@@ -62,6 +62,11 @@ public class MarketAssetQueryCaseImplTest {
         @Override public WatchlistAssetEntity queryWatchlistAsset(Long userId, String assetCode, String assetKind) {
             return WatchlistAssetEntity.builder().userId(userId).assetCode(assetCode).assetKind(assetKind).build();
         }
+        @Override public WatchlistAssetEntity queryWatchlistAsset(Long userId, String assetCode,
+                                                                 String assetKind, String market) {
+            return WatchlistAssetEntity.builder().userId(userId).assetCode(assetCode)
+                    .assetKind(assetKind).market(market).build();
+        }
         @Override public List<WatchlistAssetEntity> queryWatchlistAssets(Long userId, String kind) {
             List<WatchlistAssetEntity> values = List.of(
                     WatchlistAssetEntity.builder().id(2L).userId(userId).assetKind("fund").assetCode("000001").build(),

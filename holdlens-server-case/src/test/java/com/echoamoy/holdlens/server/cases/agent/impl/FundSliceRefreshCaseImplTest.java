@@ -521,6 +521,7 @@ public class FundSliceRefreshCaseImplTest {
         public void saveTask(ProcessingTaskEntity task) { tasks.put(task.getServerTaskId(), task); }
         public void updateTask(ProcessingTaskEntity task) { tasks.put(task.getServerTaskId(), task); }
         public ProcessingTaskEntity queryTask(String id) { return tasks.get(id); }
+        public ProcessingTaskEntity queryTaskForUpdate(String id) { return tasks.get(id); }
         public boolean existsNonTerminalTask(String type) { return tasks.values().stream().anyMatch(t -> type.equals(t.getTaskType()) && !t.isTerminal()); }
         public boolean saveCallbackIfAbsent(ProcessingCallbackEntity callback) {
             return callbacks.putIfAbsent(callback.getServerTaskId() + "#" + callback.getIdempotencyKey(), callback) == null;

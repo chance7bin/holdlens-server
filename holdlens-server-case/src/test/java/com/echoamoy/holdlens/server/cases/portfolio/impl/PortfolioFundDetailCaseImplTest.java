@@ -211,6 +211,12 @@ public class PortfolioFundDetailCaseImplTest {
         public void markDetailViewed(java.util.Collection<String> fundCodes, LocalDateTime viewedAt) {
             viewedCodes = Set.copyOf(fundCodes);
         }
+
+        @Override
+        public void markDetailViewed(java.util.Collection<String> fundCodes, LocalDateTime viewedAt,
+                                     LocalDateTime updateBefore) {
+            markDetailViewed(fundCodes, viewedAt);
+        }
     }
 
     private static class FakeSliceCase implements IFundSliceRefreshCase {

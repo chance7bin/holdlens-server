@@ -13,58 +13,62 @@ import java.util.Set;
 
 public interface IPortfolioRepository {
 
-    default List<AssetCatalogEntity> queryVisibleCatalogs(Long userId) { return List.of(); }
+    default List<AssetCatalogEntity> queryVisibleCatalogs(Long userId) { throw unsupported("queryVisibleCatalogs"); }
 
-    default AssetCatalogEntity queryVisibleCatalog(Long userId, Long catalogId) { return null; }
+    default AssetCatalogEntity queryVisibleCatalog(Long userId, Long catalogId) { throw unsupported("queryVisibleCatalog"); }
 
-    default AssetCatalogEntity queryCatalogByCode(String catalogCode) { return null; }
+    default AssetCatalogEntity queryCatalogByCode(String catalogCode) { throw unsupported("queryCatalogByCode"); }
 
-    default int countEnabledChildren(Long userId, Long catalogId) { return 0; }
+    default int countEnabledChildren(Long userId, Long catalogId) { throw unsupported("countEnabledChildren"); }
 
-    default int countActiveRecords(Long userId, Long catalogId) { return 0; }
+    default int countActiveRecords(Long userId, Long catalogId) { throw unsupported("countActiveRecords"); }
 
-    default void insertCatalog(AssetCatalogEntity catalog) { throw new UnsupportedOperationException(); }
+    default void insertCatalog(AssetCatalogEntity catalog) { throw unsupported("insertCatalog"); }
 
-    default void updateCatalog(AssetCatalogEntity catalog) { throw new UnsupportedOperationException(); }
+    default void updateCatalog(AssetCatalogEntity catalog) { throw unsupported("updateCatalog"); }
 
-    default void insertRecord(AssetRecordEntity record) { throw new UnsupportedOperationException(); }
+    default void insertRecord(AssetRecordEntity record) { throw unsupported("insertRecord"); }
 
-    default AssetRecordEntity queryRecord(Long userId, Long recordId) { return null; }
+    default AssetRecordEntity queryRecord(Long userId, Long recordId) { throw unsupported("queryRecord"); }
 
-    default AssetRecordEntity queryActiveRecord(Long userId, Long recordId) { return null; }
+    default AssetRecordEntity queryActiveRecord(Long userId, Long recordId) { throw unsupported("queryActiveRecord"); }
 
-    default AssetRecordEntity queryRecordForUpdate(Long userId, Long recordId) { return queryRecord(userId, recordId); }
+    default AssetRecordEntity queryRecordForUpdate(Long userId, Long recordId) { throw unsupported("queryRecordForUpdate"); }
 
-    default List<AssetRecordEntity> queryActiveRecords(Long userId) { return List.of(); }
+    default List<AssetRecordEntity> queryActiveRecords(Long userId) { throw unsupported("queryActiveRecords"); }
 
     default List<AssetRecordEntity> queryActiveRecords(Long userId, String assetRef) {
-        return queryActiveRecords(userId);
+        throw unsupported("queryActiveRecordsByAssetRef");
     }
 
-    default void updateRecord(AssetRecordEntity record) { throw new UnsupportedOperationException(); }
+    default void updateRecord(AssetRecordEntity record) { throw unsupported("updateRecord"); }
 
-    default void insertRecordChanges(List<AssetRecordChangeEntity> changes) { throw new UnsupportedOperationException(); }
+    default void insertRecordChanges(List<AssetRecordChangeEntity> changes) { throw unsupported("insertRecordChanges"); }
 
-    default void upsertExchangeRate(ExchangeRateEntity rate) { throw new UnsupportedOperationException(); }
+    default void upsertExchangeRate(ExchangeRateEntity rate) { throw unsupported("upsertExchangeRate"); }
 
-    default ExchangeRateEntity queryExchangeRate(String baseCurrency, String quoteCurrency) { return null; }
+    default ExchangeRateEntity queryExchangeRate(String baseCurrency, String quoteCurrency) { throw unsupported("queryExchangeRate"); }
 
-    default List<ExchangeRateEntity> queryExchangeRates(Collection<String> baseCurrencies, String quoteCurrency) { return List.of(); }
+    default List<ExchangeRateEntity> queryExchangeRates(Collection<String> baseCurrencies, String quoteCurrency) { throw unsupported("queryExchangeRates"); }
 
     List<PortfolioHoldingEntity> queryCurrentHoldings(Long userId);
 
     void upsertWatchlistAssets(List<WatchlistAssetEntity> watchlistAssets);
 
-    default void deleteWatchlistAsset(Long userId, String assetKind, Long assetId) { }
+    default void deleteWatchlistAsset(Long userId, String assetKind, Long assetId) { throw unsupported("deleteWatchlistAsset"); }
 
     WatchlistAssetEntity queryWatchlistAsset(Long userId, String assetCode, String assetKind);
 
     default WatchlistAssetEntity queryWatchlistAsset(Long userId, String assetCode, String assetKind, String market) {
-        return queryWatchlistAsset(userId, assetCode, assetKind);
+        throw unsupported("queryWatchlistAssetByMarket");
     }
 
-    default List<WatchlistAssetEntity> queryWatchlistAssets(Long userId, String assetKind) { return List.of(); }
+    default List<WatchlistAssetEntity> queryWatchlistAssets(Long userId, String assetKind) { throw unsupported("queryWatchlistAssets"); }
 
-    default Set<String> queryWatchlistedIdentityKeys(Long userId, Collection<String> identityKeys) { return Set.of(); }
+    default Set<String> queryWatchlistedIdentityKeys(Long userId, Collection<String> identityKeys) { throw unsupported("queryWatchlistedIdentityKeys"); }
+
+    private static UnsupportedOperationException unsupported(String operation) {
+        return new UnsupportedOperationException("IPortfolioRepository must implement " + operation);
+    }
 
 }

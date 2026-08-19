@@ -12,25 +12,23 @@ public interface IProcessingTaskRepository {
     void saveTask(ProcessingTaskEntity taskEntity);
 
     default boolean saveTaskIfActiveKeyAbsent(ProcessingTaskEntity taskEntity) {
-        saveTask(taskEntity);
-        return true;
+        throw unsupported("saveTaskIfActiveKeyAbsent");
     }
 
     void updateTask(ProcessingTaskEntity taskEntity);
 
     default boolean updateTaskIfNonTerminal(ProcessingTaskEntity taskEntity) {
-        updateTask(taskEntity);
-        return true;
+        throw unsupported("updateTaskIfNonTerminal");
     }
 
     ProcessingTaskEntity queryTask(String serverTaskId);
 
-    default ProcessingTaskEntity queryTaskByActiveKey(String activeKey) { return null; }
+    default ProcessingTaskEntity queryTaskByActiveKey(String activeKey) { throw unsupported("queryTaskByActiveKey"); }
 
     default boolean markFailedIfLeaseExpired(String serverTaskId, String activeKey,
-                                             LocalDateTime cutoff, String errorSummary) { return false; }
+                                             LocalDateTime cutoff, String errorSummary) { throw unsupported("markFailedIfLeaseExpired"); }
 
-    default ProcessingTaskEntity queryTaskForUpdate(String serverTaskId) { return queryTask(serverTaskId); }
+    default ProcessingTaskEntity queryTaskForUpdate(String serverTaskId) { throw unsupported("queryTaskForUpdate"); }
 
     boolean existsNonTerminalTask(String taskType);
 
@@ -40,14 +38,18 @@ public interface IProcessingTaskRepository {
 
     void saveLogs(List<ProcessingLogEntity> logs);
 
-    default List<ProcessingTaskEntity> queryNonTerminalFundSliceTasksUpdatedBefore(LocalDateTime cutoff) { return List.of(); }
+    default List<ProcessingTaskEntity> queryNonTerminalFundSliceTasksUpdatedBefore(LocalDateTime cutoff) { throw unsupported("queryNonTerminalFundSliceTasksUpdatedBefore"); }
 
     default boolean markCallbackFailedIfTimedOut(String serverTaskId, LocalDateTime cutoff, String errorSummary) {
-        return false;
+        throw unsupported("markCallbackFailedIfTimedOut");
     }
 
     default List<ProcessingCallbackEntity> queryProcessingCatalogCallbacksCreatedBefore(LocalDateTime cutoff) {
-        return List.of();
+        throw unsupported("queryProcessingCatalogCallbacksCreatedBefore");
+    }
+
+    private static UnsupportedOperationException unsupported(String operation) {
+        return new UnsupportedOperationException("IProcessingTaskRepository must implement " + operation);
     }
 
 }

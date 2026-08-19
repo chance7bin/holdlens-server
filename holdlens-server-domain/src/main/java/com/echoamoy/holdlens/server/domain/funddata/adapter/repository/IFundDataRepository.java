@@ -15,38 +15,42 @@ public interface IFundDataRepository {
 
     Set<String> queryExistingFundCodes(Collection<String> fundCodes);
 
-    default void upsertCatalog(FundCurrentDataAggregate.FundDetail fund) { throw new UnsupportedOperationException(); }
+    default void upsertCatalog(FundCurrentDataAggregate.FundDetail fund) { throw unsupported("upsertCatalog"); }
 
     void upsertCatalogs(List<FundCurrentDataAggregate.FundDetail> funds);
 
-    default boolean updatePurchaseStatus(FundCurrentDataAggregate.FundDetail fund) { return false; }
+    default boolean updatePurchaseStatus(FundCurrentDataAggregate.FundDetail fund) { throw unsupported("updatePurchaseStatus"); }
 
-    default boolean updateTopHoldingSnapshot(FundCurrentDataAggregate.FundDetail fund, boolean clearHoldings) { return false; }
+    default boolean updateTopHoldingSnapshot(FundCurrentDataAggregate.FundDetail fund, boolean clearHoldings) { throw unsupported("updateTopHoldingSnapshot"); }
 
-    default List<String> queryTopHoldingRefreshTargets(LocalDateTime viewedSince) { return List.of(); }
+    default List<String> queryTopHoldingRefreshTargets(LocalDateTime viewedSince) { throw unsupported("queryTopHoldingRefreshTargets"); }
 
     default List<String> queryTopHoldingRefreshTargets(LocalDateTime viewedSince, LocalDateTime staleBefore) {
-        return queryTopHoldingRefreshTargets(viewedSince);
+        throw unsupported("queryTopHoldingRefreshTargetsWithStaleBefore");
     }
 
     default List<String> queryAssetAllocationRefreshTargets(LocalDateTime viewedSince, LocalDate latestEndedQuarter,
-                                                            LocalDateTime unavailableRetryBefore) { return List.of(); }
+                                                            LocalDateTime unavailableRetryBefore) { throw unsupported("queryAssetAllocationRefreshTargets"); }
 
-    default boolean replaceAssetAllocationSnapshot(FundCurrentDataAggregate.FundDetail fund) { return false; }
+    default boolean replaceAssetAllocationSnapshot(FundCurrentDataAggregate.FundDetail fund) { throw unsupported("replaceAssetAllocationSnapshot"); }
 
-    default boolean markAssetAllocationUnavailable(String fundCode, LocalDateTime fetchedAt) { return false; }
+    default boolean markAssetAllocationUnavailable(String fundCode, LocalDateTime fetchedAt) { throw unsupported("markAssetAllocationUnavailable"); }
 
-    default void markDetailViewed(Collection<String> fundCodes, LocalDateTime viewedAt) { }
+    default void markDetailViewed(Collection<String> fundCodes, LocalDateTime viewedAt) { throw unsupported("markDetailViewed"); }
 
     default void markDetailViewed(Collection<String> fundCodes, LocalDateTime viewedAt,
                                   LocalDateTime updateBefore) {
-        markDetailViewed(fundCodes, viewedAt);
+        throw unsupported("markDetailViewedWithThrottle");
     }
 
     default List<String> queryDetailRefreshTargets(LocalDateTime viewedSince, int limit) {
-        return queryTopHoldingRefreshTargets(viewedSince).stream().limit(Math.max(limit, 0)).toList();
+        throw unsupported("queryDetailRefreshTargets");
     }
 
-    default List<FundCurrentDataAggregate.FundDetail> search(String keyword, int limit) { return List.of(); }
+    default List<FundCurrentDataAggregate.FundDetail> search(String keyword, int limit) { throw unsupported("search"); }
+
+    private static UnsupportedOperationException unsupported(String operation) {
+        return new UnsupportedOperationException("IFundDataRepository must implement " + operation);
+    }
 
 }

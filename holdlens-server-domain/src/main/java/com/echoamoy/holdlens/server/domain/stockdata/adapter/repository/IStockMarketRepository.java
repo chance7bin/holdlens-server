@@ -18,14 +18,18 @@ public interface IStockMarketRepository {
 
     Set<String> queryExistingStockKeys(Collection<String> stockKeys);
 
-    default List<StockMarketEntity> search(String keyword, String market, int limit) { return List.of(); }
+    default List<StockMarketEntity> search(String keyword, String market, int limit) { throw unsupported("search"); }
 
-    default StockMarketEntity queryOne(String stockCode, String market) { return null; }
+    default StockMarketEntity queryOne(String stockCode, String market) { throw unsupported("queryOne"); }
 
     default void markDetailViewed(String stockCode, String market, LocalDateTime viewedAt,
-                                  LocalDateTime updateBefore) { }
+                                  LocalDateTime updateBefore) { throw unsupported("markDetailViewed"); }
 
     default List<StockMarketEntity> queryDetailRefreshTargets(String market, LocalDateTime viewedSince,
-                                                               int limit) { return List.of(); }
+                                                               int limit) { throw unsupported("queryDetailRefreshTargets"); }
+
+    private static UnsupportedOperationException unsupported(String operation) {
+        return new UnsupportedOperationException("IStockMarketRepository must implement " + operation);
+    }
 
 }
