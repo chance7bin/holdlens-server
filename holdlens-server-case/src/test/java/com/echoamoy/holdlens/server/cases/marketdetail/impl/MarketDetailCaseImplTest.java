@@ -541,6 +541,9 @@ public class MarketDetailCaseImplTest {
         set(service, "stockMarketRepository", new FakeStockRepository());
         set(service, "marketDetailRepository", detail);
         set(service, "agentMarketDetailRefreshPort", agent);
+        MarketDetailCallbackValidator callbackValidator = new MarketDetailCallbackValidator();
+        set(callbackValidator, "processingTaskRepository", processing);
+        set(service, "callbackValidator", callbackValidator);
         set(service, "transactionExecutor", new TransactionExecutor() {
             @Override public <T> T required(Supplier<T> action) { return action.get(); }
             @Override public <T> T requiresNew(Supplier<T> action) { return action.get(); }

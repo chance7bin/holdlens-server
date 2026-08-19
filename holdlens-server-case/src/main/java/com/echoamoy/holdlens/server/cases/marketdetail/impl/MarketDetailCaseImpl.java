@@ -57,7 +57,6 @@ import java.util.regex.Pattern;
 public class MarketDetailCaseImpl implements IMarketDetailCase {
 
     private static final String TASK_SCHEMA = "market-detail-data-refresh-task/v1";
-    private static final String RESULT_SCHEMA = "market-detail-data-refresh-result/v1";
     private static final int MAX_FUND_NAV_POINTS = 10000;
     private static final Set<String> STOCK_PERIODS = Set.of("intraday", "5d", "1m", "1y");
     private static final List<String> STOCK_DETAIL_PERIODS = List.of("5d", "1m", "1y");
@@ -79,6 +78,7 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
     @Resource private IMarketDetailRepository marketDetailRepository;
     @Resource private IAgentMarketDetailRefreshPort agentMarketDetailRefreshPort;
     @Resource private TransactionExecutor transactionExecutor;
+    @Resource private MarketDetailCallbackValidator callbackValidator;
 
     @Value("${holdlens.agent.market-detail-data-refresh-callback-url}")
     private String callbackUrl;
@@ -116,7 +116,7 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
 
     @Override
     public MarketDetailResult.Task handleCallback(MarketDetailCommand.Callback command) {
-        CallbackPlan plan = validateCallback(command);
+        CallbackPlan plan = callbackValidator.validate(command);
         boolean first = processingTaskRepository.saveCallbackIfAbsent(ProcessingCallbackEntity.builder()
                 .serverTaskId(command.getServerTaskId()).idempotencyKey(command.getIdempotencyKey())
                 .callbackStatus(command.getStatus()).processStatus("processing")
@@ -129,7 +129,7 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
         int failedSlices = 0;
         if (!"failed".equals(command.getStatus())) {
             if (plan.slices.contains("nav_history")) {
-                String declaredStatus = sliceResultStatus(command, "nav_history");
+                String declaredStatus = callbackValidator.sliceResultStatus(command, "nav_history");
                 if ("failed".equals(declaredStatus)) {
                     failedSlices++;
                     convergeFundSlice(command, plan.ref.getAssetCode(), "nav_history", "failed", command.getErrorSummary());
@@ -161,7 +161,7 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
                 }
             }
             if (plan.slices.contains("period_performance")) {
-                String declaredStatus = sliceResultStatus(command, "period_performance");
+                String declaredStatus = callbackValidator.sliceResultStatus(command, "period_performance");
                 if ("failed".equals(declaredStatus)) {
                     failedSlices++;
                     convergeFundSlice(command, plan.ref.getAssetCode(), "period_performance", "failed", command.getErrorSummary());
@@ -194,7 +194,7 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
                 }
             }
             if (plan.slices.contains("price_history")) {
-                String declaredStatus = sliceResultStatus(command, "price_history");
+                String declaredStatus = callbackValidator.sliceResultStatus(command, "price_history");
                 if ("failed".equals(declaredStatus)) {
                     failedSlices++;
                     convergeStockSlice(command, plan.ref.value(), "price_history", "failed", command.getErrorSummary());
@@ -222,7 +222,7 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
                 }
             }
             if (plan.slices.contains("company_profile")) {
-                String declaredStatus = sliceResultStatus(command, "company_profile");
+                String declaredStatus = callbackValidator.sliceResultStatus(command, "company_profile");
                 if ("failed".equals(declaredStatus)) {
                     failedSlices++;
                     convergeStockSlice(command, plan.ref.value(), "company_profile", "failed", command.getErrorSummary());
@@ -469,63 +469,6 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
             }
         }
         return new TaskPlan(ref, slices, periods, providerCode, exchangeCode);
-    }
-
-    private CallbackPlan validateCallback(MarketDetailCommand.Callback c) {
-        if (c == null || c.getServerTaskId() == null) throw illegal("回调缺少任务标识");
-        ProcessingTaskEntity task = processingTaskRepository.queryTask(c.getServerTaskId());
-        if (task == null || !ProcessingTaskEntity.MARKET_DETAIL_DATA_REFRESH.equals(task.getTaskType())) throw illegal("未知任务");
-        if (!RESULT_SCHEMA.equals(c.getSchemaVersion())) throw illegal("回调 schema 不支持");
-        if (!("succeeded".equals(c.getStatus()) || "partial_failed".equals(c.getStatus()) || "failed".equals(c.getStatus()))) {
-            throw illegal("回调状态不支持");
-        }
-        if (!(c.getServerTaskId() + ":result:1").equals(c.getIdempotencyKey())) throw illegal("幂等键不合法");
-        JSONObject params = JSON.parseObject(task.getTaskParamsJson());
-        MarketAssetRefVO ref;
-        try { ref = MarketAssetRefVO.parse(params.getString("assetKind"), params.getString("assetRef")); }
-        catch (IllegalArgumentException e) { throw illegal("任务引用不合法"); }
-        if (!ref.value().equals(c.getAssetRef()) || !ref.getAssetKind().equals(c.getAssetKind())) throw illegal("回调资产与任务不一致");
-        List<String> slices = params.getJSONArray("slices").toJavaList(String.class);
-        validateSliceResults(c.getSliceResults(), slices, c.getStatus());
-        if (c.getFundNavHistory() != null && c.getFundNavHistory().getPoints() != null
-                && !c.getFundNavHistory().getPoints().isEmpty() && !slices.contains("nav_history")
-                || c.getFundPeriodPerformance() != null && c.getFundPeriodPerformance().getRows() != null
-                && !c.getFundPeriodPerformance().getRows().isEmpty() && !slices.contains("period_performance")
-                || c.getStockPriceHistories() != null && !c.getStockPriceHistories().isEmpty()
-                        && !slices.contains("price_history")
-                || c.getStockCompanyProfile() != null && !slices.contains("company_profile")) {
-            throw illegal("回调包含任务未请求的 slice");
-        }
-        return new CallbackPlan(task, ref, slices, params.getJSONArray("periods").toJavaList(String.class));
-    }
-
-    private void validateSliceResults(List<MarketDetailCommand.SliceResult> results, List<String> requestedSlices,
-                                      String overallStatus) {
-        if (results == null) return;
-        Map<String, String> statuses = new LinkedHashMap<>();
-        for (MarketDetailCommand.SliceResult result : results) {
-            if (result == null || !requestedSlices.contains(result.getSlice())
-                    || !Set.of("available", "empty", "failed").contains(result.getStatus())
-                    || statuses.putIfAbsent(result.getSlice(), result.getStatus()) != null) {
-                throw illegal("callback slice_results 不合法");
-            }
-        }
-        if (statuses.size() != requestedSlices.size() || !statuses.keySet().containsAll(requestedSlices)) {
-            throw illegal("callback slice_results 必须覆盖全部请求 slice");
-        }
-        long failures = statuses.values().stream().filter("failed"::equals).count();
-        if ("succeeded".equals(overallStatus) && failures > 0
-                || "failed".equals(overallStatus) && failures != statuses.size()
-                || "partial_failed".equals(overallStatus)
-                && (failures == 0 || failures == statuses.size())) {
-            throw illegal("callback 整体状态与 slice_results 不一致");
-        }
-    }
-
-    private String sliceResultStatus(MarketDetailCommand.Callback command, String slice) {
-        if (command.getSliceResults() == null) return null;
-        return command.getSliceResults().stream().filter(result -> slice.equals(result.getSlice()))
-                .map(MarketDetailCommand.SliceResult::getStatus).findFirst().orElse(null);
     }
 
     private FundRefreshClaim claimFundDetailRefresh(String fundCode) {
@@ -1339,7 +1282,6 @@ public class MarketDetailCaseImpl implements IMarketDetailCase {
 
     private record TaskPlan(MarketAssetRefVO ref, List<String> slices, List<String> periods,
                             String providerMarketCode, String exchangeCode) { }
-    private record CallbackPlan(ProcessingTaskEntity task, MarketAssetRefVO ref, List<String> slices, List<String> periods) { }
     private record FundRefreshClaim(ProcessingTaskEntity task, TaskPlan plan, Map<String, String> statuses,
                                     String serverTaskId) { }
     private record StockRefreshClaim(ProcessingTaskEntity taskToDispatch, TaskPlan plan, String serverTaskId) { }
