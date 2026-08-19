@@ -27,7 +27,6 @@ final class FundDetailDtoMapper {
                 .periodReturnFetchedAt(detail.getPeriodReturnFetchedAt())
                 .topHoldingFetchedAt(detail.getTopHoldingFetchedAt())
                 .assetAllocationFetchedAt(detail.getAssetAllocationFetchedAt())
-                .topHoldingRefreshStatus(detail.getTopHoldingRefreshStatus())
                 .topHoldings(toTopHoldings(detail.getTopHoldings()))
                 .assetAllocations(toAssetAllocations(detail.getAssetAllocations())).build();
     }

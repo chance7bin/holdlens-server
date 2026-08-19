@@ -69,7 +69,6 @@ public class PortfolioFundDetailResult {
         private Date periodReturnFetchedAt;
         private Date topHoldingFetchedAt;
         private Date assetAllocationFetchedAt;
-        private String topHoldingRefreshStatus;
         private List<TopHolding> topHoldings;
         private List<AssetAllocation> assetAllocations;
 

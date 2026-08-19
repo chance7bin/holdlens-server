@@ -79,8 +79,7 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
         PortfolioFundDetailResult result = PortfolioFundDetailResult.builder()
                 .userId(userId)
                 .holdings(holdings.stream()
-                        .map(holding -> toHoldingDetail(holding, currentDetails.get(holding.fundCodeOrNull()), stockMarkets,
-                                false))
+                        .map(holding -> toHoldingDetail(holding, currentDetails.get(holding.fundCodeOrNull()), stockMarkets))
                         .toList())
                 .build();
         return result;
@@ -116,8 +115,7 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
         boolean allocationStale = needsAssetAllocationRefresh(detail, viewedAt);
         Map<String, StockMarketEntity> stockMarkets = stockMarketRepository
                 .queryByStockKeys(collectStockKeys(Map.of(normalizedCode, detail)));
-        PortfolioFundDetailResult.FundDetail result = toFundDetail(
-                normalizedCode, detail, stockMarkets, ensure && stale);
+        PortfolioFundDetailResult.FundDetail result = toFundDetail(normalizedCode, detail, stockMarkets);
         if (ensure && stale) {
             dispatchTopHoldingRefreshBestEffort(List.of(normalizedCode));
         }
@@ -129,8 +127,7 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
 
     private PortfolioFundDetailResult.HoldingDetail toHoldingDetail(PortfolioHoldingEntity holding,
                                                                     FundCurrentDataAggregate.FundDetail fundDetail,
-                                                                    Map<String, StockMarketEntity> stockMarkets,
-                                                                    boolean refreshing) {
+                                                                    Map<String, StockMarketEntity> stockMarkets) {
         return PortfolioFundDetailResult.HoldingDetail.builder()
                 .recordId(holding.getRecordId())
                 .assetRef(holding.getAssetRef())
@@ -141,14 +138,13 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                 .amount(holding.getAmount())
                 .currency(holding.getCurrency())
                 .status(holding.getStatus())
-                .fundDetail(toFundDetail(holding.fundCodeOrNull(), fundDetail, stockMarkets, refreshing))
+                .fundDetail(toFundDetail(holding.fundCodeOrNull(), fundDetail, stockMarkets))
                 .build();
     }
 
     private PortfolioFundDetailResult.FundDetail toFundDetail(String fundCode,
                                                              FundCurrentDataAggregate.FundDetail detail,
-                                                             Map<String, StockMarketEntity> stockMarkets,
-                                                             boolean refreshing) {
+                                                             Map<String, StockMarketEntity> stockMarkets) {
         if (fundCode == null) {
             return PortfolioFundDetailResult.FundDetail.builder().detailStatus("unavailable")
                     .assetAllocationStatus("missing").assetAllocations(List.of()).build();
@@ -159,7 +155,6 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                     .detailStatus("missing")
                     .assetAllocationStatus("missing")
                     .assetAllocations(List.of())
-                    .topHoldingRefreshStatus(refreshing ? "refreshing" : "missing")
                     .build();
         }
         return PortfolioFundDetailResult.FundDetail.builder()
@@ -189,7 +184,6 @@ public class PortfolioFundDetailCaseImpl implements IPortfolioFundDetailCase {
                 .periodReturnFetchedAt(DateTimeUtils.toBusinessDate(detail.getPeriodReturnFetchedAt()))
                 .topHoldingFetchedAt(DateTimeUtils.toBusinessDate(detail.getTopHoldingFetchedAt()))
                 .assetAllocationFetchedAt(DateTimeUtils.toBusinessDate(detail.getAssetAllocationFetchedAt()))
-                .topHoldingRefreshStatus(refreshing ? "refreshing" : "current")
                 .topHoldings(detail.getTopHoldings() == null ? List.of() : detail.getTopHoldings().stream()
                         .map(topHolding -> toTopHolding(topHolding,
                                 stockMarkets.get(stockKey(topHolding.getStockCode(), normalizeNullable(topHolding.getMarket())))))

@@ -67,7 +67,6 @@ public class PortfolioFundDetailCaseImplTest {
 
         Assert.assertEquals("000001", result.getFundCode());
         Assert.assertEquals("stale", result.getDetailStatus());
-        Assert.assertEquals("current", result.getTopHoldingRefreshStatus());
         Assert.assertEquals("available", result.getAssetAllocationStatus());
         Assert.assertEquals(2, result.getAssetAllocations().size());
         Assert.assertEquals("unknown", result.getAssetAllocations().get(0).getAssetType());
