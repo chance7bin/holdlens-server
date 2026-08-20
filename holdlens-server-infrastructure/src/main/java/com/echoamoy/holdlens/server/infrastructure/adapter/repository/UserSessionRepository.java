@@ -35,8 +35,23 @@ public class UserSessionRepository implements IUserSessionRepository {
     }
 
     @Override
+    public UserSessionEntity findByIdForUpdate(Long sessionId) {
+        return toEntity(userSessionDao.selectByIdForUpdate(sessionId));
+    }
+
+    @Override
+    public void revokeActiveByUserId(Long userId) {
+        userSessionDao.revokeActiveByUserId(userId);
+    }
+
+    @Override
     public void revoke(Long sessionId) {
         userSessionDao.revoke(sessionId);
+    }
+
+    @Override
+    public boolean updateExpiresAt(UserSessionEntity session) {
+        return userSessionDao.updateExpiresAt(session.getId(), toDate(session.getExpiresAt())) == 1;
     }
 
     private UserSessionPO toPO(UserSessionEntity session) {

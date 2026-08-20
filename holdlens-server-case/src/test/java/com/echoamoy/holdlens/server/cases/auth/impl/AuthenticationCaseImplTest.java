@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 
@@ -83,6 +84,21 @@ public class AuthenticationCaseImplTest {
     }
 
     @Test
+    public void successfulLoginRevokesPreviousActiveSession() throws Exception {
+        Fixture fixture = fixture();
+        fixture.accounts.insert(account(2L, "alice", "correct1"));
+        UserSessionEntity oldSession = UserSessionEntity.create(
+                2L, "old-hash", LocalDateTime.now().plusDays(1));
+        fixture.sessions.insert(oldSession);
+
+        fixture.caseService.login("alice", "correct1");
+
+        assertFalse(oldSession.isActiveAt(LocalDateTime.now()));
+        assertEquals(2, fixture.sessions.sessions.size());
+        expectAuthenticationFailure(() -> fixture.caseService.renew(oldSession.getId()));
+    }
+
+    @Test
     public void authenticatesOnlyActiveSessionAndLogoutRevokesIt() throws Exception {
         Fixture fixture = fixture();
         fixture.accounts.insert(account(2L, "alice", "correct1"));
@@ -119,6 +135,33 @@ public class AuthenticationCaseImplTest {
         expectAuthenticationFailure(() -> fixture.caseService.authenticate("raw-token"));
     }
 
+    @Test
+    public void renewsSessionWithoutPassingAbsoluteExpiry() throws Exception {
+        Fixture fixture = fixture();
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime createdAt = now.minusDays(85);
+        UserSessionEntity session = new UserSessionEntity();
+        session.restore(9L, 2L, "token-hash", now.plusHours(1), null, createdAt);
+        fixture.sessions.sessions.put(9L, session);
+
+        AuthenticationResult.Renewal renewal = fixture.caseService.renew(9L);
+
+        assertEquals(createdAt.plusDays(90), renewal.getExpiresAt());
+        assertEquals(1, fixture.sessions.expiryUpdates);
+    }
+
+    @Test
+    public void rejectsRenewalAtAbsoluteExpiry() throws Exception {
+        Fixture fixture = fixture();
+        LocalDateTime now = LocalDateTime.now();
+        UserSessionEntity session = new UserSessionEntity();
+        session.restore(9L, 2L, "token-hash", now.plusHours(1), null, now.minusDays(90));
+        fixture.sessions.sessions.put(9L, session);
+
+        expectAuthenticationFailure(() -> fixture.caseService.renew(9L));
+        assertEquals(0, fixture.sessions.expiryUpdates);
+    }
+
     private Fixture fixture() throws Exception {
         AuthenticationCaseImpl caseService = new AuthenticationCaseImpl();
         FakeAccounts accounts = new FakeAccounts();
@@ -129,6 +172,7 @@ public class AuthenticationCaseImplTest {
         set(caseService, "passwordHasher", passwordHasher);
         set(caseService, "sessionTokenPort", new FakeTokenPort());
         set(caseService, "sessionTtl", Duration.ofDays(7));
+        set(caseService, "sessionAbsoluteTtl", Duration.ofDays(90));
         set(caseService, "loginLockThreshold", 5);
         set(caseService, "loginLockDuration", Duration.ofMinutes(15));
         return new Fixture(caseService, accounts, sessions, passwordHasher);
@@ -198,11 +242,14 @@ public class AuthenticationCaseImplTest {
 
     private static class FakeSessions implements IUserSessionRepository {
         private final Map<Long, UserSessionEntity> sessions = new HashMap<>();
+        private int expiryUpdates;
 
         @Override
         public void insert(UserSessionEntity session) {
             long id = sessions.size() + 1L;
-            session.restore(id, session.getUserId(), session.getTokenHash(), session.getExpiresAt(), session.getRevokedAt(), null);
+            LocalDateTime createTime = session.getCreateTime() == null ? LocalDateTime.now() : session.getCreateTime();
+            session.restore(id, session.getUserId(), session.getTokenHash(), session.getExpiresAt(),
+                    session.getRevokedAt(), createTime);
             sessions.put(id, session);
         }
 
@@ -212,11 +259,30 @@ public class AuthenticationCaseImplTest {
         }
 
         @Override
+        public UserSessionEntity findByIdForUpdate(Long sessionId) {
+            return sessions.get(sessionId);
+        }
+
+        @Override
+        public void revokeActiveByUserId(Long userId) {
+            LocalDateTime now = LocalDateTime.now();
+            sessions.values().stream()
+                    .filter(session -> session.getUserId().equals(userId) && session.isActiveAt(now))
+                    .forEach(session -> session.revoke(now));
+        }
+
+        @Override
         public void revoke(Long sessionId) {
             UserSessionEntity session = sessions.get(sessionId);
             if (session != null) {
                 session.revoke(LocalDateTime.now());
             }
+        }
+
+        @Override
+        public boolean updateExpiresAt(UserSessionEntity session) {
+            expiryUpdates++;
+            return sessions.containsKey(session.getId());
         }
     }
 

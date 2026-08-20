@@ -58,6 +58,7 @@ public class SecurityConfigTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(content().json("{\"code\":\"0401\",\"info\":\"未认证\"}"));
         mockMvc.perform(post("/api/auth/login")).andExpect(status().isOk());
+        mockMvc.perform(post("/api/auth/session/renew")).andExpect(status().isUnauthorized());
         mockMvc.perform(options("/api/test")).andExpect(status().isOk());
         mockMvc.perform(get("/internal/test")).andExpect(status().isOk());
     }
@@ -67,6 +68,8 @@ public class SecurityConfigTest {
         mockMvc.perform(get("/api/test").header("Authorization", "Bearer valid"))
                 .andExpect(status().isOk())
                 .andExpect(content().string("ok"));
+        mockMvc.perform(post("/api/auth/session/renew").header("Authorization", "Bearer valid"))
+                .andExpect(status().isOk());
         mockMvc.perform(get("/api/test").header("Authorization", "Bearer invalid"))
                 .andExpect(status().isUnauthorized());
     }
@@ -122,6 +125,7 @@ public class SecurityConfigTest {
                     if (!"valid".equals(rawToken)) throw new AuthenticationFailedException();
                     return new AuthenticationResult.AuthenticatedSession(2L, 3L);
                 }
+                @Override public AuthenticationResult.Renewal renew(Long sessionId) { return null; }
                 @Override public void logout(Long sessionId) { }
                 @Override public AuthenticationResult.Account currentAccount(Long userId) { return null; }
             };
@@ -137,6 +141,7 @@ public class SecurityConfigTest {
     static class TestController {
         @GetMapping("/api/test") String api() { return "ok"; }
         @PostMapping("/api/auth/login") String login() { return "ok"; }
+        @PostMapping("/api/auth/session/renew") String renew() { return "ok"; }
         @GetMapping("/internal/test") String internal() { return "ok"; }
     }
 }

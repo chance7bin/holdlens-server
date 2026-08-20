@@ -48,4 +48,13 @@ public final class AuthenticationResult {
             this.sessionId = sessionId;
         }
     }
+
+    @Getter
+    public static class Renewal {
+        private final LocalDateTime expiresAt;
+
+        public Renewal(LocalDateTime expiresAt) {
+            this.expiresAt = expiresAt;
+        }
+    }
 }

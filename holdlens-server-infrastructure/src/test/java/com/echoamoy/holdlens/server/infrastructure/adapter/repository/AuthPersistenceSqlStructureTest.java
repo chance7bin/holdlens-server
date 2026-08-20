@@ -26,6 +26,11 @@ public class AuthPersistenceSqlStructureTest {
         assertTrue(sessionMapper.contains("revoked_at IS NULL"));
         assertTrue(sessionMapper.contains("expires_at &gt; CURRENT_TIMESTAMP"));
         assertTrue(sessionMapper.contains("COALESCE(revoked_at, CURRENT_TIMESTAMP)"));
+        assertTrue(sessionMapper.contains("<select id=\"selectByIdForUpdate\""));
+        assertTrue(sessionMapper.contains("<update id=\"revokeActiveByUserId\""));
+        assertTrue(sessionMapper.contains("user_id = #{userId}"));
+        assertTrue(sessionMapper.contains("<update id=\"updateExpiresAt\""));
+        assertTrue(sessionMapper.contains("FOR UPDATE"));
         assertFalse(accountMapper.contains("${"));
         assertFalse(sessionMapper.contains("${"));
     }

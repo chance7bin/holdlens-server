@@ -8,5 +8,11 @@ public interface IUserSessionRepository {
 
     UserSessionEntity findByTokenHash(String tokenHash);
 
+    UserSessionEntity findByIdForUpdate(Long sessionId);
+
+    void revokeActiveByUserId(Long userId);
+
     void revoke(Long sessionId);
+
+    boolean updateExpiresAt(UserSessionEntity session);
 }

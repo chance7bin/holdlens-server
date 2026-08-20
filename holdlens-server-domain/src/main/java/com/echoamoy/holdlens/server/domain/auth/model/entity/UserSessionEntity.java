@@ -3,6 +3,7 @@ package com.echoamoy.holdlens.server.domain.auth.model.entity;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 
 @Getter
@@ -40,6 +41,21 @@ public class UserSessionEntity {
         if (revokedAt == null) {
             revokedAt = now;
         }
+    }
+
+    public boolean renew(LocalDateTime now, Duration idleTtl, Duration absoluteTtl) {
+        if (now == null || idleTtl == null || idleTtl.isNegative() || idleTtl.isZero()
+                || absoluteTtl == null || absoluteTtl.isNegative() || absoluteTtl.isZero()
+                || createTime == null || !isActiveAt(now)) {
+            return false;
+        }
+        LocalDateTime absoluteExpiresAt = createTime.plus(absoluteTtl);
+        if (!absoluteExpiresAt.isAfter(now)) {
+            return false;
+        }
+        LocalDateTime idleExpiresAt = now.plus(idleTtl);
+        expiresAt = idleExpiresAt.isBefore(absoluteExpiresAt) ? idleExpiresAt : absoluteExpiresAt;
+        return true;
     }
 
     public void restore(Long id, Long userId, String tokenHash, LocalDateTime expiresAt,

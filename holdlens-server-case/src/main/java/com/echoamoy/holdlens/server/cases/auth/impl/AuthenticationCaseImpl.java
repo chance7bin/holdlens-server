@@ -39,6 +39,9 @@ public class AuthenticationCaseImpl implements IAuthenticationCase {
     @Value("${holdlens.auth.session-ttl:PT168H}")
     private Duration sessionTtl;
 
+    @Value("${holdlens.auth.session-absolute-ttl:PT2160H}")
+    private Duration sessionAbsoluteTtl;
+
     @Value("${holdlens.auth.login-lock-threshold:5}")
     private int loginLockThreshold;
 
@@ -80,6 +83,7 @@ public class AuthenticationCaseImpl implements IAuthenticationCase {
         }
         account.resetLoginFailures();
         userAccountRepository.updateLoginState(account);
+        userSessionRepository.revokeActiveByUserId(account.getId());
         IssuedSessionTokenVO issuedToken = sessionTokenPort.issue();
         LocalDateTime expiresAt = now.plus(sessionTtl);
         UserSessionEntity session = UserSessionEntity.create(account.getId(), issuedToken.getTokenHash(), expiresAt);
@@ -102,6 +106,20 @@ public class AuthenticationCaseImpl implements IAuthenticationCase {
             throw new AuthenticationFailedException();
         }
         return new AuthenticationResult.AuthenticatedSession(session.getUserId(), session.getId());
+    }
+
+    @Override
+    @Transactional
+    public AuthenticationResult.Renewal renew(Long sessionId) {
+        if (sessionId == null || sessionId <= 0) {
+            throw new AuthenticationFailedException();
+        }
+        UserSessionEntity session = userSessionRepository.findByIdForUpdate(sessionId);
+        if (session == null || !session.renew(LocalDateTime.now(), sessionTtl, sessionAbsoluteTtl)
+                || !userSessionRepository.updateExpiresAt(session)) {
+            throw new AuthenticationFailedException();
+        }
+        return new AuthenticationResult.Renewal(session.getExpiresAt());
     }
 
     @Override

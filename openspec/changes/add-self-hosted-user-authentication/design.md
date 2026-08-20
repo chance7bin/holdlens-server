@@ -12,6 +12,7 @@
 
 - 提供不依赖第三方身份服务的用户名密码注册和登录。
 - 建立可撤销、可过期的 Bearer 会话，并为每个受保护请求提供可信用户 ID。
+- 保证同一账号只有一个有效会话，并允许活跃 App 在绝对期限内显式延长闲置期限。
 - 让现有用户私有链路不再信任调用方提交的 `userId`。
 - 保留固定用户开发模式，同时确保该模式不能误用于非开发环境。
 - 明确新账号与固定用户 1 历史数据完全隔离。
@@ -60,9 +61,12 @@ id, userId, tokenHash, expiresAt, revokedAt, createTime
 ```
 
 - `token_hash` 全局唯一，查询只按摘要精确匹配。
-- 默认有效期 7 天，由 `holdlens.auth.session-ttl` 配置。
+- 默认闲置有效期 7 天，由 `holdlens.auth.session-ttl` 配置；登录创建时 `expiresAt = now + sessionTtl`。
+- 默认绝对有效期 90 天，由 `holdlens.auth.session-absolute-ttl` 配置；续期后的到期时间不得晚于 `createTime + sessionAbsoluteTtl`。
+- 同一账号登录成功时，在账号行锁保护的同一事务内先撤销该账号全部有效旧会话，再创建新会话。旧 token 后续统一返回 401，不需要识别或保存设备 ID。
 - 退出将当前会话标记为撤销；撤销写入本身幂等，过期或撤销会话均不得恢复认证，后续再次携带该 token 请求任何受保护接口都会返回 401。
-- 本次不实现 refresh token。过期后用户重新登录，降低双令牌和轮换状态的复杂度。
+- `POST /api/auth/session/renew` 使用当前 token 对应的会话行，在会话仍有效且未达到绝对期限时把 `expiresAt` 更新为 `min(now + sessionTtl, createTime + sessionAbsoluteTtl)`，并返回新的 `expiresAt`。续期不轮换原始 token。
+- 本次不实现 refresh token。闲置过期、撤销或达到绝对期限后用户重新登录，降低双令牌和轮换状态的复杂度。
 
 ### 4. 账号锁定与失败语义
 
@@ -97,6 +101,7 @@ failedLoginCount, lockedUntil, createTime, updateTime
 
 - `POST /api/auth/register` 与 `POST /api/auth/login` 匿名可访问。
 - `POST /api/auth/logout` 与 `GET /api/auth/me` 必须认证。
+- `POST /api/auth/session/renew` 必须认证，并且只能续期当前 Bearer 会话。
 - 除 CORS `OPTIONS` 外，全部 `/api/**` 默认必须认证，包括用户数据、市场数据和人工 Agent 调度入口，避免新接口因漏配路径而匿名开放。
 - `/internal/**` 不进入用户认证过滤器，其服务认证由独立变更处理。
 - 认证失败返回 HTTP 401，可信身份与过渡 `userId` 不一致返回 HTTP 403，参数或业务校验失败继续使用既有响应语义。
@@ -125,14 +130,16 @@ failedLoginCount, lockedUntil, createTime, updateTime
 ## Consistency / Transactions
 
 - 注册在单事务内创建唯一账号；并发同用户名只允许一个成功。
-- 登录成功的失败计数重置与会话创建在同一事务内；创建失败时不留下半完成登录状态。
+- 登录成功撤销旧会话、重置失败计数和创建新会话在同一事务内；并发登录通过账号行锁串行化，最终只保留最后创建的有效会话。
 - 失败计数更新使用数据库条件更新，避免并发失败丢失计数。
 - 会话撤销写入是幂等操作；客户端在 token 已撤销后重试 HTTP 退出请求会因无法再认证而返回 401，且不会恢复会话。
+- 会话续期锁定当前会话行并重新检查撤销、闲置和绝对期限；与新登录撤销并发时，已经撤销的会话不得被续期恢复。
 
 ## Compatibility / Rollback
 
 - dev 默认 `fixed`，现有本地 Client 和脚本继续以用户 1 工作。
 - session 模式下，旧 Client 未携带 token 时将得到 401，这是启用真实认证的预期行为。
+- 未接入续期的 Client 仍可使用固定 7 天会话，到期后重新登录；续期是向后兼容的新增动作。
 - 数据库变更先部署，再启用 session 模式；回滚应用时可保留账号和会话表，不影响旧业务表。
 - 已创建新账号业务数据后不得把该账号映射回用户 1；回滚仅关闭 session 入口，不改写业务所有权。
 

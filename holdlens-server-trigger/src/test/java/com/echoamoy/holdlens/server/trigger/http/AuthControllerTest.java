@@ -19,6 +19,7 @@ public class AuthControllerTest {
         assertArrayEquals(new String[]{"/api/auth"}, AuthController.class.getAnnotation(RequestMapping.class).value());
         assertPost(AuthController.class.getMethod("register", AuthenticationRequestDTO.Register.class), "/register");
         assertPost(AuthController.class.getMethod("login", AuthenticationRequestDTO.Login.class), "/login");
+        assertPost(AuthController.class.getMethod("renewSession"), "/session/renew");
         assertPost(AuthController.class.getMethod("logout"), "/logout");
         assertGet(AuthController.class.getMethod("currentAccount"), "/me");
     }

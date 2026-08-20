@@ -11,5 +11,11 @@ public interface IUserSessionDao {
 
     UserSessionPO selectByTokenHash(@Param("tokenHash") String tokenHash);
 
+    UserSessionPO selectByIdForUpdate(@Param("id") Long id);
+
+    int revokeActiveByUserId(@Param("userId") Long userId);
+
     int revoke(@Param("id") Long id);
+
+    int updateExpiresAt(@Param("id") Long id, @Param("expiresAt") java.util.Date expiresAt);
 }

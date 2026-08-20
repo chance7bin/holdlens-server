@@ -8,6 +8,8 @@ public interface IAuthenticationCase {
 
     AuthenticationResult.AuthenticatedSession authenticate(String rawToken);
 
+    AuthenticationResult.Renewal renew(Long sessionId);
+
     void logout(Long sessionId);
 
     AuthenticationResult.Account currentAccount(Long userId);

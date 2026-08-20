@@ -10,6 +10,8 @@ public interface IAuthenticationService {
 
     Response<AuthenticationDTO.Login> login(AuthenticationRequestDTO.Login request);
 
+    Response<AuthenticationDTO.Session> renewSession();
+
     Response<Void> logout();
 
     Response<AuthenticationDTO.Account> currentAccount();

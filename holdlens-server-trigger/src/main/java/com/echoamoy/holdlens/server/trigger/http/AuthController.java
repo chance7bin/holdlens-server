@@ -44,6 +44,14 @@ public class AuthController implements IAuthenticationService {
     }
 
     @Override
+    @PostMapping("/session/renew")
+    public Response<AuthenticationDTO.Session> renewSession() {
+        AuthenticationResult.Renewal renewal = authenticationCase.renew(
+                CurrentUserContext.requireCurrentUser().sessionId());
+        return Response.ok(new AuthenticationDTO.Session(renewal.getExpiresAt()));
+    }
+
+    @Override
     @PostMapping("/logout")
     public Response<Void> logout() {
         authenticationCase.logout(CurrentUserContext.requireCurrentUser().sessionId());

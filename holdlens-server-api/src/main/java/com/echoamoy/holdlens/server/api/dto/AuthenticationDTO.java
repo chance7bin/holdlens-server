@@ -44,4 +44,15 @@ public final class AuthenticationDTO {
                     + (account == null ? null : account.getId()) + "}";
         }
     }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class Session {
+        private LocalDateTime expiresAt;
+
+        public Session(LocalDateTime expiresAt) {
+            this.expiresAt = expiresAt;
+        }
+    }
 }
