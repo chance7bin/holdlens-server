@@ -30,7 +30,7 @@
 - [x] 5.1 运行 Domain、Case、Infrastructure、Trigger、App 相关测试并确认目标测试实际执行。
 - [x] 5.2 按 runbook 使用 JDK 17 串行运行 Maven 聚合测试和打包/编译质量门。
 - [x] 5.3 检查密码、Authorization、原始 token、token 摘要不进入日志或响应，并检查用户名枚举、会话撤销、用户隔离、事务和默认拒绝策略。
-- [x] 5.4 同步任务状态并运行 `openspec validate --strict add-self-hosted-user-authentication`。
+- [x] 5.4 同步任务状态并运行 `openspec validate --strict add-user-authentication`。
 
 ## 6. 单设备会话与显式续期增量
 
@@ -38,4 +38,4 @@
 - [x] 6.2 新增 7 天闲置与 90 天绝对期限配置和 Case 续期编排，计算 `min(now + idleTtl, createTime + absoluteTtl)` 且不轮换 token；验证：正常续期、闲置过期、已撤销和绝对期限边界测试。
 - [x] 6.3 新增 `POST /api/auth/session/renew` 与 `{expiresAt}` 响应，并同步根目录认证契约；验证：仅当前已认证会话可续期，fixed 模式客户端不调用该接口。
 - [x] 6.4 运行认证 Domain、Case、Infrastructure、Trigger、App 测试与 JDK 17 Maven 质量门，检查 token 不进入日志/响应、旧会话不可恢复和用户隔离。
-- [x] 6.5 同步任务状态并运行 `openspec validate --strict add-self-hosted-user-authentication`。
+- [x] 6.5 同步任务状态并运行 `openspec validate --strict add-user-authentication`。

@@ -1,4 +1,4 @@
-# 变更：新增自建账号与可信用户认证
+# 变更：新增账号与用户认证
 
 ## Why
 
@@ -24,7 +24,7 @@
 
 ### New Capabilities
 
-- `self-hosted-user-authentication`：管理本地账号凭据、登录会话、可信用户身份和用户私有 API 的认证边界。
+- `user-authentication`：管理账号凭据、登录会话、可信用户身份和用户私有 API 的认证边界。
 
 ## Impact
 

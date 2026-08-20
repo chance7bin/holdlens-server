@@ -1,4 +1,4 @@
--- 自建账号与会话认证：仅新增安全事实表，不读取、复制或修改 user_id = 1 的业务数据。
+-- 账号与会话认证：仅新增安全事实表，不读取、复制或修改 user_id = 1 的业务数据。
 
 CREATE TABLE IF NOT EXISTS `user_account` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '账号ID；1保留给开发固定用户，注册账号从2开始',
