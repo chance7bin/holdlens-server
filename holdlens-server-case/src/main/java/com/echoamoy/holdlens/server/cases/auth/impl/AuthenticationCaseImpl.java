@@ -65,7 +65,7 @@ public class AuthenticationCaseImpl implements IAuthenticationCase {
 
     @Override
     @Transactional(noRollbackFor = AuthenticationFailedException.class)
-    public AuthenticationResult.Login login(String username, String password) {
+    public AuthenticationResult.Login login(String username, String password, String installationId, String deviceName) {
         String normalizedUsername = UserAccountEntity.normalizeUsername(username);
         UserAccountEntity.validatePassword(password);
         UserAccountEntity account = userAccountRepository.findByUsernameForUpdate(normalizedUsername);
@@ -86,7 +86,8 @@ public class AuthenticationCaseImpl implements IAuthenticationCase {
         userSessionRepository.revokeActiveByUserId(account.getId());
         IssuedSessionTokenVO issuedToken = sessionTokenPort.issue();
         LocalDateTime expiresAt = now.plus(sessionTtl);
-        UserSessionEntity session = UserSessionEntity.create(account.getId(), issuedToken.getTokenHash(), expiresAt);
+        UserSessionEntity session = UserSessionEntity.create(
+                account.getId(), issuedToken.getTokenHash(), expiresAt, installationId, deviceName);
         userSessionRepository.insert(session);
         return new AuthenticationResult.Login(issuedToken.getRawToken(), expiresAt, toAccount(account));
     }

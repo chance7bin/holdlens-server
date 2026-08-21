@@ -25,8 +25,8 @@ public class UserSessionRepository implements IUserSessionRepository {
         if (userSessionDao.insert(po) != 1) {
             throw new IllegalStateException("创建会话失败");
         }
-        session.restore(po.getId(), session.getUserId(), session.getTokenHash(), session.getExpiresAt(),
-                session.getRevokedAt(), session.getCreateTime());
+        session.restore(po.getId(), session.getUserId(), session.getTokenHash(), session.getInstallationId(),
+                session.getDeviceName(), session.getExpiresAt(), session.getRevokedAt(), session.getCreateTime());
     }
 
     @Override
@@ -59,6 +59,8 @@ public class UserSessionRepository implements IUserSessionRepository {
                 .id(session.getId())
                 .userId(session.getUserId())
                 .tokenHash(session.getTokenHash())
+                .installationId(session.getInstallationId())
+                .deviceName(session.getDeviceName())
                 .expiresAt(toDate(session.getExpiresAt()))
                 .revokedAt(toDate(session.getRevokedAt()))
                 .build();
@@ -69,8 +71,9 @@ public class UserSessionRepository implements IUserSessionRepository {
             return null;
         }
         UserSessionEntity session = new UserSessionEntity();
-        session.restore(po.getId(), po.getUserId(), po.getTokenHash(), toLocalDateTime(po.getExpiresAt()),
-                toLocalDateTime(po.getRevokedAt()), toLocalDateTime(po.getCreateTime()));
+        session.restore(po.getId(), po.getUserId(), po.getTokenHash(), po.getInstallationId(), po.getDeviceName(),
+                toLocalDateTime(po.getExpiresAt()), toLocalDateTime(po.getRevokedAt()),
+                toLocalDateTime(po.getCreateTime()));
         return session;
     }
 

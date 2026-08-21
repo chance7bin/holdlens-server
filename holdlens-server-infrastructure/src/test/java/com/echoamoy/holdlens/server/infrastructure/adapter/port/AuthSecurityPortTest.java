@@ -40,7 +40,11 @@ public class AuthSecurityPortTest {
     public void persistenceObjectsRedactCredentialDerivatives() {
         assertFalse(UserAccountPO.builder().passwordHash("password-hash").build()
                 .toString().contains("password-hash"));
-        assertFalse(UserSessionPO.builder().tokenHash("token-hash").build()
-                .toString().contains("token-hash"));
+        String session = UserSessionPO.builder().tokenHash("token-hash")
+                .installationId("a31c5067-2c19-4b45-9f2a-b8fdd4f5b13a").deviceName("iPhone 15 Pro")
+                .build().toString();
+        assertFalse(session.contains("token-hash"));
+        assertFalse(session.contains("a31c5067-2c19-4b45-9f2a-b8fdd4f5b13a"));
+        assertFalse(session.contains("iPhone 15 Pro"));
     }
 }

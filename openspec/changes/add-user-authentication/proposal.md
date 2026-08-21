@@ -14,6 +14,7 @@
 - 密码仅保存 BCrypt 哈希；登录成功签发高熵随机 Bearer 会话令牌，数据库只保存令牌摘要、有效期和撤销状态。
 - 同一账号只保留一个有效会话；新设备登录成功时原子撤销该账号的旧会话。
 - 新增显式会话续期 API，将 7 天期限作为闲置窗口，并以登录后 90 天作为不可突破的绝对期限。
+- 登录可接收 Client 生成的随机安装标识和可读设备名称，并将其作为会话审计元数据保存；该标识不参与认证或授权。
 - 新增可信身份过滤器和当前用户上下文；所有 `/api/**` 请求除注册、登录和预检请求外都必须具有有效身份。
 - 用户私有 Controller 只使用身份上下文中的用户 ID。兼容期内请求中的 `userId` 暂时保留，但只能与可信身份一致，不能作为权限依据。
 - 新增可切换的 `fixed` 与 `session` 认证模式。开发环境默认固定用户 1，可显式切换到真实会话模式；非开发环境禁止固定用户模式。
@@ -31,7 +32,7 @@
 - 涉及 Account/Auth Domain、Case、Repository、MyBatis、API DTO、HTTP Controller、Spring Security 过滤器和应用配置。
 - 新增 `user_account`、`user_session` 表及初始化/增量迁移；不修改已有业务表中的用户 ID 字段。
 - 更新用户私有 Controller 的用户 ID 来源，并补充根目录 Server/Client 认证契约。
-- Client 登录注册页面和令牌持久化不在本次 Server 变更范围内；现有开发模式保持无需登录可调试。
+- Client 登录注册页面和令牌持久化不在本次 Server 变更范围内；Server 只接收 Client 提供的安装标识，现有开发模式保持无需登录可调试。
 - Agent callback 与 `/internal/**` 的服务身份认证不属于本次变更，继续按现有独立机制处理。
 
 ## Success Criteria

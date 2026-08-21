@@ -4,7 +4,7 @@ public interface IAuthenticationCase {
 
     AuthenticationResult.Account register(String username, String password);
 
-    AuthenticationResult.Login login(String username, String password);
+    AuthenticationResult.Login login(String username, String password, String installationId, String deviceName);
 
     AuthenticationResult.AuthenticatedSession authenticate(String rawToken);
 

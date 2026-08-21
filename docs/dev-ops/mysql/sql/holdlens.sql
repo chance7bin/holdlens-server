@@ -37,12 +37,15 @@ CREATE TABLE `user_session` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '会话ID',
     `user_id` BIGINT NOT NULL COMMENT '账号ID',
     `token_hash` CHAR(64) NOT NULL COMMENT 'SHA-256令牌摘要',
+    `installation_id` CHAR(36) DEFAULT NULL COMMENT '客户端随机安装标识；不作为认证凭据',
+    `device_name` VARCHAR(100) DEFAULT NULL COMMENT '客户端提供的可读设备名称',
     `expires_at` DATETIME NOT NULL COMMENT '过期时间',
     `revoked_at` DATETIME DEFAULT NULL COMMENT '撤销时间',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_user_session_token_hash` (`token_hash`),
     KEY `idx_user_session_user_id` (`user_id`),
+    KEY `idx_user_session_user_installation` (`user_id`, `installation_id`),
     KEY `idx_user_session_active` (`token_hash`, `revoked_at`, `expires_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='本地用户会话';
 

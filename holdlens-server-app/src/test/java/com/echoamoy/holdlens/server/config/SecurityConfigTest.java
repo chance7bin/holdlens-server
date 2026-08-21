@@ -120,7 +120,8 @@ public class SecurityConfigTest {
         IAuthenticationCase authenticationCase() {
             return new IAuthenticationCase() {
                 @Override public AuthenticationResult.Account register(String username, String password) { return null; }
-                @Override public AuthenticationResult.Login login(String username, String password) { return null; }
+                @Override public AuthenticationResult.Login login(
+                        String username, String password, String installationId, String deviceName) { return null; }
                 @Override public AuthenticationResult.AuthenticatedSession authenticate(String rawToken) {
                     if (!"valid".equals(rawToken)) throw new AuthenticationFailedException();
                     return new AuthenticationResult.AuthenticatedSession(2L, 3L);

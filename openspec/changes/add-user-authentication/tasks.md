@@ -39,3 +39,9 @@
 - [x] 6.3 新增 `POST /api/auth/session/renew` 与 `{expiresAt}` 响应，并同步根目录认证契约；验证：仅当前已认证会话可续期，fixed 模式客户端不调用该接口。
 - [x] 6.4 运行认证 Domain、Case、Infrastructure、Trigger、App 测试与 JDK 17 Maven 质量门，检查 token 不进入日志/响应、旧会话不可恢复和用户隔离。
 - [x] 6.5 同步任务状态并运行 `openspec validate --strict add-user-authentication`。
+
+## 7. 客户端安装标识
+
+- [x] 7.1 扩展登录请求和会话领域模型，接收随机安装标识与设备名称，且不将其用于认证或授权；验证：格式规范化、非法输入和兼容空值测试。
+- [x] 7.2 扩展 PO、Repository、MyBatis、初始化 SQL 和增量迁移，将设备元数据绑定到会话并保持历史会话兼容；验证：参数绑定、索引、字段映射和迁移结构测试。
+- [x] 7.3 检查安装标识、设备名称不进入日志和错误响应，运行认证相关测试、JDK 17 Maven 质量门及严格 OpenSpec 校验。

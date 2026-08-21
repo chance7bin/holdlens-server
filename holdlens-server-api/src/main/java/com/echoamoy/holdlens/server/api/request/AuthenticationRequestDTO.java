@@ -1,6 +1,8 @@
 package com.echoamoy.holdlens.server.api.request;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -32,6 +34,12 @@ public final class AuthenticationRequestDTO {
 
         @NotBlank
         private String password;
+
+        @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$")
+        private String installationId;
+
+        @Size(max = 100)
+        private String deviceName;
 
         @Override
         public String toString() {

@@ -29,8 +29,12 @@ public class AuthControllerTest {
         AuthenticationRequestDTO.Login request = new AuthenticationRequestDTO.Login();
         request.setUsername("alice");
         request.setPassword("super-secret-password");
+        request.setInstallationId("a31c5067-2c19-4b45-9f2a-b8fdd4f5b13a");
+        request.setDeviceName("iPhone 15 Pro");
 
         assertFalse(request.toString().contains("super-secret-password"));
+        assertFalse(request.toString().contains("a31c5067-2c19-4b45-9f2a-b8fdd4f5b13a"));
+        assertFalse(request.toString().contains("iPhone 15 Pro"));
 
         AuthenticationDTO.Login response = new AuthenticationDTO.Login(
                 "raw-session-token", null, new AuthenticationDTO.Account(2L, "alice")

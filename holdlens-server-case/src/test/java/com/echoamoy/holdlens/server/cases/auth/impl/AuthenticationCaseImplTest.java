@@ -46,7 +46,7 @@ public class AuthenticationCaseImplTest {
         Fixture fixture = fixture();
         fixture.accounts.insert(account(2L, "alice", "correct1"));
 
-        expectAuthenticationFailure(() -> fixture.caseService.login("alice", "incorrect"));
+        expectAuthenticationFailure(() -> fixture.caseService.login("alice", "incorrect", null, null));
 
         assertEquals(1, fixture.accounts.findByUsername("alice").getFailedLoginCount());
         assertEquals(1, fixture.accounts.loginStateUpdates);
@@ -55,13 +55,13 @@ public class AuthenticationCaseImplTest {
     @Test
     public void nonexistentAccountUsesDummyHashAndThresholdFailureLocksAccount() throws Exception {
         Fixture fixture = fixture();
-        expectAuthenticationFailure(() -> fixture.caseService.login("missing", "incorrect"));
+        expectAuthenticationFailure(() -> fixture.caseService.login("missing", "incorrect", null, null));
         assertEquals(1, fixture.passwordHasher.dummyHashMatches);
 
         UserAccountEntity account = account(2L, "alice", "correct1");
         fixture.accounts.insert(account);
         for (int index = 0; index < 5; index++) {
-            expectAuthenticationFailure(() -> fixture.caseService.login("alice", "incorrect"));
+            expectAuthenticationFailure(() -> fixture.caseService.login("alice", "incorrect", null, null));
         }
         assertEquals(5, account.getFailedLoginCount());
         assertNotNull(account.getLockedUntil());
@@ -75,12 +75,16 @@ public class AuthenticationCaseImplTest {
         account.recordFailedLogin(5, Duration.ofMinutes(15), LocalDateTime.now());
         fixture.accounts.insert(account);
 
-        AuthenticationResult.Login login = fixture.caseService.login(" ALICE ", "correct1");
+        AuthenticationResult.Login login = fixture.caseService.login(
+                " ALICE ", "correct1", "A31C5067-2C19-4B45-9F2A-B8FDD4F5B13A", "  Xiaomi 14  ");
 
         assertEquals("raw-token", login.getRawToken());
         assertEquals(0, account.getFailedLoginCount());
         assertEquals(1, fixture.sessions.sessions.size());
         assertEquals("token-hash", fixture.sessions.sessions.get(1L).getTokenHash());
+        assertEquals("a31c5067-2c19-4b45-9f2a-b8fdd4f5b13a",
+                fixture.sessions.sessions.get(1L).getInstallationId());
+        assertEquals("Xiaomi 14", fixture.sessions.sessions.get(1L).getDeviceName());
     }
 
     @Test
@@ -88,10 +92,10 @@ public class AuthenticationCaseImplTest {
         Fixture fixture = fixture();
         fixture.accounts.insert(account(2L, "alice", "correct1"));
         UserSessionEntity oldSession = UserSessionEntity.create(
-                2L, "old-hash", LocalDateTime.now().plusDays(1));
+                2L, "old-hash", LocalDateTime.now().plusDays(1), null, null);
         fixture.sessions.insert(oldSession);
 
-        fixture.caseService.login("alice", "correct1");
+        fixture.caseService.login("alice", "correct1", null, null);
 
         assertFalse(oldSession.isActiveAt(LocalDateTime.now()));
         assertEquals(2, fixture.sessions.sessions.size());
@@ -102,7 +106,8 @@ public class AuthenticationCaseImplTest {
     public void authenticatesOnlyActiveSessionAndLogoutRevokesIt() throws Exception {
         Fixture fixture = fixture();
         fixture.accounts.insert(account(2L, "alice", "correct1"));
-        UserSessionEntity session = UserSessionEntity.create(2L, "token-hash", LocalDateTime.now().plusHours(1));
+        UserSessionEntity session = UserSessionEntity.create(
+                2L, "token-hash", LocalDateTime.now().plusHours(1), null, null);
         fixture.sessions.insert(session);
 
         AuthenticationResult.AuthenticatedSession authenticated = fixture.caseService.authenticate("raw-token");
@@ -117,7 +122,8 @@ public class AuthenticationCaseImplTest {
         Fixture fixture = fixture();
         UserAccountEntity account = account(2L, "alice", "correct1");
         fixture.accounts.insert(account);
-        UserSessionEntity expired = UserSessionEntity.create(2L, "token-hash", LocalDateTime.now().minusSeconds(1));
+        UserSessionEntity expired = UserSessionEntity.create(
+                2L, "token-hash", LocalDateTime.now().minusSeconds(1), null, null);
         fixture.sessions.insert(expired);
 
         expectAuthenticationFailure(() -> fixture.caseService.authenticate("raw-token"));
@@ -129,7 +135,8 @@ public class AuthenticationCaseImplTest {
     @Test
     public void rejectsSessionWhoseAccountDoesNotExist() throws Exception {
         Fixture fixture = fixture();
-        UserSessionEntity session = UserSessionEntity.create(2L, "token-hash", LocalDateTime.now().plusHours(1));
+        UserSessionEntity session = UserSessionEntity.create(
+                2L, "token-hash", LocalDateTime.now().plusHours(1), null, null);
         fixture.sessions.insert(session);
 
         expectAuthenticationFailure(() -> fixture.caseService.authenticate("raw-token"));
@@ -141,7 +148,7 @@ public class AuthenticationCaseImplTest {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime createdAt = now.minusDays(85);
         UserSessionEntity session = new UserSessionEntity();
-        session.restore(9L, 2L, "token-hash", now.plusHours(1), null, createdAt);
+        session.restore(9L, 2L, "token-hash", null, null, now.plusHours(1), null, createdAt);
         fixture.sessions.sessions.put(9L, session);
 
         AuthenticationResult.Renewal renewal = fixture.caseService.renew(9L);
@@ -155,7 +162,7 @@ public class AuthenticationCaseImplTest {
         Fixture fixture = fixture();
         LocalDateTime now = LocalDateTime.now();
         UserSessionEntity session = new UserSessionEntity();
-        session.restore(9L, 2L, "token-hash", now.plusHours(1), null, now.minusDays(90));
+        session.restore(9L, 2L, "token-hash", null, null, now.plusHours(1), null, now.minusDays(90));
         fixture.sessions.sessions.put(9L, session);
 
         expectAuthenticationFailure(() -> fixture.caseService.renew(9L));
@@ -248,8 +255,8 @@ public class AuthenticationCaseImplTest {
         public void insert(UserSessionEntity session) {
             long id = sessions.size() + 1L;
             LocalDateTime createTime = session.getCreateTime() == null ? LocalDateTime.now() : session.getCreateTime();
-            session.restore(id, session.getUserId(), session.getTokenHash(), session.getExpiresAt(),
-                    session.getRevokedAt(), createTime);
+            session.restore(id, session.getUserId(), session.getTokenHash(), session.getInstallationId(),
+                    session.getDeviceName(), session.getExpiresAt(), session.getRevokedAt(), createTime);
             sessions.put(id, session);
         }
 

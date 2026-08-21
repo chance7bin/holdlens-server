@@ -16,13 +16,16 @@ public class UserSessionPO {
     private Long id;
     private Long userId;
     private String tokenHash;
+    private String installationId;
+    private String deviceName;
     private Date expiresAt;
     private Date revokedAt;
     private Date createTime;
 
     @Override
     public String toString() {
-        return "UserSessionPO{id=" + id + ", userId=" + userId + ", tokenHash=REDACTED, expiresAt="
+        return "UserSessionPO{id=" + id + ", userId=" + userId
+                + ", tokenHash=REDACTED, installationId=REDACTED, deviceName=REDACTED, expiresAt="
                 + expiresAt + ", revokedAt=" + revokedAt + ", createTime=" + createTime + "}";
     }
 }

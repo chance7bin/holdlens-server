@@ -39,7 +39,8 @@ public class AuthController implements IAuthenticationService {
     @Override
     @PostMapping("/login")
     public Response<AuthenticationDTO.Login> login(@Valid @RequestBody AuthenticationRequestDTO.Login request) {
-        AuthenticationResult.Login login = authenticationCase.login(request.getUsername(), request.getPassword());
+        AuthenticationResult.Login login = authenticationCase.login(
+                request.getUsername(), request.getPassword(), request.getInstallationId(), request.getDeviceName());
         return Response.ok(new AuthenticationDTO.Login(login.getRawToken(), login.getExpiresAt(), toAccount(login.getAccount())));
     }
 

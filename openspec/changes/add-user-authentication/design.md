@@ -16,11 +16,13 @@
 - 让现有用户私有链路不再信任调用方提交的 `userId`。
 - 保留固定用户开发模式，同时确保该模式不能误用于非开发环境。
 - 明确新账号与固定用户 1 历史数据完全隔离。
+- 将 Client 随机生成的安装标识绑定到登录会话，支持服务端区分普通设备安装实例。
 
 **Non-Goals:**
 
 - 不实现 Client 登录注册页面、客户端令牌存储或路由守卫。
 - 不实现邮箱/手机验证、找回密码、修改密码、MFA、第三方登录或管理员角色。
+- 不读取硬件序列号、IMEI、系统广告标识或其他平台硬件 deviceId，也不把安装标识当作设备认证凭据。
 - 不把 Agent callback、内部汇率接口或服务间认证并入用户认证。
 - 不迁移、复制、重新归属或删除固定用户 1 的历史业务数据。
 - 不在本次变更中移除所有 API DTO 的过渡 `userId` 字段。
@@ -57,13 +59,13 @@ AuthController / AuthenticationFilter
 新增 `user_session`：
 
 ```text
-id, userId, tokenHash, expiresAt, revokedAt, createTime
+id, userId, tokenHash, installationId, deviceName, expiresAt, revokedAt, createTime
 ```
 
 - `token_hash` 全局唯一，查询只按摘要精确匹配。
 - 默认闲置有效期 7 天，由 `holdlens.auth.session-ttl` 配置；登录创建时 `expiresAt = now + sessionTtl`。
 - 默认绝对有效期 90 天，由 `holdlens.auth.session-absolute-ttl` 配置；续期后的到期时间不得晚于 `createTime + sessionAbsoluteTtl`。
-- 同一账号登录成功时，在账号行锁保护的同一事务内先撤销该账号全部有效旧会话，再创建新会话。旧 token 后续统一返回 401，不需要识别或保存设备 ID。
+- 同一账号登录成功时，在账号行锁保护的同一事务内先撤销该账号全部有效旧会话，再创建新会话。旧 token 后续统一返回 401；会话可以保存 Client 随机安装标识和可读设备名称，用于审计和设备区分，但不改变单有效会话规则。
 - 退出将当前会话标记为撤销；撤销写入本身幂等，过期或撤销会话均不得恢复认证，后续再次携带该 token 请求任何受保护接口都会返回 401。
 - `POST /api/auth/session/renew` 使用当前 token 对应的会话行，在会话仍有效且未达到绝对期限时把 `expiresAt` 更新为 `min(now + sessionTtl, createTime + sessionAbsoluteTtl)`，并返回新的 `expiresAt`。续期不轮换原始 token。
 - 本次不实现 refresh token。闲置过期、撤销或达到绝对期限后用户重新登录，降低双令牌和轮换状态的复杂度。
@@ -118,6 +120,16 @@ failedLoginCount, lockedUntil, createTime, updateTime
 
 后续 Client 完成令牌接入后，可通过独立兼容性变更移除冗余 `userId`。
 
+### 9. 随机会话安装标识
+
+Client 首次安装时生成符合 UUID 格式的随机 `installationId`，并在登录请求中同时提交本地可读的 `deviceName`。Server 将两者保存到新会话：
+
+- `installationId` 只表示一次客户端安装，卸载重装后可以变化；它不是硬件唯一标识。
+- Server 不使用 `installationId` 或 `deviceName` 建立身份、恢复会话、绕过密码或决定权限。
+- 兼容期允许旧 Client 省略这两个字段，历史会话保持为空；新 Client 必须提交随机安装标识。
+- 设备名称和安装标识不得进入普通日志或认证错误响应。
+- 数据库按 `user_id + installation_id` 建立普通索引，为后续受控的设备会话查询提供基础，但本次不新增历史设备管理 API。
+
 ## Security / Privacy
 
 - BCrypt 哈希、会话摘要、原始令牌和密码均不得写入普通日志；认证异常使用稳定、无枚举信息的消息。
@@ -126,6 +138,7 @@ failedLoginCount, lockedUntil, createTime, updateTime
 - 受保护请求先认证再进入 Controller，身份不一致在任何业务查询或写入之前失败。
 - Bearer token 不使用 Cookie，当前链路不依赖浏览器自动携带凭据，避免引入基于 Cookie 的 CSRF 状态。
 - 账号锁定减缓单账号暴力尝试；公网部署仍应在网关增加按 IP/路径限流，本次不实现分布式限流。
+- 安装标识是可由 Client 提交的审计元数据，不能作为可信设备证明；Server 仅做格式、长度和控制字符校验，并使用参数化 SQL 保存。
 
 ## Consistency / Transactions
 
@@ -140,6 +153,7 @@ failedLoginCount, lockedUntil, createTime, updateTime
 - dev 默认 `fixed`，现有本地 Client 和脚本继续以用户 1 工作。
 - session 模式下，旧 Client 未携带 token 时将得到 401，这是启用真实认证的预期行为。
 - 未接入续期的 Client 仍可使用固定 7 天会话，到期后重新登录；续期是向后兼容的新增动作。
+- 旧 Client 可以暂时省略安装标识；新迁移列允许为空，现有会话不失效。
 - 数据库变更先部署，再启用 session 模式；回滚应用时可保留账号和会话表，不影响旧业务表。
 - 已创建新账号业务数据后不得把该账号映射回用户 1；回滚仅关闭 session 入口，不改写业务所有权。
 
